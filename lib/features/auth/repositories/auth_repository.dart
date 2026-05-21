@@ -19,6 +19,17 @@ class AuthRepository {
 
   FlutterSecureStorage get secureStorage => _secureStorage;
 
+  Never _throwApiMessage(DioException e, {String fallback = 'Request failed'}) {
+    final data = e.response?.data;
+    if (data is Map) {
+      final message = data['message'];
+      if (message is String && message.trim().isNotEmpty) {
+        throw Exception(message.trim());
+      }
+    }
+    throw Exception(fallback);
+  }
+
   Future<AuthFlow> checkLogin({
     required String mobile,
     String? appHash,
@@ -26,6 +37,14 @@ class AuthRepository {
     try {
       final response = await _dio.post(
         ApiConstants.checkLoginEndpoint,
+        options: Options(
+          contentType: Headers.jsonContentType,
+          extra: const {
+            // Auth is not required for check-login; avoid attaching tokens.
+            'skipAuth': true,
+            'skipAuthRefresh': true,
+          },
+        ),
         data: {
           'mobile': mobile,
           if (appHash != null && appHash.trim().isNotEmpty)
@@ -49,6 +68,15 @@ class AuthRepository {
       await _secureStorage.write(key: 'userId', value: userId.toString());
       final flowValue = payload?['flow'] ?? data['flow'];
       return authFlowFromApi(flowValue) ?? AuthFlow.register;
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.badResponse) {
+        _throwApiMessage(e, fallback: 'Unable to continue');
+      }
+      logger.error(
+        'Check login failed: ${e.toString()}',
+        error: e,
+      );
+      rethrow;
     } catch (e) {
       logger.error(
         'Check login failed: ${e.toString()}',
@@ -133,6 +161,14 @@ class AuthRepository {
       }
       final response = await _dio.post(
         ApiConstants.loginEndpoint,
+        options: Options(
+          contentType: Headers.jsonContentType,
+          extra: const {
+            // Auth is not required for login; avoid attaching stale tokens.
+            'skipAuth': true,
+            'skipAuthRefresh': true,
+          },
+        ),
         data: {
           'mobile': mobile,
           'pin': pin,
@@ -179,6 +215,15 @@ class AuthRepository {
         await _secureStorage.write(key: 'userId', value: userId);
       }
       await _secureStorage.write(key: 'mobile', value: mobile);
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.badResponse) {
+        _throwApiMessage(e, fallback: 'Login failed');
+      }
+      logger.error(
+        'Login failed: ${e.toString()}',
+        error: e,
+      );
+      rethrow;
     } catch (e) {
       logger.error(
         'Login failed: ${e.toString()}',
@@ -210,6 +255,15 @@ class AuthRepository {
       }
 
       return payload?['message'] as String? ?? 'Login successful';
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.badResponse) {
+        _throwApiMessage(e, fallback: 'PIN validation failed');
+      }
+      logger.error(
+        'PIN lock failed: ${e.toString()}',
+        error: e,
+      );
+      rethrow;
     } catch (e) {
       logger.error(
         'PIN lock failed: ${e.toString()}',

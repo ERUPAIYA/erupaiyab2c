@@ -16,6 +16,7 @@ class BillerDetailState {
     this.payErrorMessage,
     this.showFullDetails = false,
     this.errorMessage,
+    this.billFetchNote,
   });
 
   final Biller? selectedBiller;
@@ -29,6 +30,7 @@ class BillerDetailState {
   final String? payErrorMessage;
   final bool showFullDetails;
   final String? errorMessage;
+  final String? billFetchNote;
 
   static const _sentinel = Object();
 
@@ -44,6 +46,7 @@ class BillerDetailState {
     Object? payErrorMessage = _sentinel,
     bool? showFullDetails,
     Object? errorMessage = _sentinel,
+    Object? billFetchNote = _sentinel,
   }) {
     return BillerDetailState(
       selectedBiller: selectedBiller == _sentinel
@@ -71,6 +74,9 @@ class BillerDetailState {
       errorMessage: errorMessage == _sentinel
           ? this.errorMessage
           : errorMessage as String?,
+      billFetchNote: billFetchNote == _sentinel
+          ? this.billFetchNote
+          : billFetchNote as String?,
     );
   }
 }

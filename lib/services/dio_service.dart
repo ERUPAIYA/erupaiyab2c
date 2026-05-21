@@ -15,8 +15,12 @@ class DioService {
     _dio = Dio(
       BaseOptions(
         baseUrl: ApiConstants.baseUrl,
-        connectTimeout: const Duration(seconds: 5000),
-        receiveTimeout: const Duration(seconds: 3000),
+        // NOTE: These values are meant to be in milliseconds.
+        // Using seconds here causes requests to appear "stuck" (e.g. check-login)
+        // for a very long time on slow / interrupted networks.
+        connectTimeout: const Duration(milliseconds: 5000),
+        sendTimeout: const Duration(milliseconds: 5000),
+        receiveTimeout: const Duration(milliseconds: 15000),
       ),
     );
     _dio.interceptors.add(DioInterceptors());

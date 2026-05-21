@@ -27,15 +27,29 @@ class FilterPlansSheet extends StatefulWidget {
 }
 
 class _FilterPlansSheetState extends State<FilterPlansSheet> {
-  late final Set<String> _selectedValidity =
-      Set<String>.from(widget.initialValiditySelected);
-  late final Set<String> _selectedData =
-      Set<String>.from(widget.initialDataSelected);
+  static const _allLabel = 'All';
+
+  late final Set<String> _selectedValidity = widget.initialValiditySelected
+          .where((e) => e.trim().isNotEmpty)
+          .toSet()
+          .isEmpty
+      ? <String>{_allLabel}
+      : Set<String>.from(widget.initialValiditySelected);
+  late final Set<String> _selectedData = widget.initialDataSelected
+          .where((e) => e.trim().isNotEmpty)
+          .toSet()
+          .isEmpty
+      ? <String>{_allLabel}
+      : Set<String>.from(widget.initialDataSelected);
 
   void _clearAll() {
     setState(() {
-      _selectedValidity.clear();
-      _selectedData.clear();
+      _selectedValidity
+        ..clear()
+        ..add(_allLabel);
+      _selectedData
+        ..clear()
+        ..add(_allLabel);
     });
   }
 
@@ -43,34 +57,58 @@ class _FilterPlansSheetState extends State<FilterPlansSheet> {
     required List<String> options,
     required Set<String> selected,
   }) {
+    final resolved = <String>[
+      _allLabel,
+      ...options.where((e) => e.trim().isNotEmpty && e.trim() != _allLabel),
+    ];
     return Wrap(
       spacing: 10.w,
       runSpacing: 10.h,
       children: [
-        for (final option in options)
-          ChoiceChip(
-            label: Text(option),
-            selected: selected.contains(option),
-            onSelected: (value) {
+        for (final option in resolved)
+          InkWell(
+            onTap: () {
               setState(() {
-                if (value) {
-                  selected.add(option);
-                } else {
-                  selected.remove(option);
+                if (option == _allLabel) {
+                  selected
+                    ..clear()
+                    ..add(_allLabel);
+                  return;
                 }
+                selected.remove(_allLabel);
+                if (selected.contains(option)) {
+                  selected.remove(option);
+                } else {
+                  selected.add(option);
+                }
+                if (selected.isEmpty) selected.add(_allLabel);
               });
             },
-            labelStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: selected.contains(option)
+                    ? AppColors.primary.withOpacity(0.1)
+                    : Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
                   color: selected.contains(option)
-                      ? Colors.white
-                      : AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
+                      ? AppColors.primary.withOpacity(0.35)
+                      : AppColors.textPrimary.withOpacity(0.08),
                 ),
-            selectedColor: AppColors.primary,
-            backgroundColor: const Color(0xFFF6F4F3),
-            side: BorderSide(color: AppColors.textPrimary.withOpacity(0.12)),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                option,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: selected.contains(option)
+                          ? AppColors.primary
+                          : AppColors.textPrimary.withOpacity(0.85),
+                    ),
+              ),
             ),
           ),
       ],
@@ -156,8 +194,8 @@ class _FilterPlansSheetState extends State<FilterPlansSheet> {
                   child: CustomElevatedButton(
                     onPressed: () {
                       widget.onApply(
-                        Set<String>.from(_selectedValidity),
-                        Set<String>.from(_selectedData),
+                        _selectedValidity.where((e) => e != _allLabel).toSet(),
+                        _selectedData.where((e) => e != _allLabel).toSet(),
                       );
                       Navigator.of(context).pop();
                     },

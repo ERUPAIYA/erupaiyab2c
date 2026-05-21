@@ -7,6 +7,7 @@ import 'package:flutter_spinkit/flutter_spinkit.dart';
 
 import '../../../constants/app_colors.dart';
 import '../../../constants/file_constants.dart';
+import '../../../widgets/app_snackbar.dart';
 import '../components/refer_and_earn_app_bar.dart';
 import '../components/referral_share_actions.dart';
 import '../repositories/referral_wallet_repository.dart';
@@ -19,11 +20,24 @@ class ReferAndEarnWalletView extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
+    final reloadToken = useState(0);
     final future = useMemoized(
       () => ReferralWalletRepository().fetchSummary(),
+      [reloadToken.value],
     );
     final snapshot = useFuture(future);
     final activeTab = useState(_WalletTab.myTeam);
+
+    useEffect(() {
+      if (!snapshot.hasError) return null;
+      Future.microtask(() {
+        AppSnackbar.show(
+          'Failed to load wallet balance. Pull to refresh.',
+          type: AppSnackbarType.error,
+        );
+      });
+      return null;
+    }, [snapshot.hasError]);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -102,13 +116,22 @@ class ReferAndEarnWalletView extends HookWidget {
                     top: Radius.circular(26.r),
                   ),
                 ),
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(16.w, 18.h, 16.w, 24.h),
-                  child: _buildBody(
-                    context,
-                    snapshot,
-                    activeTab.value,
-                    (tab) => activeTab.value = tab,
+                child: RefreshIndicator(
+                  color: AppColors.primary,
+                  onRefresh: () async {
+                    reloadToken.value++;
+                  },
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(16.w, 18.h, 16.w, 24.h),
+                      child: _buildBody(
+                        context,
+                        snapshot,
+                        activeTab.value,
+                        (tab) => activeTab.value = tab,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -662,6 +685,8 @@ class _WalletHeaderBalance extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLoading = snapshot.connectionState == ConnectionState.waiting ||
+        snapshot.connectionState == ConnectionState.active;
     final balance = snapshot.data?.walletBalance ?? '0.00';
     return Column(
       children: [
@@ -674,28 +699,97 @@ class _WalletHeaderBalance extends HookWidget {
               ),
         ),
         SizedBox(height: 8.h),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Center(
-              child: Image.asset(
-                FileConstants.coin_3d,
-                width: 36.w,
-                height: 36.w,
-              ),
-            ),
-            SizedBox(width: 8.w),
-            Text(
-              balance,
-              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
+        isLoading
+            ? const _BalanceShimmer()
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Center(
+                    child: Image.asset(
+                      FileConstants.coin_3d,
+                      width: 36.w,
+                      height: 36.w,
+                    ),
                   ),
-            ),
-          ],
-        ),
+                  SizedBox(width: 8.w),
+                  Text(
+                    balance,
+                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                ],
+              ),
       ],
     );
+  }
+}
+
+class _BalanceShimmer extends HookWidget {
+  const _BalanceShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = useAnimationController(
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final value = controller.value * 3 - 1;
+        return ShaderMask(
+          shaderCallback: (rect) {
+            return LinearGradient(
+              colors: [
+                Colors.white.withOpacity(0.22),
+                Colors.white.withOpacity(0.55),
+                Colors.white.withOpacity(0.22),
+              ],
+              stops: const [0.25, 0.5, 0.75],
+              begin: const Alignment(-1, -0.3),
+              end: const Alignment(1, 0.3),
+              transform: _SlidingGradientTransform(value),
+            ).createShader(rect);
+          },
+          blendMode: BlendMode.srcATop,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 36.w,
+                height: 36.w,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.25),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              SizedBox(width: 8.w),
+              Container(
+                width: 96.w,
+                height: 24.h,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.25),
+                  borderRadius: BorderRadius.circular(10.r),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SlidingGradientTransform extends GradientTransform {
+  const _SlidingGradientTransform(this.slidePercent);
+
+  final double slidePercent;
+
+  @override
+  Matrix4 transform(Rect bounds, {TextDirection? textDirection}) {
+    return Matrix4.translationValues(bounds.width * slidePercent, 0, 0);
   }
 }
 

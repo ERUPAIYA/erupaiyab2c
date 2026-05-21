@@ -1,10 +1,11 @@
+import 'package:dio/dio.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:sms_autofill/sms_autofill.dart';
 
-import '../../../utils/utils.dart';
 import '../../../constants/storage_keys.dart';
-import '../../refer_and_earn/repositories/referral_repository.dart';
 import '../../../services/logger_service.dart';
+import '../../../utils/utils.dart';
+import '../../refer_and_earn/repositories/referral_repository.dart';
 import '../models/auth_flow.dart';
 import '../models/auth_state.dart';
 import '../repositories/auth_repository.dart';
@@ -35,6 +36,23 @@ class AuthController extends StateNotifier<AuthState> {
   final AuthRepository _repository;
 
   String _messageFromException(Object error, String fallback) {
+    if (error is DioException) {
+      switch (error.type) {
+        case DioExceptionType.connectionTimeout:
+        case DioExceptionType.sendTimeout:
+        case DioExceptionType.receiveTimeout:
+          return 'Network timeout. Please check your internet and try again.';
+        case DioExceptionType.connectionError:
+          return 'Network error. Please check your internet and try again.';
+        default:
+          break;
+      }
+      final message = error.message;
+      if (message != null && message.trim().isNotEmpty) {
+        return message.trim();
+      }
+    }
+
     final raw = error.toString();
     if (raw.startsWith('Exception: ')) {
       return raw.replaceFirst('Exception: ', '');
@@ -94,7 +112,9 @@ class AuthController extends StateNotifier<AuthState> {
     try {
       String? appHash;
       try {
-        final signature = await SmsAutoFill().getAppSignature;
+        final signature = await SmsAutoFill()
+            .getAppSignature
+            .timeout(const Duration(seconds: 2), onTimeout: () => '');
         if (signature.trim().isNotEmpty) appHash = signature.trim();
       } catch (_) {}
       final flow = await _repository.checkLogin(
@@ -273,7 +293,9 @@ class AuthController extends StateNotifier<AuthState> {
     try {
       String? appHash;
       try {
-        final signature = await SmsAutoFill().getAppSignature;
+        final signature = await SmsAutoFill()
+            .getAppSignature
+            .timeout(const Duration(seconds: 2), onTimeout: () => '');
         if (signature.trim().isNotEmpty) appHash = signature.trim();
       } catch (_) {}
       final message = await _repository.requestForgotPinOtp(
@@ -332,8 +354,8 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<void> _handlePendingReferral() async {
     try {
-      final code =
-          await _repository.secureStorage.read(key: StorageKeys.pendingReferralCode);
+      final code = await _repository.secureStorage
+          .read(key: StorageKeys.pendingReferralCode);
       if (code == null || code.trim().isEmpty) {
         logger.debug('Referral: no pending code');
         return;

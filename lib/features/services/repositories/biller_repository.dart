@@ -78,7 +78,13 @@ class BillerRepository {
       final payload = response.data as Map<String, dynamic>? ?? {};
       final status = (payload['status'] ?? '').toString().toUpperCase();
       if (status != 'SUCCESS') {
-        throw BillerApiException(_extractBillFetchErrorMessage(payload));
+        final note = (payload['note'] ?? '')
+            .toString()
+            .trim();
+        throw BillerApiException(
+          _extractBillFetchErrorMessage(payload),
+          note: note,
+        );
       }
       return BillResponse.fromJson(payload);
     } catch (e) {
@@ -203,9 +209,10 @@ class BillerRepository {
 }
 
 class BillerApiException implements Exception {
-  BillerApiException(this.message);
+  BillerApiException(this.message, {this.note});
 
   final String message;
+  final String? note;
 
   @override
   String toString() => message;

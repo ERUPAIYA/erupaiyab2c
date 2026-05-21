@@ -34,7 +34,8 @@ class HomeSearchView extends HookConsumerWidget {
     final banners = useState<List<BannerModel>>([]);
     final bannerError = useState<String?>(null);
     final bannerPage = useState(0);
-    final bannerController = useMemoized(() => PageController(), const []);
+    final bannerController =
+        useMemoized(() => PageController(viewportFraction: 0.92), const []);
     Timer? debounce;
 
     useEffect(() {
@@ -132,12 +133,16 @@ class HomeSearchView extends HookConsumerWidget {
                               context,
                               banner.redirectUrl,
                             ),
-                            child: AppNetworkImage(
-                              url: banner.image,
-                              height: 84,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                              borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 6),
+                              child: AppNetworkImage(
+                                url: banner.image,
+                                height: 84,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                           );
                         },
@@ -301,7 +306,7 @@ class _CategorySection extends HookWidget {
             curve: Curves.easeOut,
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(14, 16, 14, 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 22),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(14),

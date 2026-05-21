@@ -28,6 +28,9 @@ import '../components/phone_number_input_card.dart';
 import '../controllers/auth_controller.dart';
 import '../models/auth_flow.dart';
 import 'reset_mpin_view.dart';
+import '../../home/controllers/home_controller.dart';
+import '../../profile/controllers/profile_controller.dart';
+import '../../spinandear/controllers/spin_options_controller.dart';
 
 enum _LoginStep {
   mobile,
@@ -214,6 +217,19 @@ class LoginView extends HookConsumerWidget {
           .login(mobile: phone, pin: pin);
       if (success) {
         if (context.mounted) {
+          // Prefetch so Home renders even if it stays mounted behind login.
+          Future.microtask(() {
+            ref
+                .read(homeControllerProvider.notifier)
+                .fetchQuickActionsIfNeeded(force: true);
+            ref
+                .read(homeControllerProvider.notifier)
+                .fetchAllQuickActionsIfNeeded(force: true);
+            ref
+                .read(profileControllerProvider.notifier)
+                .fetchProfileIfNeeded(force: true);
+            ref.read(spinOptionsControllerProvider.notifier).fetchSpinOptions();
+          });
           context.go(RouteConstants.home);
         }
       } else {

@@ -90,6 +90,85 @@ class MobilePrepaidContentShimmer extends StatelessWidget {
   }
 }
 
+class MobilePrepaidMyNumberCardShimmer extends StatelessWidget {
+  const MobilePrepaidMyNumberCardShimmer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return _Shimmer(
+      child: Container(
+        height: 86,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E2E2)),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            _ShimmerBox(height: 44, width: 44, radius: 14),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _ShimmerLine(width: 140.w, height: 12.h),
+                  SizedBox(height: 8.h),
+                  _ShimmerLine(width: 120.w, height: 10.h),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            _ShimmerBox(height: 32, width: 86, radius: 22),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class MobilePrepaidRecentRechargeCardShimmer extends StatelessWidget {
+  const MobilePrepaidRecentRechargeCardShimmer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return _Shimmer(
+      child: Container(
+        width: 295,
+        height: 96,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E2E2)),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            _ShimmerBox(height: 44, width: 44, radius: 14),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _ShimmerLine(width: 150.w, height: 12.h),
+                  SizedBox(height: 7.h),
+                  _ShimmerLine(width: 120.w, height: 10.h),
+                  SizedBox(height: 7.h),
+                  _ShimmerLine(width: 110.w, height: 10.h),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            _ShimmerBox(height: 32, width: 78, radius: 22),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ShimmerAppBar extends StatelessWidget {
   const _ShimmerAppBar();
 

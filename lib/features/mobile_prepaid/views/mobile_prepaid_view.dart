@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:e_rupaiya/features/mobile_prepaid/components/recharge_quick_action_card.dart';
 import 'package:e_rupaiya/features/mobile_prepaid/models/mobile_prepaid_state.dart';
+import 'package:e_rupaiya/widgets/search_textfield.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
@@ -18,20 +19,24 @@ import '../../../constants/app_colors.dart';
 import '../../../constants/file_constants.dart';
 import '../../../constants/routes_constant.dart';
 import '../../../services/permission_service.dart';
+import '../../../widgets/app_network_image.dart';
+import '../../../widgets/contacts_permission_card.dart';
 import '../../../widgets/k_dialog.dart';
 import '../../../widgets/my_app_bar.dart';
 import '../../../widgets/screen_wrapper.dart';
-import '../../../widgets/search_textfield.dart';
+import '../../home/models/banner_model.dart';
+import '../../profile/controllers/profile_controller.dart';
+import '../components/contacts_list.dart';
 import '../components/filter_plans_sheet.dart';
 import '../components/mobile_prepaid_shimmer.dart';
 import '../components/payment_bottom_sheet.dart';
 import '../components/plan_card.dart';
 import '../components/plan_details_sheet.dart';
-import '../components/recent_recharge_payments.dart';
 import '../controllers/contacts_cache_controller.dart';
 import '../controllers/mobile_prepaid_controller.dart';
 import '../controllers/prepaid_meta_controller.dart';
 import '../models/latest_transaction.dart';
+import '../models/my_number_info.dart';
 import '../models/operator_option.dart';
 import '../models/plan_item.dart';
 import '../models/recharge_quick_action_payload.dart';
@@ -75,6 +80,10 @@ class MobilePrepaidView extends HookConsumerWidget {
     final controller = ref.read(mobilePrepaidControllerProvider.notifier);
     final quickActionPayload = quickAction;
     final recentPayments = ref.watch(latestRechargeTransactionsProvider);
+    final banners = ref.watch(mobilePrepaidBannersProvider);
+    final profileState = ref.watch(profileControllerProvider);
+    final myNumberForApi =
+        _normalizeMobile((profileState.profile?.mobile ?? '').trim());
 
     final permissionService = useMemoized(() => const PermissionService());
     final hasPermission = useState(false);
@@ -87,6 +96,7 @@ class MobilePrepaidView extends HookConsumerWidget {
     final contactSearchController = useTextEditingController();
     final isMounted = useIsMounted();
     final filterToken = useRef(0);
+    final contactsSectionKey = useMemoized(GlobalKey.new);
 
     final manualMobileController = useTextEditingController();
     final planSearchController =
@@ -225,6 +235,7 @@ class MobilePrepaidView extends HookConsumerWidget {
     final hasPlanSelected = showPlans && state.selectedPlan != null;
     final showOperatorCard = showPlans || hasPlanSelected;
     final isOpeningOperatorSheet = useState(false);
+    final isSelectionScreen = !showPlans && !hasPlanSelected;
 
     Future<void> handleChange() async {
       if (isOpeningOperatorSheet.value) return;
@@ -251,7 +262,9 @@ class MobilePrepaidView extends HookConsumerWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: MyAppBar(
-        title: hasPlanSelected ? 'Pay Now' : 'Select A Recharge Plan',
+        title: isSelectionScreen
+            ? 'Mobile Prepaid'
+            : (hasPlanSelected ? 'Pay Now' : 'Select A Recharge Plan'),
         onBack: () {
           if (hasPlanSelected) {
             controller.deselectPlan();
@@ -288,63 +301,57 @@ class MobilePrepaidView extends HookConsumerWidget {
           Expanded(
             child: state.isFetching
                 ? const MobilePrepaidContentShimmer()
-                : !hasPermission.value
-                    ? _PermissionEmptyState(onAllow: handleRequestPermission)
-                    : hasPlanSelected
-                        ? _PayNowSection(
+                : hasPlanSelected
+                    ? _PayNowSection(
+                        state: state,
+                        controller: controller,
+                      )
+                    : showPlans
+                        ? _PlanSection(
                             state: state,
                             controller: controller,
+                            planSearchController: planSearchController,
                           )
-                        : showPlans
-                            ? _PlanSection(
-                                state: state,
-                                controller: controller,
-                                planSearchController: planSearchController,
-                              )
-                            : _ContactsSection(
-                                recentPayments: recentPayments,
-                                isLoading: contactsState.isLoading,
-                                contacts: filteredContacts.value,
-                                visibleCount: visibleContactCount.value,
-                                contactSearchController:
-                                    contactSearchController,
-                                onQueryChange: (value) =>
-                                    contactQuery.value = value,
-                                onReload: loadContacts,
-                                onLoadMore: () {
-                                  if (visibleContactCount.value >=
-                                      filteredContacts.value.length) {
-                                    return;
-                                  }
-                                  visibleContactCount.value =
-                                      (visibleContactCount.value + 100).clamp(
-                                    0,
-                                    filteredContacts.value.length,
-                                  );
-                                },
-                                onSelect: (mobile) {
-                                  controller.fetchOperatorAndPlans(
-                                    _normalizeMobile(mobile),
-                                  );
-                                },
-                                onRepeatRecent: (payment) {
-                                  manualMobileController.text =
-                                      payment.serviceNo;
-                                  controller.fetchOperatorAndPlans(
-                                    _normalizeMobile(payment.serviceNo),
-                                  );
-                                },
-                                onViewAllRecent: () => context.push(
-                                  RouteConstants.mobileRecentRecharges,
-                                ),
-                                manualMobileController: manualMobileController,
-                                onManualSubmit: () =>
-                                    controller.fetchOperatorAndPlans(
-                                  _normalizeMobile(
-                                    manualMobileController.text,
-                                  ),
-                                ),
-                              ),
+                        : _ContactsSection(
+                            hasContactsPermission: hasPermission.value,
+                            onRequestPermission: handleRequestPermission,
+                            recentPayments: recentPayments,
+                            banners: banners,
+                            myNumberForApi: myNumberForApi,
+                            contactsSectionKey: contactsSectionKey,
+                            isLoading: contactsState.isLoading,
+                            contacts: filteredContacts.value,
+                            visibleCount: visibleContactCount.value,
+                            contactSearchController: contactSearchController,
+                            onQueryChange: (value) =>
+                                contactQuery.value = value,
+                            onReload: loadContacts,
+                            onLoadMore: () {
+                              if (visibleContactCount.value >=
+                                  filteredContacts.value.length) {
+                                return;
+                              }
+                              visibleContactCount.value =
+                                  (visibleContactCount.value + 100).clamp(
+                                0,
+                                filteredContacts.value.length,
+                              );
+                            },
+                            onSelect: (mobile) {
+                              controller.fetchOperatorAndPlans(
+                                _normalizeMobile(mobile),
+                              );
+                            },
+                            onRepeatRecent: (payment) {
+                              manualMobileController.text = payment.serviceNo;
+                              controller.fetchOperatorAndPlans(
+                                _normalizeMobile(payment.serviceNo),
+                              );
+                            },
+                            onViewAllRecent: () => context.push(
+                              RouteConstants.mobileRecentRecharges,
+                            ),
+                          ),
           ),
         ],
       ),
@@ -354,7 +361,12 @@ class MobilePrepaidView extends HookConsumerWidget {
 
 class _ContactsSection extends StatelessWidget {
   const _ContactsSection({
+    required this.hasContactsPermission,
+    required this.onRequestPermission,
     required this.recentPayments,
+    required this.banners,
+    required this.myNumberForApi,
+    required this.contactsSectionKey,
     required this.isLoading,
     required this.contacts,
     required this.visibleCount,
@@ -365,11 +377,14 @@ class _ContactsSection extends StatelessWidget {
     required this.onSelect,
     required this.onRepeatRecent,
     required this.onViewAllRecent,
-    required this.manualMobileController,
-    required this.onManualSubmit,
   });
 
+  final bool hasContactsPermission;
+  final VoidCallback onRequestPermission;
   final AsyncValue<List<LatestTransaction>> recentPayments;
+  final AsyncValue<List<BannerModel>> banners;
+  final String myNumberForApi;
+  final GlobalKey contactsSectionKey;
   final bool isLoading;
   final List<Contact> contacts;
   final int visibleCount;
@@ -380,8 +395,6 @@ class _ContactsSection extends StatelessWidget {
   final ValueChanged<String> onSelect;
   final ValueChanged<LatestTransaction> onRepeatRecent;
   final VoidCallback onViewAllRecent;
-  final TextEditingController manualMobileController;
-  final VoidCallback onManualSubmit;
 
   @override
   Widget build(BuildContext context) {
@@ -394,110 +407,42 @@ class _ContactsSection extends StatelessWidget {
         return false;
       },
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
-          RecentRechargePayments(
-            recentPayments: recentPayments,
-            onRepeat: onRepeatRecent,
-            onViewAll: onViewAllRecent,
-          ),
-          SizedBox(height: 12.h),
-          Text(
-            'Enter Mobile Number',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: manualMobileController,
-                  keyboardType: TextInputType.phone,
-                  decoration: InputDecoration(
-                    hintText: 'Enter mobile number',
-                    hintStyle: TextStyle(
-                      color: AppColors.textPrimary.withOpacity(0.45),
-                    ),
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(
-                        color: AppColors.lightBorder,
-                      ),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(
-                        color: AppColors.lightBorder,
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
-                    ),
-                  ),
-                  onSubmitted: (_) => onManualSubmit(),
-                ),
-              ),
-              const SizedBox(width: 10),
-              SizedBox(
-                height: 46,
-                child: ElevatedButton(
-                  onPressed: onManualSubmit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: const Text('Get Plans'),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 4.h),
-          Row(
-            children: [
-              Text(
-                'Contacts',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                    ),
-              ),
-              const Spacer(),
-              TextButton(
-                onPressed: onReload,
-                child: Text(
-                  'Refresh',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          SearchTextfield(
-            hintText: 'Search contacts',
+          _MobilePrepaidBanner(banners: banners),
+          const SizedBox(height: 14),
+          _MobilePrepaidSearchRow(
             controller: contactSearchController,
-            onChange: onQueryChange,
+            onQueryChange: onQueryChange,
+            onContactsTap: () {
+              final target = contactsSectionKey.currentContext;
+              if (target == null) return;
+              Scrollable.ensureVisible(
+                target,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                alignment: 0.05,
+              );
+            },
           ),
-          const SizedBox(height: 12),
-          if (isLoading)
+          const SizedBox(height: 18),
+          _MyNumberSection(numberForApi: myNumberForApi, onSelect: onSelect),
+          const SizedBox(height: 18),
+          _RecentRechargesSection(
+            recentPayments: recentPayments,
+            onRepeatRecent: onRepeatRecent,
+            onViewAllRecent: onViewAllRecent,
+          ),
+          const SizedBox(height: 18),
+          SizedBox(key: contactsSectionKey),
+          const _SectionHeader(title: 'My Contacts'),
+          const SizedBox(height: 10),
+          if (!hasContactsPermission)
+            ContactsPermissionCard(
+              onAllow: onRequestPermission,
+              outerPadding: EdgeInsets.zero,
+            )
+          else if (isLoading)
             const Center(
               child: SpinKitCircle(
                 color: AppColors.primary,
@@ -517,7 +462,7 @@ class _ContactsSection extends StatelessWidget {
               ),
             )
           else ...[
-            _ContactsList(
+            ContactsList(
               contacts: contacts,
               visibleCount: visibleCount,
               onSelect: onSelect,
@@ -536,6 +481,543 @@ class _ContactsSection extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _MobilePrepaidBanner extends StatelessWidget {
+  const _MobilePrepaidBanner({required this.banners});
+
+  final AsyncValue<List<BannerModel>> banners;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 92,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.black.withOpacity(0.06)),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: banners.when(
+          loading: () => Image.asset(
+            FileConstants.homeBanner2,
+            width: double.infinity,
+            fit: BoxFit.cover,
+          ),
+          error: (_, __) => Image.asset(
+            FileConstants.homeBanner2,
+            width: double.infinity,
+            fit: BoxFit.cover,
+          ),
+          data: (items) {
+            final image = items.isNotEmpty ? items.first.image.trim() : '';
+            if (image.isEmpty) {
+              return Image.asset(
+                FileConstants.homeBanner2,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              );
+            }
+            return AppNetworkImage(
+              url: image,
+              height: 92,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              borderRadius: BorderRadius.circular(16),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _MobilePrepaidSearchRow extends StatelessWidget {
+  const _MobilePrepaidSearchRow({
+    required this.controller,
+    required this.onQueryChange,
+    required this.onContactsTap,
+  });
+
+  final TextEditingController controller;
+  final ValueChanged<String> onQueryChange;
+  final VoidCallback onContactsTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: SearchTextfield(
+            hintText: 'Search by number or name',
+            controller: controller,
+            onChange: onQueryChange,
+          ),
+        ),
+        const SizedBox(width: 12),
+        InkWell(
+          onTap: onContactsTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Center(
+            child: Image.asset(
+              FileConstants.contactLogo,
+              width: 30,
+              height: 30,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
+    required this.title,
+    this.actionText,
+    this.onAction,
+  });
+
+  final String title;
+  final String? actionText;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary,
+              ),
+        ),
+        const Spacer(),
+        if (actionText != null && onAction != null)
+          InkWell(
+            onTap: onAction,
+            child: Text(
+              actionText!,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xFFE85A2C),
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ExpiryPill extends StatelessWidget {
+  const _ExpiryPill(this.label);
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: const BoxDecoration(
+        color: Color(0xFF7C1D0F),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(16),
+          bottomLeft: Radius.circular(4),
+          topRight: Radius.circular(16),
+          bottomRight: Radius.circular(16),
+        ),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 11,
+              height: 1,
+            ),
+      ),
+    );
+  }
+}
+
+class _OrangePillButton extends StatelessWidget {
+  const _OrangePillButton({
+    required this.label,
+    required this.onPressed,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFFE85A2C),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+        ),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          height: 1.1,
+        ),
+      ),
+    );
+  }
+}
+
+class _MyNumberCard extends StatelessWidget {
+  const _MyNumberCard({
+    required this.dueLabel,
+    required this.operatorLabel,
+    this.operatorIconUrl,
+    required this.mobile,
+    required this.lastOn,
+    required this.onRecharge,
+  });
+
+  final String? dueLabel;
+  final String operatorLabel;
+  final String? operatorIconUrl;
+  final String mobile;
+  final String lastOn;
+  final VoidCallback onRecharge;
+
+  @override
+  Widget build(BuildContext context) {
+    // Keep sizing consistent across devices (avoid ScreenUtil scaling here).
+    const titleStyle = TextStyle(
+      fontSize: 16,
+      fontWeight: FontWeight.w800,
+      color: AppColors.textPrimary,
+      height: 1.1,
+    );
+    final subtitleStyle = TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w500,
+      color: AppColors.textPrimary.withOpacity(0.55),
+      height: 1.1,
+    );
+
+    return Stack(
+      clipBehavior: Clip.hardEdge,
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2E2E2)),
+          ),
+          child: Row(
+            children: [
+              _OperatorBrandLogo(
+                operatorLabel: operatorLabel,
+                operatorIconUrl: operatorIconUrl,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      mobile,
+                      style: titleStyle,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Last On - $lastOn',
+                      style: subtitleStyle,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              _OrangePillButton(
+                label: 'Recharge',
+                onPressed: onRecharge,
+              ),
+            ],
+          ),
+        ),
+        if ((dueLabel ?? '').trim().isNotEmpty)
+          Positioned(
+            top: 0,
+            left: 0,
+            child: _ExpiryPill(dueLabel!.trim()),
+          ),
+      ],
+    );
+  }
+}
+
+class _OperatorBrandLogo extends StatelessWidget {
+  const _OperatorBrandLogo({
+    required this.operatorLabel,
+    required this.operatorIconUrl,
+  });
+
+  final String operatorLabel;
+  final String? operatorIconUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = operatorLabel.trim();
+    final iconUrl = operatorIconUrl?.trim() ?? '';
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            height: 26,
+            width: 26,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFE8E2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: iconUrl.isEmpty
+                ? Center(
+                    child: Text(
+                      label.isEmpty ? 'M' : label[0].toUpperCase(),
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            color: const Color(0xFFE85A2C),
+                            fontWeight: FontWeight.w900,
+                            height: 1,
+                          ),
+                    ),
+                  )
+                : Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: AppNetworkImage(
+                      url: iconUrl,
+                      fit: BoxFit.contain,
+                      showShimmer: false,
+                    ),
+                  ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label.isEmpty ? '' : label.toLowerCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: const Color(0xFFE85A2C),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 9,
+                  height: 1,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecentRechargeRow extends StatelessWidget {
+  const _RecentRechargeRow({
+    required this.recentPayments,
+    required this.onRepeat,
+  });
+
+  final AsyncValue<List<LatestTransaction>> recentPayments;
+  final ValueChanged<LatestTransaction> onRepeat;
+
+  @override
+  Widget build(BuildContext context) {
+    return recentPayments.when(
+      loading: () => SizedBox(
+        height: 96,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemBuilder: (_, __) =>
+              const MobilePrepaidRecentRechargeCardShimmer(),
+          separatorBuilder: (_, __) => const SizedBox(width: 12),
+          itemCount: 2,
+        ),
+      ),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (items) {
+        final display = items.take(10).toList();
+        if (display.isEmpty) return const SizedBox.shrink();
+        return SizedBox(
+          height: 96,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemBuilder: (context, index) => _RecentRechargeCard(
+              title: display[index].billerName.trim().isNotEmpty
+                  ? display[index].billerName
+                  : display[index].serviceNo,
+              mobile: display[index].serviceNo,
+              lastOn:
+                  (display[index].transactionTime?.trim().isNotEmpty ?? false)
+                      ? display[index].transactionTime!.trim()
+                      : '--',
+              badgeLabel: _resolveDueOrExpiryLabel(
+                dueDate: display[index].dueDate,
+                expiresAt: display[index].expiresAt,
+              ),
+              onRepeat: () => onRepeat(display[index]),
+            ),
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemCount: display.length,
+          ),
+        );
+      },
+    );
+  }
+}
+
+String? _resolveDueOrExpiryLabel({
+  required String? dueDate,
+  required String? expiresAt,
+}) {
+  DateTime? parse(String? raw) {
+    final value = raw?.trim() ?? '';
+    if (value.isEmpty || value.toLowerCase() == 'null') return null;
+    return DateTime.tryParse(value);
+  }
+
+  final due = parse(dueDate);
+  final exp = parse(expiresAt);
+  final target = due ?? exp;
+  if (target == null) return null;
+
+  final now = DateTime.now();
+  final startOfToday = DateTime(now.year, now.month, now.day);
+  final days = target.difference(startOfToday).inDays;
+  if (days <= 0) return (due != null) ? 'Due Today' : 'Expires Today';
+  if (days == 1) return (due != null) ? 'Due In 1 Day' : 'Expires In 1 Day';
+  return (due != null) ? 'Due In $days Days' : 'Expires In $days Days';
+}
+
+class _RecentRechargeCard extends StatelessWidget {
+  const _RecentRechargeCard({
+    required this.title,
+    required this.mobile,
+    required this.lastOn,
+    required this.badgeLabel,
+    required this.onRepeat,
+  });
+
+  final String title;
+  final String mobile;
+  final String lastOn;
+  final String? badgeLabel;
+  final VoidCallback onRepeat;
+
+  @override
+  Widget build(BuildContext context) {
+    // Keep sizing consistent across devices (avoid ScreenUtil scaling here).
+    const titleStyle = TextStyle(
+      fontSize: 14,
+      fontWeight: FontWeight.w800,
+      color: AppColors.textPrimary,
+      height: 1.1,
+    );
+    final secondaryStyle = TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+      color: AppColors.textPrimary.withOpacity(0.7),
+      height: 1.1,
+    );
+    final tertiaryStyle = TextStyle(
+      fontSize: 11,
+      fontWeight: FontWeight.w500,
+      color: AppColors.textPrimary.withOpacity(0.55),
+      height: 1.1,
+    );
+
+    final showBadge = (badgeLabel ?? '').trim().isNotEmpty;
+    return Stack(
+      clipBehavior: Clip.hardEdge,
+      children: [
+        Container(
+          width: 295,
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2E2E2)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                height: 44,
+                width: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFE8E2),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  title.trim().isEmpty ? 'R' : title.trim()[0].toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    color: Color(0xFFE85A2C),
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: titleStyle,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      mobile,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: secondaryStyle,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Last On - $lastOn',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: tertiaryStyle,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              _OrangePillButton(
+                label: 'Repeat',
+                onPressed: onRepeat,
+              ),
+            ],
+          ),
+        ),
+        if (showBadge)
+          Positioned(
+            top: 0,
+            left: 0,
+            child: _ExpiryPill(badgeLabel!.trim()),
+          ),
+      ],
     );
   }
 }
@@ -564,8 +1046,13 @@ class _PlanSection extends StatelessWidget {
       stops: [0.0, 0.5, 1.0],
     );
 
-    final quickFilters = state.filterTags;
+    const allFilterLabel = 'All';
+    final quickFilters = state.filterTags
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty && e != allFilterLabel)
+        .toList();
     final applied = state.appliedFilters.map((e) => e.trim()).toSet();
+    final isAllSelected = applied.isEmpty || applied.contains(allFilterLabel);
 
     return ListView(
       padding: EdgeInsets.fromLTRB(
@@ -616,42 +1103,44 @@ class _PlanSection extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
           child: SizedBox(
             height: 30.h,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: 1 + quickFilters.length,
-              separatorBuilder: (_, index) =>
-                  SizedBox(width: index == 0 ? 12.w : 6.w),
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return OutlinedButton.icon(
-                    onPressed: () => KDialog.instance.openSheet(
-                      dialog: FilterPlansSheet(
-                        validityOptions: state.validityFilters,
-                        dataOptions: state.dataFilters,
-                        initialValiditySelected: applied
-                            .where((t) => state.validityFilters.contains(t))
-                            .toSet(),
-                        initialDataSelected: applied
-                            .where((t) => state.dataFilters.contains(t))
-                            .toSet(),
-                        onApply: (validity, data) async {
-                          final selected = <String>[
-                            ...validity,
-                            ...data,
-                          ];
-                          final info = state.operatorInfo;
-                          if (info == null) return;
-                          await controller.fetchPlansForSelection(
-                            mobileInput: state.mobile,
-                            operatorName: info.operatorName,
-                            circleName: info.circle,
-                            circleCode: info.circleCode,
-                            iconUrl: info.iconUrl,
-                            filters: selected,
-                          );
-                        },
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: 2 + quickFilters.length,
+                separatorBuilder: (_, index) =>
+                    SizedBox(width: index == 0 ? 12.w : 6.w),
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return OutlinedButton.icon(
+                      onPressed: () => KDialog.instance.openSheet(
+                        dialog: FilterPlansSheet(
+                          validityOptions: state.validityFilters,
+                          dataOptions: state.dataFilters,
+                          initialValiditySelected: applied
+                              .where((t) => t != allFilterLabel)
+                              .where((t) => state.validityFilters.contains(t))
+                              .toSet(),
+                          initialDataSelected: applied
+                              .where((t) => t != allFilterLabel)
+                              .where((t) => state.dataFilters.contains(t))
+                              .toSet(),
+                          onApply: (validity, data) async {
+                            final selected = <String>[
+                              ...validity,
+                              ...data,
+                            ];
+                            final info = state.operatorInfo;
+                            if (info == null) return;
+                            await controller.fetchPlansForSelection(
+                              mobileInput: state.mobile,
+                              operatorName: info.operatorName,
+                              circleName: info.circle,
+                              circleCode: info.circleCode,
+                              iconUrl: info.iconUrl,
+                              filters: selected,
+                            );
+                          },
+                        ),
                       ),
-                    ),
                     style: OutlinedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: AppColors.textPrimary,
@@ -674,14 +1163,61 @@ class _PlanSection extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                         fontSize: 12.sp,
                       ),
-                    ),
-                  );
-                }
-                final label = quickFilters[index - 1];
-                return InkWell(
-                  onTap: () async {
-                    final info = state.operatorInfo;
-                    if (info == null) return;
+                      ),
+                    );
+                  }
+                  if (index == 1) {
+                    return InkWell(
+                      onTap: () async {
+                        final info = state.operatorInfo;
+                        if (info == null) return;
+                        await controller.fetchPlansForSelection(
+                          mobileInput: state.mobile,
+                          operatorName: info.operatorName,
+                          circleName: info.circle,
+                          circleCode: info.circleCode,
+                          iconUrl: info.iconUrl,
+                          filters: const [],
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isAllSelected
+                              ? AppColors.primary.withOpacity(0.1)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isAllSelected
+                                ? AppColors.primary.withOpacity(0.35)
+                                : AppColors.textPrimary.withOpacity(0.08),
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            allFilterLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: isAllSelected
+                                      ? AppColors.primary
+                                      : AppColors.textPrimary.withOpacity(0.85),
+                                ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  final label = quickFilters[index - 2];
+                  return InkWell(
+                    onTap: () async {
+                      final info = state.operatorInfo;
+                      if (info == null) return;
                     await controller.fetchPlansForSelection(
                       mobileInput: state.mobile,
                       operatorName: info.operatorName,
@@ -698,12 +1234,12 @@ class _PlanSection extends StatelessWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: applied.contains(label)
+                      color: applied.contains(label) && !isAllSelected
                           ? AppColors.primary.withOpacity(0.1)
                           : Colors.white,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: applied.contains(label)
+                        color: applied.contains(label) && !isAllSelected
                             ? AppColors.primary.withOpacity(0.35)
                             : AppColors.textPrimary.withOpacity(0.08),
                       ),
@@ -715,7 +1251,7 @@ class _PlanSection extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               fontWeight: FontWeight.w600,
-                              color: applied.contains(label)
+                              color: applied.contains(label) && !isAllSelected
                                   ? AppColors.primary
                                   : AppColors.textPrimary.withOpacity(0.85),
                             ),
@@ -1429,184 +1965,6 @@ class _OperatorLogo extends StatelessWidget {
   }
 }
 
-class _PermissionEmptyState extends StatelessWidget {
-  const _PermissionEmptyState({required this.onAllow});
-
-  final VoidCallback onAllow;
-
-  @override
-  Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewPadding.bottom;
-    return Column(
-      children: [
-        const Spacer(),
-        Container(
-          height: 140,
-          width: 140,
-          decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.08),
-            shape: BoxShape.circle,
-          ),
-          child: const Center(
-            child: Icon(
-              Icons.phone_in_talk_outlined,
-              color: AppColors.primary,
-              size: 64,
-            ),
-          ),
-        ),
-        const SizedBox(height: 18),
-        Text(
-          'Recharging Is Easier When You',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w700,
-              ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Provide Access To Contacts',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w700,
-              ),
-        ),
-        const Spacer(),
-        Padding(
-          padding: EdgeInsets.fromLTRB(24, 18, 24, 18 + bottomInset),
-          child: SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: onAllow,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 0,
-              ),
-              child: Text(
-                'Allow Contact Access',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ContactsList extends StatelessWidget {
-  const _ContactsList({
-    required this.contacts,
-    required this.visibleCount,
-    required this.onSelect,
-  });
-
-  final List<Contact> contacts;
-  final int visibleCount;
-  final ValueChanged<String> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    final displayContacts = contacts.length > visibleCount
-        ? contacts.take(visibleCount).toList()
-        : contacts;
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
-      itemCount: displayContacts.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        final contact = displayContacts[index];
-        final phone =
-            contact.phones.isNotEmpty ? contact.phones.first.number : '';
-        final initials = contact.displayName.isNotEmpty
-            ? contact.displayName
-                .trim()
-                .split(' ')
-                .map((e) => e[0])
-                .take(2)
-                .join()
-            : '';
-        return InkWell(
-          onTap: phone.isEmpty ? null : () => onSelect(_normalizeMobile(phone)),
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: const [
-                BoxShadow(
-                  color: AppColors.cardShadow,
-                  blurRadius: 10,
-                  offset: Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.gradientStart.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Center(
-                    child: Text(
-                      initials.toUpperCase(),
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        contact.displayName,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
-                            ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        phone.isEmpty ? 'No number' : phone,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.textPrimary.withOpacity(0.6),
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (phone.isNotEmpty)
-                  Icon(
-                    Icons.chevron_right,
-                    color: AppColors.textPrimary.withOpacity(0.5),
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
 class _SuggestedPlanCards extends StatelessWidget {
   const _SuggestedPlanCards({
     required this.plans,
@@ -1735,6 +2093,111 @@ class _SuggestedPlanCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _MyNumberSection extends ConsumerWidget {
+  const _MyNumberSection({
+    required this.numberForApi,
+    required this.onSelect,
+  });
+
+  final String numberForApi;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final resolved = numberForApi.trim();
+    if (resolved.isEmpty) return const SizedBox.shrink();
+    final myNumberInfo = ref.watch(mobilePrepaidMyNumberProvider(resolved));
+    return myNumberInfo.when(
+      loading: () => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SectionHeader(title: 'My Number'),
+          const SizedBox(height: 10),
+          const MobilePrepaidMyNumberCardShimmer(),
+        ],
+      ),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (info) {
+        final mobile = info.number.trim();
+        if (mobile.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SectionHeader(title: 'My Number'),
+            const SizedBox(height: 10),
+            _MyNumberCard(
+              dueLabel: (info.dueLabel?.trim().isNotEmpty ?? false)
+                  ? info.dueLabel!.trim()
+                  : null,
+              operatorLabel: (info.operatorName?.trim().isNotEmpty ?? false)
+                  ? info.operatorName!.trim()
+                  : '',
+              operatorIconUrl: info.operatorIcon,
+              mobile: mobile,
+              lastOn: (info.lastOn?.trim().isNotEmpty ?? false)
+                  ? info.lastOn!.trim()
+                  : '--',
+              onRecharge: () => onSelect(mobile),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _RecentRechargesSection extends StatelessWidget {
+  const _RecentRechargesSection({
+    required this.recentPayments,
+    required this.onRepeatRecent,
+    required this.onViewAllRecent,
+  });
+
+  final AsyncValue<List<LatestTransaction>> recentPayments;
+  final ValueChanged<LatestTransaction> onRepeatRecent;
+  final VoidCallback onViewAllRecent;
+
+  @override
+  Widget build(BuildContext context) {
+    return recentPayments.when(
+      loading: () => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeader(
+            title: 'Recents',
+            actionText: 'View all',
+            onAction: onViewAllRecent,
+          ),
+          const SizedBox(height: 10),
+          _RecentRechargeRow(
+            recentPayments: recentPayments,
+            onRepeat: onRepeatRecent,
+          ),
+        ],
+      ),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (items) {
+        if (items.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _SectionHeader(
+              title: 'Recents',
+              actionText: 'View all',
+              onAction: onViewAllRecent,
+            ),
+            const SizedBox(height: 10),
+            _RecentRechargeRow(
+              recentPayments: recentPayments,
+              onRepeat: onRepeatRecent,
+            ),
+          ],
+        );
+      },
     );
   }
 }

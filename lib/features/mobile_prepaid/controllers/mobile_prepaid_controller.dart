@@ -2,12 +2,14 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../services/logger_service.dart';
 import '../models/latest_transaction.dart';
+import '../models/my_number_info.dart';
 import '../models/mobile_prepaid_state.dart';
 import '../models/plan_item.dart';
 import '../models/operator_info.dart';
 import '../models/prepaid_transaction_status.dart';
 import '../models/recharge_order_result.dart';
 import '../repositories/mobile_prepaid_repository.dart';
+import '../../home/models/banner_model.dart';
 
 final mobilePrepaidRepositoryProvider = Provider<MobilePrepaidRepository>(
   (ref) => MobilePrepaidRepository(),
@@ -25,6 +27,22 @@ final latestRechargeTransactionsProvider =
   (ref) async {
     final repo = ref.watch(mobilePrepaidRepositoryProvider);
     return repo.fetchLatestTransactions(service: 'recharge');
+  },
+);
+
+final mobilePrepaidBannersProvider =
+    FutureProvider.autoDispose<List<BannerModel>>(
+  (ref) async {
+    final repo = ref.watch(mobilePrepaidRepositoryProvider);
+    return repo.fetchMobilePrepaidBanners(lang: 'en');
+  },
+);
+
+final mobilePrepaidMyNumberProvider =
+    FutureProvider.autoDispose.family<MyNumberInfo, String>(
+  (ref, number) async {
+    final repo = ref.watch(mobilePrepaidRepositoryProvider);
+    return repo.fetchMyNumber(number: number);
   },
 );
 
@@ -110,7 +128,7 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
         validityFilters: result.validityFilters,
         dataFilters: result.dataFilters,
         filterTags: result.filterTags,
-        appliedFilters: filters.isNotEmpty ? filters : result.filterTags,
+        appliedFilters: filters.isNotEmpty ? filters : const ['All'],
         selectedCategory: categories.isNotEmpty ? categories.first : '',
       );
     } catch (e, stackTrace) {
@@ -175,7 +193,7 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
         validityFilters: result.validityFilters,
         dataFilters: result.dataFilters,
         filterTags: result.filterTags,
-        appliedFilters: filters.isNotEmpty ? filters : result.filterTags,
+        appliedFilters: filters.isNotEmpty ? filters : const ['All'],
         selectedCategory: categories.isNotEmpty ? categories.first : '',
       );
     } catch (e, stackTrace) {

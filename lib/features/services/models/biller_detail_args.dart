@@ -7,6 +7,8 @@ class BillerDetailArgs {
     this.paymentType,
     this.mobileNumber,
     this.cardLast4,
+    this.autoFetchBill = false,
+    this.autoOpenPaymentSheet = false,
   });
 
   final Biller biller;
@@ -14,4 +16,6 @@ class BillerDetailArgs {
   final String? paymentType;
   final String? mobileNumber;
   final String? cardLast4;
+  final bool autoFetchBill;
+  final bool autoOpenPaymentSheet;
 }

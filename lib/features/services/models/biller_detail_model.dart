@@ -10,6 +10,8 @@ class BillerDetail {
     required this.customerParams,
     required this.additionalInfo,
     required this.paymentModes,
+    this.billImage,
+    this.billTermsCond,
   });
 
   factory BillerDetail.fromJson(Map<String, dynamic> json) {
@@ -29,6 +31,9 @@ class BillerDetail {
       planMdmRequirement: data['planMdmRequirement'] as String? ?? '',
       paymentAmountExactness:
           data['paymentAmountExactness'] as String? ?? '',
+      billImage: (data['bill_image'] ?? data['billImage'])?.toString(),
+      billTermsCond: (data['bill_terms_cond'] ?? data['billTermsCond'])
+          ?.toString(),
       customerParams: params
           .map((e) => BillerCustomerParam.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -48,6 +53,8 @@ class BillerDetail {
   final String fetchRequirement;
   final String planMdmRequirement;
   final String paymentAmountExactness;
+  final String? billImage;
+  final String? billTermsCond;
   final List<BillerCustomerParam> customerParams;
   final List<BillerAdditionalInfo> additionalInfo;
   final List<BillerPaymentMode> paymentModes;

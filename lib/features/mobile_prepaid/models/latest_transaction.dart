@@ -7,7 +7,12 @@ class LatestTransaction {
     required this.status,
     required this.transactionRef,
     required this.serviceNo,
+    this.serviceNoFull,
     required this.icon,
+    this.createdAt,
+    this.expiresAt,
+    this.dueDate,
+    this.transactionTime,
   });
 
   final String id;
@@ -17,7 +22,12 @@ class LatestTransaction {
   final String status;
   final String transactionRef;
   final String serviceNo;
+  final String? serviceNoFull;
   final String icon;
+  final String? createdAt;
+  final String? expiresAt;
+  final String? dueDate;
+  final String? transactionTime;
 
   factory LatestTransaction.fromJson(Map<String, dynamic> json) {
     return LatestTransaction(
@@ -30,7 +40,13 @@ class LatestTransaction {
       status: (json['status'] ?? '').toString(),
       transactionRef: (json['transaction_ref'] ?? '').toString(),
       serviceNo: (json['service_no'] ?? '').toString(),
+      serviceNoFull:
+          (json['service_no_full'] ?? json['serviceNoFull'])?.toString(),
       icon: (json['icon'] ?? '').toString(),
+      createdAt: json['created_at']?.toString(),
+      expiresAt: json['expires_at']?.toString(),
+      dueDate: json['due_date']?.toString(),
+      transactionTime: json['transaction_time']?.toString(),
     );
   }
 

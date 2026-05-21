@@ -106,16 +106,25 @@ class AppNetworkImage extends StatelessWidget {
 
   Widget _buildLoading() {
     if (placeholder != null) return placeholder!;
+    final shimmer = showShimmer
+        ? _Shimmer(child: _FallbackBox(width: width, height: height))
+        : _FallbackBox(width: width, height: height);
     return SizedBox(
       width: width,
       height: height,
-      child: Center(
-        child: Image.asset(
-          FileConstants.loadingGif,
-          width: 32,
-          height: 32,
-          fit: BoxFit.contain,
-        ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          shimmer,
+          Center(
+            child: Image.asset(
+              FileConstants.loadingGif,
+              width: 32,
+              height: 32,
+              fit: BoxFit.contain,
+            ),
+          ),
+        ],
       ),
     );
   }

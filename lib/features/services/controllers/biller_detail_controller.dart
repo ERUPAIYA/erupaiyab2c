@@ -86,6 +86,7 @@ class BillerDetailController extends StateNotifier<BillerDetailState> {
     state = state.copyWith(
       isFetchingBill: true,
       errorMessage: null,
+      billFetchNote: null,
       customerParamsInput: customerParams,
     );
     try {
@@ -105,6 +106,7 @@ class BillerDetailController extends StateNotifier<BillerDetailState> {
         isFetchingBill: false,
         billResponse: bill,
         errorMessage: null,
+        billFetchNote: null,
       );
     } on BillerApiException catch (e, stackTrace) {
       logger.error(
@@ -115,6 +117,7 @@ class BillerDetailController extends StateNotifier<BillerDetailState> {
       state = state.copyWith(
         isFetchingBill: false,
         errorMessage: e.message,
+        billFetchNote: (e.note ?? '').trim().isEmpty ? null : e.note!.trim(),
       );
     } catch (e, stackTrace) {
       logger.error(
@@ -125,6 +128,7 @@ class BillerDetailController extends StateNotifier<BillerDetailState> {
       state = state.copyWith(
         isFetchingBill: false,
         errorMessage: 'Failed to fetch bill. Please try again.',
+        billFetchNote: null,
       );
     }
   }

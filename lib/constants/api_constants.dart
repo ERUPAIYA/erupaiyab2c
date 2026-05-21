@@ -73,6 +73,8 @@ class ApiConstants {
   static const String prepaidRechargeEndpoint = '$baseUrl/api/prepaid/recharge';
   static const String rechargeCreateOrderEndpoint =
       '$baseUrl/api/recharge/create-order';
+  static const String rechargeMyNumberEndpoint =
+      '$baseUrl/api/recharge/my-number';
   static const String prepaidTransactionHistoryEndpoint =
       '$baseUrl/api/prepaid/transaction-history';
   static String transactionStatusEndpoint(String transactionId) =>
@@ -132,7 +134,7 @@ class ApiConstants {
       '$baseUrl/api/support/tickets/latest-transactions';
 
   static String latestTransactionsEndpoint({required String service}) =>
-      '$baseUrl/api/latest-transactions?service=$service';
+      '$baseUrl/api/latest-transactions?service=${Uri.encodeQueryComponent(service)}';
 
   static const String faqsEndpoint = '$baseUrl/api/faqs';
 

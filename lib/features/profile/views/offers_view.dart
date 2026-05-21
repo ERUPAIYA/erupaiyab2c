@@ -46,11 +46,6 @@ class OffersView extends HookConsumerWidget {
               }
               ref.read(homeTabControllerProvider).index = 0;
             },
-            trailing: IconButton(
-              icon:
-                  const Icon(Icons.help_outline, color: AppColors.textPrimary),
-              onPressed: () {},
-            ),
           ),
           Expanded(
             child: offersAsync.when(

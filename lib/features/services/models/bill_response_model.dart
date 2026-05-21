@@ -10,6 +10,7 @@ class BillResponse {
     required this.otherDetails,
     required this.additionalParams,
     required this.approvalRefNum,
+    required this.note,
   });
 
   factory BillResponse.fromJson(Map<String, dynamic> json) {
@@ -30,6 +31,7 @@ class BillResponse {
       otherDetails: otherDetails,
       additionalParams: additionalParams,
       approvalRefNum: payload['approvalRefNum'] as String? ?? '',
+      note: (json['note'] ?? '').toString(),
     );
   }
 
@@ -43,6 +45,7 @@ class BillResponse {
   final Map<String, String> otherDetails;
   final Map<String, String> additionalParams;
   final String approvalRefNum;
+  final String note;
 
   /// Convert paisa string to rupees (e.g. "139000" → 1390.00)
   double get amountInRupees {

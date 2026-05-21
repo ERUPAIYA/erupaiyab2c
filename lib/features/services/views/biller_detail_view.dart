@@ -32,6 +32,9 @@ import '../../../widgets/search_textfield.dart';
 import '../../mobile_prepaid/components/payment_bottom_sheet.dart';
 import '../../mobile_prepaid/controllers/contacts_cache_controller.dart';
 import '../../profile/controllers/profile_controller.dart';
+import '../components/credit_card_pay_now/credit_card_pay_now_section.dart';
+import '../components/piped_gas/piped_gas_bill_section.dart';
+import '../components/service_error_banner.dart';
 import '../controllers/biller_detail_controller.dart';
 import '../models/bill_response_model.dart';
 import '../models/biller_detail_args.dart';
@@ -62,14 +65,27 @@ class BillerDetailView extends HookConsumerWidget {
     final bottomInset = MediaQuery.of(context).viewPadding.bottom;
     final mobilePrefill = args?.mobileNumber?.trim();
     final last4Prefill = args?.cardLast4?.trim();
+    final autoFetchBill = args?.autoFetchBill ?? false;
+    final autoOpenPaymentSheet = args?.autoOpenPaymentSheet ?? false;
     final loggedInMobile = profileState.profile?.mobile.trim();
     final isGasCylinder = useMemoized(
       () => _isGasCylinderCategory(args?.paymentType),
       [args?.paymentType],
     );
+    final isPipedGas = useMemoized(
+      () => _isPipedGasCategory(args?.paymentType),
+      [args?.paymentType],
+    );
+    final isElectricity = useMemoized(
+      () => (args?.paymentType ?? '').toLowerCase().contains('electric'),
+      [args?.paymentType],
+    );
     final showBillSample = useState(false);
     final fieldErrors = useState<Map<String, String?>>({});
     final gasPolicyMessage = useState<String?>(null);
+    final pipedGasErrorMessage = useState<String?>(null);
+    final creditCardErrorMessage = useState<String?>(null);
+    final didAutoFetchBill = useRef(false);
     final isSubscription = _isSubscriptionFlow(
       paymentType: args?.paymentType,
       detailCategory: detail?.billerCategoryName,
@@ -186,6 +202,14 @@ class BillerDetailView extends HookConsumerWidget {
               fieldErrors.value = {};
               return;
             }
+            if (isPipedGas) {
+              pipedGasErrorMessage.value = message;
+              return;
+            }
+            if (isCreditCardFlow) {
+              creditCardErrorMessage.value = message;
+              return;
+            }
             if (gasPolicyMessage.value != null) {
               gasPolicyMessage.value = null;
             }
@@ -202,20 +226,36 @@ class BillerDetailView extends HookConsumerWidget {
 
               return;
             }
+
+            // Gas fetch-bill failures should be rendered inline (red cards)
+            // beneath the form; never show a popup for gas.
+            if (isGasCylinder) {
+              return;
+            }
           }
-          if (isCreditCardFlow && _isNoBillDueMessage(message)) {
-            KDialog.instance.openDialog(
-              barrierDismissible: true,
-              dialog: _NoBillDueDialog(
-                title: 'No Bill Due',
-                message: 'No bills found for this account right now.',
-                onContinue: () {
-                  Navigator.of(context).pop();
-                  controller.clearBill();
-                },
-              ),
+          // For gas/piped-gas/credit-card, avoid popups in any state.
+          if (isGasCylinder) {
+            AppSnackbar.show(
+              message,
+              behavior: SnackBarBehavior.fixed,
             );
-          } else if (isOnInputForm) {
+            return;
+          }
+          if (isCreditCardFlow) {
+            creditCardErrorMessage.value = message;
+            return;
+          }
+          if (isOnInputForm) {
+            // Gas bill fetch failures should be shown inline (red cards)
+            // instead of a dialog.
+            if (isGasCylinder) {
+              return;
+            }
+            if (isPipedGas) {
+              // Show inline banner for piped gas instead of popup.
+              pipedGasErrorMessage.value = message;
+              return;
+            }
             // Fetch-bill failures should be shown as a friendly popup instead
             // of a snackbar since we support many billers/services.
             KDialog.instance.openDialog(
@@ -245,7 +285,8 @@ class BillerDetailView extends HookConsumerWidget {
       bool hasFastTag(String? v) =>
           (v ?? '').toLowerCase().replaceAll('-', '').contains('fastag') ||
           (v ?? '').toLowerCase().replaceAll('-', '').contains('fasttag');
-      return hasFastTag(detail?.billerCategoryName) || hasFastTag(biller?.billerName);
+      return hasFastTag(detail?.billerCategoryName) ||
+          hasFastTag(biller?.billerName);
     })();
 
     // Set bill amount when fetched
@@ -262,6 +303,12 @@ class BillerDetailView extends HookConsumerWidget {
       if (bill != null || detailState.errorMessage == null) {
         if (gasPolicyMessage.value != null) {
           gasPolicyMessage.value = null;
+        }
+        if (pipedGasErrorMessage.value != null) {
+          pipedGasErrorMessage.value = null;
+        }
+        if (creditCardErrorMessage.value != null) {
+          creditCardErrorMessage.value = null;
         }
       }
       return null;
@@ -305,9 +352,11 @@ class BillerDetailView extends HookConsumerWidget {
               log('Prefilled gas mobile for ${param.paramName}: ${tc.text}');
             } else if (mobilePrefill != null &&
                 mobilePrefill.isNotEmpty &&
-                isMobileField) {
-              tc.text = _sanitizePhone(mobilePrefill);
-              log('Prefilled mobile for ${param.paramName}: ${tc.text}');
+                (isMobileField ||
+                    _isIdentifierParam(param.paramName, param.dataType))) {
+              tc.text =
+                  isMobileField ? _sanitizePhone(mobilePrefill) : mobilePrefill;
+              log('Prefilled identifier for ${param.paramName}: ${tc.text}');
             } else if (last4Prefill != null &&
                 last4Prefill.isNotEmpty &&
                 isLastFourField) {
@@ -367,6 +416,62 @@ class BillerDetailView extends HookConsumerWidget {
       return null;
     }, [detail, mobilePrefill, last4Prefill, loggedInMobile, isGasCylinder]);
 
+    // Auto-fetch bill & open payment sheet for "Pay Now" from recent cards.
+    useEffect(() {
+      // Reset per biller/flag so navigating to another provider can auto-fetch once.
+      didAutoFetchBill.value = false;
+      return null;
+    }, [autoFetchBill, biller?.billerId]);
+
+    useEffect(() {
+      if (!autoFetchBill) return null;
+      if (detail == null || biller == null) return null;
+      if (bill != null) return null;
+      if (didAutoFetchBill.value) return null;
+      if (detailState.isFetchingBill || detailState.isFetchingDetail)
+        return null;
+
+      didAutoFetchBill.value = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!context.mounted) return;
+        final params = <String, String>{};
+        for (final p in detail.customerParams.where((p) => p.visibility)) {
+          final tc = inputControllers[p.paramName];
+          final value = tc?.text.trim() ?? '';
+          if (value.isNotEmpty) {
+            params[p.paramName] = value;
+          }
+        }
+        if (params.isEmpty) return;
+        await controller.fetchBill(customerParams: params);
+      });
+      return null;
+    }, [
+      autoFetchBill,
+      biller?.billerId,
+      detail,
+      bill,
+      detailState.isFetchingBill,
+      detailState.isFetchingDetail,
+    ]);
+
+    useEffect(() {
+      if (!autoOpenPaymentSheet) return null;
+      if (bill == null) return null;
+      if (detailState.isFetchingBill) return null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        final amountToPay = _resolveDateBasedAmount(bill);
+        _showPaymentSheet(
+          context,
+          amountToPay,
+          isCreditCardFlow: isCreditCardFlow,
+          paymentTypeOverride: args?.paymentType,
+        );
+      });
+      return null;
+    }, [autoOpenPaymentSheet, bill, detailState.isFetchingBill]);
+
     return PopScope(
       canPop: detailState.billResponse == null,
       onPopInvoked: (didPop) {
@@ -378,7 +483,9 @@ class BillerDetailView extends HookConsumerWidget {
         appBar: PreferredSize(
           preferredSize: const Size.fromHeight(140),
           child: MyAppBar(
-            title: 'Fetch Your Provider',
+            title: (isCreditCardFlow && detailState.billResponse != null)
+                ? 'Pay Now'
+                : 'Fetch Your Provider',
             showHelp: true,
             onBack: () {
               if (detailState.billResponse != null) {
@@ -446,9 +553,20 @@ class BillerDetailView extends HookConsumerWidget {
                                 isExpanded: showBillSample.value,
                                 onToggle: () => showBillSample.value =
                                     !showBillSample.value,
+                                billImageUrl: detail.billImage,
+                                termsText: detail.billTermsCond,
                               ),
                               const SizedBox(height: 16),
                             ],
+                            if (isPipedGas &&
+                                pipedGasErrorMessage.value != null &&
+                                pipedGasErrorMessage.value!.trim().isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 16),
+                                child: ServiceErrorBanner(
+                                  message: pipedGasErrorMessage.value!,
+                                ),
+                              ),
                             if (isSubscription) ...[
                               const _InfoNoteCard(
                                 text:
@@ -651,11 +769,40 @@ class BillerDetailView extends HookConsumerWidget {
                                 ),
                               );
                             }),
+                            if (isCreditCardFlow &&
+                                creditCardErrorMessage.value != null &&
+                                creditCardErrorMessage.value!
+                                    .trim()
+                                    .isNotEmpty) ...[
+                              ServiceErrorBanner(
+                                message: creditCardErrorMessage.value!,
+                                onClose: () =>
+                                    creditCardErrorMessage.value = null,
+                              ),
+                              const SizedBox(height: 12),
+                            ],
                             if (gasPolicyMessage.value != null) ...[
                               _GasPolicyBanner(
                                 message: gasPolicyMessage.value!,
                               ),
                               const SizedBox(height: 12),
+                            ],
+                            if (isGasCylinder &&
+                                (detailState.errorMessage ?? '')
+                                    .trim()
+                                    .isNotEmpty) ...[
+                              _GasErrorBanner(
+                                message: detailState.errorMessage!.trim(),
+                              ),
+                              const SizedBox(height: 12),
+                              if ((detailState.billFetchNote ?? '')
+                                  .trim()
+                                  .isNotEmpty) ...[
+                                _GasErrorBanner(
+                                  message: detailState.billFetchNote!.trim(),
+                                ),
+                                const SizedBox(height: 12),
+                              ],
                             ],
                           ]
 
@@ -707,7 +854,9 @@ class BillerDetailView extends HookConsumerWidget {
                               totalOutstanding: totalOutstanding,
                               minimumDue: minimumDue,
                               isCreditCardFlow: isCreditCardFlow,
+                              isPipedGas: isPipedGas,
                               allowCustomAmount: isFastTag,
+                              isElectricity: isElectricity,
                             ),
                           ]
 
@@ -762,8 +911,9 @@ class BillerDetailView extends HookConsumerWidget {
                               final payLabel = showSubscriptionSummary
                                   ? 'Pay Now'
                                   : (bill != null
-                                      // ? 'Pay \u20B9${_resolvedPayAmount(billAmountController, bill).toStringAsFixed(0)}'
-                                      ? 'Proceed to Pay'
+                                      ? (isCreditCardFlow
+                                          ? 'Proceed'
+                                          : 'Proceed to Pay')
                                       : 'CONFIRM');
                               final enteredAmount =
                                   _parseEnteredAmount(value.text);
@@ -776,7 +926,15 @@ class BillerDetailView extends HookConsumerWidget {
                                   : null;
                               final shouldDisablePay = showSubscriptionSummary
                                   ? (subscriptionAmount ?? 0) <= 0
-                                  : (bill != null && (enteredAmount ?? 0) <= 0);
+                                  : (bill != null &&
+                                      ((enteredAmount ?? 0) <= 0 ||
+                                          (isPipedGas &&
+                                              ((enteredAmount ?? 0) <
+                                                      PipedGasBillSection
+                                                          .minAmount ||
+                                                  (enteredAmount ?? 0) >
+                                                      PipedGasBillSection
+                                                          .maxAmount))));
                               return CustomElevatedButton(
                                 onPressed: shouldDisablePay
                                     ? null
@@ -877,11 +1035,10 @@ class BillerDetailView extends HookConsumerWidget {
                                                     true
                                                 ? status!.message
                                                 : fallbackMessage;
-                                            final txId = status
-                                                    ?.transactionId
-                                                    .trim()
-                                                    .isNotEmpty ==
-                                                true
+                                            final txId = status?.transactionId
+                                                        .trim()
+                                                        .isNotEmpty ==
+                                                    true
                                                 ? status!.transactionId.trim()
                                                 : order.transactionRef;
 
@@ -916,11 +1073,9 @@ class BillerDetailView extends HookConsumerWidget {
                                                   statusIcon: isSuccess
                                                       ? Icons.check
                                                       : (isPending
-                                                          ? Icons
-                                                              .hourglass_top
+                                                          ? Icons.hourglass_top
                                                           : Icons.close),
-                                                  statusIconColor:
-                                                      Colors.white,
+                                                  statusIconColor: Colors.white,
                                                   statusIconBorderColor:
                                                       Colors.white,
                                                   headerGradientColors:
@@ -975,10 +1130,9 @@ class BillerDetailView extends HookConsumerWidget {
                                             },
                                             onFailure: (message) async {
                                               await verifyAndShowResult(
-                                                fallbackMessage:
-                                                    message.isEmpty
-                                                        ? 'Payment failed. Please try again.'
-                                                        : message,
+                                                fallbackMessage: message.isEmpty
+                                                    ? 'Payment failed. Please try again.'
+                                                    : message,
                                               );
                                             },
                                             onExternalWallet: (_) async {
@@ -1174,7 +1328,7 @@ class _InfoNoteCard extends StatelessWidget {
         ),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           if (showLogo) ...[
             Image.asset(FileConstants.bharatConnectColor, height: 18),
@@ -1186,7 +1340,7 @@ class _InfoNoteCard extends StatelessWidget {
               softWrap: true,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     fontSize: 10,
-                    color: AppColors.textPrimary.withOpacity(0.7),
+                    color: Colors.black,
                     height: 1.5,
                   ),
             ),
@@ -1208,14 +1362,7 @@ class _GasPolicyBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFF7A0000),
-            Color(0xFFB00000),
-          ],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
+        color: const Color(0xFFDB0101),
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -1232,6 +1379,55 @@ class _GasPolicyBanner extends StatelessWidget {
               fontWeight: FontWeight.w700,
               height: 1.4,
             ),
+      ),
+    );
+  }
+}
+
+class _GasErrorBanner extends StatelessWidget {
+  const _GasErrorBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFDB0101),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Icon(
+              Icons.info_outline,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message.trim(),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    height: 1.4,
+                  ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1327,10 +1523,24 @@ class _SubscriptionSummaryCard extends StatelessWidget {
 bool _isGasCylinderCategory(String? paymentType) {
   final value = (paymentType ?? '').trim().toLowerCase();
   if (value.isEmpty) return false;
-  // Only "Book Gas"/gas-cylinder category should auto-prefill logged-in mobile.
-  return value.contains('gas') ||
-      value.contains('lpg') ||
-      value.contains('cylinder');
+  // Only LPG cylinder booking ("Book Gas") should use cylinder-specific UI
+  // (bill sample/terms + registered mobile prefills). Exclude Piped Gas (PNG).
+  final isPipedGas =
+      value.contains('piped') || value.contains('pipe') || value.contains('png');
+  if (isPipedGas) return false;
+
+  return value.contains('lpg') ||
+      value.contains('cylinder') ||
+      (value.contains('book') && value.contains('gas'));
+}
+
+bool _isPipedGasCategory(String? paymentType) {
+  final value = (paymentType ?? '').trim().toLowerCase();
+  if (value.isEmpty) return false;
+  return value.contains('piped') ||
+      value.contains('pipe') ||
+      value.contains('png') ||
+      (value.contains('gas') && value.contains('pipe'));
 }
 
 bool _isGasBookingPolicyMessage(String message) {
@@ -1636,6 +1846,19 @@ bool _isMobileParam(String name) {
       normalized.contains('contact');
 }
 
+bool _isIdentifierParam(String name, String dataType) {
+  final normalized = name.toLowerCase();
+  final isNumeric = dataType.toUpperCase() == 'NUMERIC';
+  if (!isNumeric) return false;
+  return normalized.contains('customer') ||
+      normalized.contains('consumer') ||
+      normalized.contains('account') ||
+      normalized.contains('service') ||
+      normalized.contains('subscriber') ||
+      normalized.contains('ca') ||
+      normalized.contains('connection');
+}
+
 String _sanitizePhone(String raw) {
   final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
   if (digits.length > 10) {
@@ -1901,7 +2124,9 @@ class _CompactBillSection extends StatelessWidget {
     required this.totalOutstanding,
     required this.minimumDue,
     required this.isCreditCardFlow,
+    required this.isPipedGas,
     this.allowCustomAmount = false,
+    this.isElectricity = false,
   });
 
   final BillResponse bill;
@@ -1913,57 +2138,155 @@ class _CompactBillSection extends StatelessWidget {
   final double? totalOutstanding;
   final double? minimumDue;
   final bool isCreditCardFlow;
+  final bool isPipedGas;
   final bool allowCustomAmount;
+  final bool isElectricity;
 
   @override
   Widget build(BuildContext context) {
+    if (isCreditCardFlow) {
+      final total = totalOutstanding ?? bill.amountInRupees;
+      return CreditCardPayNowSection(
+        bill: bill,
+        totalOutstanding: total,
+        minimumDue: minimumDue,
+        selected: switch (selectedAmountType) {
+          _PaymentAmountType.totalOutstanding =>
+            CreditCardPayNowAmountType.total,
+          _PaymentAmountType.minimumDue => CreditCardPayNowAmountType.minimum,
+          _PaymentAmountType.custom => CreditCardPayNowAmountType.custom,
+        },
+        onChanged: (next) {
+          onAmountTypeChanged(
+            switch (next) {
+              CreditCardPayNowAmountType.total =>
+                _PaymentAmountType.totalOutstanding,
+              CreditCardPayNowAmountType.minimum =>
+                _PaymentAmountType.minimumDue,
+              CreditCardPayNowAmountType.custom => _PaymentAmountType.custom,
+            },
+          );
+        },
+        amountController: billAmountController,
+      );
+    }
+
+    if (isPipedGas) {
+      return PipedGasBillSection(
+        bill: bill,
+        customerParams: customerParams,
+        amountController: billAmountController,
+      );
+    }
+
     // Pick "Early Payment Date" from additionalParams if available
     final earlyPayDate = bill.additionalParams['Early Payment Date'] ?? '';
+    final pc = bill.additionalParams['PC'] ?? '';
+    final note = bill.note.trim();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Grey info card
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Column(
-            children: [
-              ...customerParams.entries.map(
-                (entry) => _InfoRow(label: entry.key, value: entry.value),
+        // Details card (Electricity: white + arrow on card)
+        isElectricity
+            ? Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE2E2E2)),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: AppColors.cardShadow,
+                          blurRadius: 14,
+                          offset: Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        ...customerParams.entries.map(
+                          (entry) => _ColonInfoRow(
+                            label: entry.key,
+                            value: entry.value,
+                          ),
+                        ),
+                        if (earlyPayDate.isNotEmpty)
+                          _ColonInfoRow(
+                            label: 'Early Payment Date',
+                            value: earlyPayDate,
+                          ),
+                        if (pc.isNotEmpty)
+                          _ColonInfoRow(
+                            label: 'PC',
+                            value: pc,
+                          ),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    right: 0,
+                    top: -20,
+                    child: _ToggleArrowButton(
+                      isExpanded: false,
+                      onTap: onToggle,
+                    ),
+                  ),
+                ],
+              )
+            : Column(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      children: [
+                        ...customerParams.entries.map(
+                          (entry) =>
+                              _InfoRow(label: entry.key, value: entry.value),
+                        ),
+                        if (earlyPayDate.isNotEmpty)
+                          _InfoRow(
+                            label: 'Early Payment Date',
+                            value: earlyPayDate,
+                          ),
+                      ],
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: _ToggleArrowButton(
+                        isExpanded: false,
+                        onTap: onToggle,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              if (earlyPayDate.isNotEmpty)
-                _InfoRow(
-                  label: 'Early Payment Date',
-                  value: earlyPayDate,
-                ),
-            ],
-          ),
-        ),
-
-        // Toggle arrow (down)
-        Align(
-          alignment: Alignment.centerRight,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: _ToggleArrowButton(
-              isExpanded: false,
-              onTap: onToggle,
-            ),
-          ),
-        ),
 
         // Amount card (orange border)
-        _AmountDisplayCard(bill: bill),
+        Padding(
+          padding: EdgeInsets.only(top: isElectricity ? 22 : 0),
+          child: _AmountDisplayCard(bill: bill),
+        ),
 
         const SizedBox(height: 16),
 
-        // Late payment warning
-        if (bill.latePaymentFormatted.isNotEmpty) ...[
+        // Additional fee note (prefer API `note` for Electricity)
+        if (isElectricity && note.isNotEmpty) ...[
+          _AdditionalNoteCard(text: note),
+          const SizedBox(height: 20),
+        ] else if (!isElectricity && bill.latePaymentFormatted.isNotEmpty) ...[
           Text(
             'Payments made after ${bill.dueDate} will incur an additional charge of ${_additionalCharge()}.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -1975,24 +2298,6 @@ class _CompactBillSection extends StatelessWidget {
         ],
 
         const SizedBox(height: 8),
-
-        if (isCreditCardFlow) ...[
-          Text(
-            'Pay Bill (As per your convenience)',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-          const SizedBox(height: 12),
-          _CreditCardAmountSelector(
-            selected: selectedAmountType,
-            totalOutstanding: totalOutstanding ?? bill.amountInRupees,
-            minimumDue: minimumDue,
-            onChanged: onAmountTypeChanged,
-          ),
-          const SizedBox(height: 16),
-        ],
 
         // Bill Amount field
         Text(
@@ -2006,7 +2311,7 @@ class _CompactBillSection extends StatelessWidget {
         TextField(
           controller: billAmountController,
           keyboardType: TextInputType.number,
-          readOnly: !(isCreditCardFlow || allowCustomAmount),
+          readOnly: !allowCustomAmount,
           onTap: () {
             // Make it easy to replace the prefilled amount (e.g. FASTag).
             billAmountController.selection = TextSelection(
@@ -2249,78 +2554,88 @@ class _FullDetailsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // White details card
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: const [
-              BoxShadow(
-                color: AppColors.cardShadow,
-                blurRadius: 12,
-                offset: Offset(0, 4),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E2E2)),
+                boxShadow: const [
+                  BoxShadow(
+                    color: AppColors.cardShadow,
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: Column(
-            children: [
-              // Customer params
-              ...customerParams.entries.map(
-                (entry) => _InfoRow(label: entry.key, value: entry.value),
+              child: Column(
+                children: [
+                  // Customer params
+                  ...customerParams.entries.map(
+                    (entry) =>
+                        _ColonInfoRow(label: entry.key, value: entry.value),
+                  ),
+
+                  // All additional params
+                  ...bill.additionalParams.entries.map(
+                    (e) => _ColonInfoRow(label: e.key, value: e.value),
+                  ),
+
+                  // Account holder / Customer Name
+                  if (bill.accountHolderName.isNotEmpty)
+                    _ColonInfoRow(
+                      label: 'Customer Name',
+                      value: bill.accountHolderName,
+                    ),
+
+                  // Due Date
+                  if (bill.dueDate.isNotEmpty)
+                    _ColonInfoRow(
+                      label: 'Due Date',
+                      value: DateFormatHelper.formatDisplayDate(bill.dueDate),
+                    ),
+
+                  // Early payment date & amount
+                  if (bill.earlyPaymentFormatted.isNotEmpty)
+                    _ColonInfoRow(
+                      label: 'Early payment date & amount',
+                      value: _earlyPaymentText(),
+                    ),
+
+                  // Due payment date & amount
+                  if (bill.dueDate.isNotEmpty)
+                    _ColonInfoRow(
+                      label: 'Due payment date & amount',
+                      value: _duePaymentText(),
+                    ),
+
+                  // Late payment date & amount
+                  if (bill.latePaymentFormatted.isNotEmpty)
+                    _ColonInfoRow(
+                      label: 'Late payment date & amount',
+                      value: _latePaymentText(),
+                    ),
+                ],
               ),
-
-              // All additional params
-              ...bill.additionalParams.entries.map(
-                (e) => _InfoRow(label: e.key, value: e.value),
-              ),
-
-              // Account holder / Customer Name
-              if (bill.accountHolderName.isNotEmpty)
-                _InfoRow(
-                  label: 'Customer Name',
-                  value: bill.accountHolderName,
-                ),
-
-              // Due Date
-              if (bill.dueDate.isNotEmpty)
-                _InfoRow(label: 'Due Date', value: bill.dueDate),
-
-              // Early payment date & amount
-              if (bill.earlyPaymentFormatted.isNotEmpty)
-                _InfoRow(
-                  label: 'Early payment date & amount',
-                  value: _earlyPaymentText(),
-                ),
-
-              // Due payment date & amount
-              if (bill.dueDate.isNotEmpty)
-                _InfoRow(
-                  label: 'Due payment date & amount',
-                  value: _duePaymentText(),
-                ),
-
-              // Late payment date & amount
-              if (bill.latePaymentFormatted.isNotEmpty)
-                _InfoRow(
-                  label: 'Late payment date & amount',
-                  value: _latePaymentText(),
-                ),
-            ],
-          ),
-        ),
-
-        // Toggle arrow (up)
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Center(
-            child: _ToggleArrowButton(
-              isExpanded: true,
-              onTap: onToggle,
             ),
-          ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: -21,
+              child: Center(
+                child: _ToggleArrowButton(
+                  isExpanded: true,
+                  onTap: onToggle,
+                ),
+              ),
+            ),
+          ],
         ),
+        const SizedBox(height: 24),
       ],
     );
   }
@@ -2368,26 +2683,119 @@ class _ToggleArrowButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 42,
-        height: 42,
-        decoration: BoxDecoration(
-          color: AppColors.primary,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withOpacity(0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
+        onTap: onTap,
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFFFF835C),
+                Color(0xFFDD5428),
+              ],
             ),
-          ],
-        ),
-        child: Icon(
-          isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-          color: Colors.white,
-          size: 24,
-        ),
+          ),
+          child: Icon(
+            isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+            color: Colors.white,
+            size: 24,
+          ),
+        ));
+  }
+}
+
+class _ColonInfoRow extends StatelessWidget {
+  const _ColonInfoRow({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textPrimary.withOpacity(0.75),
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            ':',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textPrimary.withOpacity(0.75),
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.left,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdditionalNoteCard extends StatelessWidget {
+  const _AdditionalNoteCard({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7F4),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE85A2C).withOpacity(0.4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Icon(
+              Icons.info_outline,
+              color: Color(0xFFE85A2C),
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textPrimary.withOpacity(0.8),
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2442,145 +2850,6 @@ enum _PaymentAmountType {
   totalOutstanding,
   minimumDue,
   custom,
-}
-
-class _CreditCardAmountSelector extends StatelessWidget {
-  const _CreditCardAmountSelector({
-    required this.selected,
-    required this.totalOutstanding,
-    required this.minimumDue,
-    required this.onChanged,
-  });
-
-  final _PaymentAmountType selected;
-  final double totalOutstanding;
-  final double? minimumDue;
-  final ValueChanged<_PaymentAmountType> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final resolvedMinimum = minimumDue;
-    return Row(
-      children: [
-        Expanded(
-          child: _CreditCardAmountCard(
-            title: 'Total Due Amount',
-            amount: '\u20B9${totalOutstanding.toStringAsFixed(0)}',
-            isSelected: selected == _PaymentAmountType.totalOutstanding,
-            onTap: () => onChanged(_PaymentAmountType.totalOutstanding),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _CreditCardAmountCard(
-            title: 'Min. Payable Amount',
-            amount: resolvedMinimum == null
-                ? '\u20B90'
-                : '\u20B9${resolvedMinimum.toStringAsFixed(0)}',
-            isSelected: selected == _PaymentAmountType.minimumDue,
-            onTap: resolvedMinimum == null
-                ? null
-                : () => onChanged(_PaymentAmountType.minimumDue),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _CreditCardAmountCard extends StatelessWidget {
-  const _CreditCardAmountCard({
-    required this.title,
-    required this.amount,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final String title;
-  final String amount;
-  final bool isSelected;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final borderColor = isSelected ? AppColors.primary : AppColors.lightBorder;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16.r),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16.r),
-        child: Stack(
-          clipBehavior: Clip.hardEdge,
-          children: [
-            SizedBox(
-              height: 92.h,
-              width: double.infinity,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16.r),
-                  border: Border.all(color: borderColor, width: 1.2.w),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: AppColors.cardShadow,
-                      blurRadius: 10,
-                      offset: Offset(0, 6),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            if (onTap != null)
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: Image.asset(
-                  FileConstants.ellipse7,
-                  width: 70.w,
-                  height: 65.h,
-                  fit: BoxFit.cover,
-                ),
-              ),
-            if (onTap != null)
-              Positioned(
-                right: 22.w,
-                bottom: 22.w,
-                child: Icon(
-                  Icons.arrow_forward,
-                  size: 20.sp,
-                  color: Colors.white,
-                ),
-              ),
-            Positioned.fill(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.textPrimary.withOpacity(0.7),
-                            fontWeight: FontWeight.w600,
-                          ),
-                    ),
-                    SizedBox(height: 6.h),
-                    Text(
-                      amount,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 /// Returns the amount to display/pay based on today's date vs early/due dates.
@@ -2649,9 +2918,11 @@ double? _resolveMinimumDue(BillResponse bill) {
     bill,
     const [
       'Minimum Amount Due',
+      'Minimum Payable Amount',
       'MinimumDueAmount',
       'Minimum Due',
       'Minimum Payment',
+      'Min Payable Amount',
       'Min Amount Due',
       'Min Due',
     ],

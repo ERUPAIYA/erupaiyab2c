@@ -122,6 +122,7 @@ class FileConstants {
   static String metro = 'assets/images/png/home_icon/metro.png';
   static String preCard = 'assets/images/png/home_icon/pre_card.png';
   static String resetPinIcon = 'assets/images/png/resetpinIcon.png';
+  static String contactLogo = 'assets/images/png/contactLogo.png';
   static String homeBanner1 = 'assets/images/png/home_icon/home_banner1.png';
   static String homeBanner3 = 'assets/images/png/home_icon/home_banner3.png';
   static String homeBanner5 = 'assets/images/png/home_icon/homebanner5.png';
@@ -147,6 +148,7 @@ class FileConstants {
   static String goldArrow = 'assets/images/png/home_icon/gold_arrow.png';
   static String silverArrow = 'assets/images/png/home_icon/silver_arrow.png';
   static String suggestedCardImage = 'assets/images/png/suggestedCardImage.png';
+  static String tiltArrow = 'assets/images/png/arrow-right.png';
 
   //profile
   static String qr = 'assets/images/png/qr.png';

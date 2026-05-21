@@ -11,12 +11,14 @@ class SearchTextfield extends StatelessWidget {
     super.key,
     required this.hintText,
     required this.controller,
+    this.prefixIcon,
     this.onChange,
     this.onFilterPressed,
   });
 
   final String hintText;
   final TextEditingController controller;
+  final Widget? prefixIcon;
   final ValueChanged<String>? onChange;
   final VoidCallback? onFilterPressed;
 
@@ -32,6 +34,7 @@ class SearchTextfield extends StatelessWidget {
           fontWeight: FontWeight.w400,
           fontSize: 12.sp,
         ),
+        prefixIcon: prefixIcon,
         // prefixIcon: Icon(
         //   Icons.search,
         //   color: AppColors.textPrimary.withOpacity(0.4),

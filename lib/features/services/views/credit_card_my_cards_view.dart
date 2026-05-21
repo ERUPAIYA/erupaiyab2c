@@ -17,8 +17,10 @@ import '../../../widgets/k_dialog.dart';
 import '../../../widgets/my_app_bar.dart';
 import '../../home/controllers/home_controller.dart';
 import '../../home/models/credit_card_item.dart';
+import '../components/credit_card_my_cards_banner.dart';
 import '../components/credit_card_my_cards_shimmer.dart';
 import '../controllers/biller_detail_controller.dart';
+import '../controllers/service_extras_controller.dart';
 import '../models/biller_detail_args.dart';
 import '../models/biller_model.dart';
 
@@ -30,6 +32,7 @@ class CreditCardMyCardsView extends HookConsumerWidget {
     final homeState = ref.watch(homeControllerProvider);
     final isFetching = homeState.isFetchingCreditCards;
     final cards = homeState.creditCardActions;
+    final banners = ref.watch(servicePageBannersProvider('credit-card'));
 
     useEffect(() {
       Future.microtask(() {
@@ -81,20 +84,11 @@ class CreditCardMyCardsView extends HookConsumerWidget {
                       ? const CreditCardMyCardsShimmer()
                       : const SizedBox.shrink())
                   : SingleChildScrollView(
-                      padding: EdgeInsets.fromLTRB(16.w, 6.h, 16.w, 12.h),
+                      padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 12.h),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'My Cards',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
-                                ?.copyWith(
-                                  color: AppColors.textPrimary,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
+                          CreditCardMyCardsBanner(banners: banners),
                           SizedBox(height: 14.h),
                           ...cards.asMap().entries.map(
                                 (entry) => Padding(

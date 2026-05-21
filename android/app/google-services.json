@@ -12,7 +12,12 @@
           "package_name": "com.innoplix.erupaiya"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "715562519142-jebuonesuueng9ioau41ogkjffag4ore.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCdEhBeVZUgoAiqKcDhgD0slpa6xbo9B7w"
@@ -20,7 +25,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "715562519142-jebuonesuueng9ioau41ogkjffag4ore.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "715562519142-ohoesvk0hgijnodiln7gg4lgmgq34mdt.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.innoplix.erupaiya"
+              }
+            }
+          ]
         }
       }
     },
@@ -31,7 +48,20 @@
           "package_name": "com.innoplix.erupiya"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "715562519142-uf6fk0mhalp0ecg0uqucecj6otqnn92g.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.innoplix.erupiya",
+            "certificate_hash": "b445406b56d2d7cfc231f0f400296366d10da03d"
+          }
+        },
+        {
+          "client_id": "715562519142-jebuonesuueng9ioau41ogkjffag4ore.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCdEhBeVZUgoAiqKcDhgD0slpa6xbo9B7w"
@@ -39,7 +69,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "715562519142-jebuonesuueng9ioau41ogkjffag4ore.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "715562519142-ohoesvk0hgijnodiln7gg4lgmgq34mdt.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.innoplix.erupaiya"
+              }
+            }
+          ]
         }
       }
     }

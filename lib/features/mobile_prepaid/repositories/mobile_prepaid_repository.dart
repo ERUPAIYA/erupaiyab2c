@@ -8,18 +8,103 @@ import '../../../services/logger_service.dart';
 import '../models/operator_info.dart';
 import '../models/operator_option.dart';
 import '../models/latest_transaction.dart';
+import '../models/my_number_info.dart';
 import '../models/plan_item.dart';
 import '../models/prepaid_transaction_status.dart';
 import '../models/prepaid_plans_response.dart';
 import '../models/recharge_order_result.dart';
 import '../models/recharge_result.dart';
 import '../models/region_option.dart';
+import '../../home/models/banner_model.dart';
 
 class MobilePrepaidRepository {
   MobilePrepaidRepository({Dio? dio})
       : _dio = dio ?? DioService.instance.client;
 
   final Dio _dio;
+
+  Future<List<BannerModel>> fetchMobilePrepaidBanners({
+    String lang = 'en',
+  }) async {
+    try {
+      final response = await _dio.get(
+        ApiConstants.pageEndpoint('mobile-prepaid'),
+        queryParameters: {'lang': lang},
+      );
+      final raw = response.data;
+      final Map<String, dynamic> payload;
+      if (raw is Map<String, dynamic>) {
+        payload = raw;
+      } else if (raw is String) {
+        payload = jsonDecode(raw) as Map<String, dynamic>;
+      } else {
+        payload = Map<String, dynamic>.from(raw as Map);
+      }
+
+      final ok = (payload['success'] == true) || (payload['status'] == true);
+      if (!ok) {
+        final message =
+            payload['message'] as String? ?? 'Failed to fetch banners';
+        throw Exception(message);
+      }
+
+      final dataMap = payload['data'] as Map<String, dynamic>? ?? {};
+      final list = dataMap['banners'];
+      if (list is! List) return const <BannerModel>[];
+      return list
+          .whereType<Map<String, dynamic>>()
+          .map(BannerModel.fromJson)
+          .toList();
+    } catch (e, stackTrace) {
+      logger.error(
+        'Failed to fetch mobile prepaid banners',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
+  }
+
+  Future<MyNumberInfo> fetchMyNumber({
+    required String number,
+  }) async {
+    try {
+      final response = await _dio.get(
+        ApiConstants.rechargeMyNumberEndpoint,
+        queryParameters: {'number': number},
+      );
+      final raw = response.data;
+      final Map<String, dynamic> payload;
+      if (raw is Map<String, dynamic>) {
+        payload = raw;
+      } else if (raw is String) {
+        payload = jsonDecode(raw) as Map<String, dynamic>;
+      } else {
+        payload = Map<String, dynamic>.from(raw as Map);
+      }
+
+      final ok = (payload['success'] == true) || (payload['status'] == true);
+      if (!ok) {
+        final message =
+            payload['message'] as String? ?? 'Failed to fetch my number';
+        throw Exception(message);
+      }
+
+      final data = payload['data'];
+      if (data is Map<String, dynamic>) {
+        final info = MyNumberInfo.fromJson(data);
+        if (info.number.trim().isNotEmpty) return info;
+      }
+      return MyNumberInfo(number: number);
+    } catch (e, stackTrace) {
+      logger.error(
+        'Failed to fetch my number',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
+  }
 
   Future<OperatorInfo> checkOperator({required String mobile}) async {
     try {

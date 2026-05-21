@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -55,22 +57,45 @@ class SettingsView extends HookConsumerWidget {
 
     Future<void> togglePush(bool enabled) async {
       if (isPushLoading.value) return;
+      if (!enabled) {
+        final confirmed = await showDialog<bool>(
+              context: context,
+              barrierDismissible: true,
+              builder: (_) => const _DisableNotificationsDialog(),
+            ) ??
+            false;
+        if (!confirmed) {
+          // Revert immediately; no API call.
+          isPushEnabled.value = true;
+          return;
+        }
+      }
       final previous = isPushEnabled.value;
       isPushEnabled.value = enabled;
       isPushLoading.value = true;
-      final result =
-          await repository.setPushNotificationsEnabled(isPushEnabled.value);
-      isPushLoading.value = false;
-      if (!result.success) {
-        isPushEnabled.value = previous;
-      } else {
-        await ref.read(profileControllerProvider.notifier).fetchProfile();
-      }
-      if (result.message.isNotEmpty) {
-        AppSnackbar.show(result.message,
-            type: result.success
-                ? AppSnackbarType.success
-                : AppSnackbarType.error);
+      try {
+        final result =
+            await repository.setPushNotificationsEnabled(isPushEnabled.value);
+        if (!result.success) {
+          isPushEnabled.value = previous;
+        } else {
+          // Keep loading true until the updated profile arrives, otherwise
+          // the effect that syncs `isPushEnabled` from profile can briefly
+          // revert the switch to the stale profile value (toggle flicker).
+          await ref.read(profileControllerProvider.notifier).fetchProfile();
+        }
+        if (result.message.isNotEmpty) {
+          AppSnackbar.show(
+            result.message,
+            type: !enabled
+                ? AppSnackbarType.error
+                : (result.success
+                    ? AppSnackbarType.success
+                    : AppSnackbarType.error),
+          );
+        }
+      } finally {
+        isPushLoading.value = false;
       }
     }
 
@@ -504,7 +529,7 @@ class _DeleteAccountConfirmDialog extends StatelessWidget {
                     ),
                   ),
                 ),
-                SizedBox(width: 12.w),
+                SizedBox(width: 10.w),
                 Expanded(
                   child: SizedBox(
                     height: 44.h,
@@ -522,6 +547,109 @@ class _DeleteAccountConfirmDialog extends StatelessWidget {
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DisableNotificationsDialog extends StatelessWidget {
+  const _DisableNotificationsDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(22.w, 22.h, 22.w, 16.h),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 64.r,
+              height: 64.r,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF1EB),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFF2B9A6)),
+              ),
+              child: Icon(
+                Icons.notifications_off_outlined,
+                color: AppColors.primary,
+                size: 34.sp,
+              ),
+            ),
+            SizedBox(height: 14.h),
+            Text(
+              'Disable Notifications?',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              'If you disable notifications, you may miss important updates and reminders.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textPrimary.withOpacity(0.75),
+                    height: 1.35,
+                  ),
+            ),
+            SizedBox(height: 18.h),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 44.h,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                          color: AppColors.textPrimary.withOpacity(0.18),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppColors.textPrimary.withOpacity(0.8),
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 10.w),
+                Expanded(
+                  child: SizedBox(
+                    height: 44.h,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      style: ElevatedButton.styleFrom(
+                        elevation: 0,
+                        backgroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                      ),
+                      child: Text(
+                        'Disable',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
                             ),
                       ),
                     ),

@@ -96,9 +96,9 @@ class CustomElevatedButton extends StatelessWidget {
               Text(
                 uppercaseLabel ? label.toUpperCase() : label,
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: labelColor ?? Colors.white,
-                      letterSpacing: 1.1,
-                    ),
+                    color: labelColor ?? Colors.white,
+                    letterSpacing: 1.1,
+                    fontWeight: FontWeight.w700),
               ),
               if (showArrow) ...[
                 const SizedBox(width: 8),

@@ -163,18 +163,21 @@ class DioInterceptors extends InterceptorsWrapper {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    if (options.extra['skipAuthRefresh'] != true) {
+    final skipAuth = options.extra['skipAuth'] == true;
+    if (!skipAuth && options.extra['skipAuthRefresh'] != true) {
       final expiresAt = await Utils.getAccessTokenExpiry();
       if (expiresAt != null &&
           expiresAt.isBefore(DateTime.now().add(const Duration(minutes: 1)))) {
         await _refreshAccessToken();
       }
     }
-    final accessToken = await Utils.getAccessToken();
-    final tokenType = await Utils.getTokenType();
-    if (accessToken != null) {
-      options.headers['Authorization'] =
-          '${tokenType ?? 'Bearer'} $accessToken';
+    if (!skipAuth) {
+      final accessToken = await Utils.getAccessToken();
+      final tokenType = await Utils.getTokenType();
+      if (accessToken != null) {
+        options.headers['Authorization'] =
+            '${tokenType ?? 'Bearer'} $accessToken';
+      }
     }
 
     final url = options.uri.toString();
@@ -234,7 +237,8 @@ class DioInterceptors extends InterceptorsWrapper {
       error: err,
       stackTrace: err.stackTrace,
     );
-    if (err.response?.statusCode == 401) {
+    final skipAuth = err.requestOptions.extra['skipAuth'] == true;
+    if (err.response?.statusCode == 401 && !skipAuth) {
       final alreadyRetried = err.requestOptions.extra['retried'] == true;
       final isRefreshCall = err.requestOptions.extra['isRefresh'] == true;
       if (!alreadyRetried && !isRefreshCall) {
@@ -277,6 +281,15 @@ class DioInterceptors extends InterceptorsWrapper {
           backgroundColor: Colors.red,
         );
       }
+    } else if (err.response?.statusCode == 401 && skipAuth) {
+      final data = err.response?.data;
+      final apiMessage =
+          (data is Map ? data['message'] as String? : null) ?? 'Unauthorized';
+      AppSnackbar.show(
+        apiMessage,
+        textColor: Colors.white,
+        backgroundColor: Colors.red,
+      );
     } else if (err.response?.statusCode == 403) {
       AppSnackbar.show(
         'Forbidden',
@@ -342,7 +355,7 @@ class DioInterceptors extends InterceptorsWrapper {
         );
       } else {
         AppSnackbar.show(
-          'Unknown Error Occurred. Error: ${err.error.toString()}',
+          'Something went wrong. Please try again.',
           textColor: Colors.white,
           backgroundColor: Colors.red,
         );

@@ -6,6 +6,7 @@ import '../models/credit_card_item.dart';
 import '../models/home_state.dart';
 import '../models/quick_actions_model.dart';
 import '../repositories/home_repository.dart';
+import '../services/home_quick_actions_cache.dart';
 
 final homeRepositoryProvider = Provider<HomeRepository>(
   (ref) => HomeRepository(),
@@ -20,19 +21,37 @@ final homeControllerProvider = StateNotifierProvider<HomeController, HomeState>(
 class HomeController extends StateNotifier<HomeState> {
   HomeController({required HomeRepository repository})
       : _repository = repository,
+        _quickActionsCache = HomeQuickActionsCache(),
         super(const HomeState());
 
   final HomeRepository _repository;
+  final HomeQuickActionsCache _quickActionsCache;
 
   DateTime? _lastQuickActionsFetchedAt;
   DateTime? _lastAllQuickActionsFetchedAt;
   Future<void>? _quickActionsInFlight;
   Future<void>? _allQuickActionsInFlight;
+  bool _didHydrateQuickActionsFromCache = false;
+
+  Future<void> _hydrateQuickActionsFromCacheIfNeeded() async {
+    if (_didHydrateQuickActionsFromCache) return;
+    _didHydrateQuickActionsFromCache = true;
+    if (state.quickActions != null) return;
+    final cached = await _quickActionsCache.read();
+    if (cached == null) return;
+    state = state.copyWith(
+      quickActions: cached.categories,
+      banners: cached.banners,
+      isNameEmailExist: cached.isNameEmailExist,
+      errorMessage: null,
+    );
+  }
 
   Future<void> fetchQuickActionsIfNeeded({
     Duration ttl = const Duration(minutes: 5),
     bool force = false,
   }) async {
+    await _hydrateQuickActionsFromCacheIfNeeded();
     final now = DateTime.now();
     final hasFreshCache = !force &&
         state.quickActions != null &&
@@ -51,6 +70,7 @@ class HomeController extends StateNotifier<HomeState> {
   Future<void> fetchQuickActions() => _fetchQuickActions(showLoading: true);
 
   Future<void> _fetchQuickActions({required bool showLoading}) async {
+    await _hydrateQuickActionsFromCacheIfNeeded();
     if (showLoading) {
       state = state.copyWith(isFetching: true, errorMessage: null);
     }
@@ -64,20 +84,42 @@ class HomeController extends StateNotifier<HomeState> {
         isNameEmailExist: result.isNameEmailExist,
         errorMessage: null,
       );
+      await _quickActionsCache.write(
+        HomeQuickActionsCachePayload(
+          categories: result.categories,
+          banners: result.banners,
+          isNameEmailExist: result.isNameEmailExist,
+          cachedAt: DateTime.now(),
+        ),
+      );
     } catch (e, stackTrace) {
       logger.error(
         'Failed to fetch quick actions',
         error: e,
         stackTrace: stackTrace,
       );
+      final cached = await _quickActionsCache.read();
+      if (cached != null &&
+          (state.quickActions == null || state.quickActions!.isEmpty)) {
+        state = state.copyWith(
+          isFetching: false,
+          quickActions: cached.categories,
+          banners: cached.banners,
+          isNameEmailExist: cached.isNameEmailExist,
+          errorMessage: null,
+        );
+        return;
+      }
+
       if (showLoading || state.quickActions == null) {
         state = state.copyWith(
           isFetching: false,
           errorMessage: 'Failed to fetch services. Please try again.',
         );
-      } else {
-        state = state.copyWith(isFetching: state.isFetching);
+        return;
       }
+
+      state = state.copyWith(isFetching: state.isFetching);
     }
   }
 

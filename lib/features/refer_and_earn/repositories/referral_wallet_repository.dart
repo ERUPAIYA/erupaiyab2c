@@ -14,7 +14,7 @@ class ReferralWalletRepository {
   Future<ReferralWalletSummary> fetchSummary() async {
     try {
       final response = await _dio.get(ApiConstants.referralWalletSummaryEndpoint);
-      final payload = response.data as Map<String, dynamic>? ?? {};
+      final payload = _asMap(response.data);
       return ReferralWalletSummary.fromJson(payload);
     } catch (e, stackTrace) {
       logger.error(
@@ -62,25 +62,40 @@ class ReferralWalletSummary {
   });
 
   factory ReferralWalletSummary.fromJson(Map<String, dynamic> json) {
-    final milestones = json['milestones'] as List<dynamic>? ?? [];
-    final myTeam = json['my_team'] as List<dynamic>? ?? [];
-    final recent = json['recent_referrals'] as List<dynamic>? ?? [];
+    // Some backends wrap the payload under `data`.
+    final root = (json['data'] is Map)
+        ? (json['data'] as Map).map((k, v) => MapEntry(k.toString(), v))
+        : json;
+    final milestonesRaw = root['milestones'];
+    final myTeamRaw = root['my_team'];
+    final recentRaw = root['recent_referrals'];
+    final milestones = milestonesRaw is List ? milestonesRaw : const <dynamic>[];
+    final myTeam = myTeamRaw is List ? myTeamRaw : const <dynamic>[];
+    final recent = recentRaw is List ? recentRaw : const <dynamic>[];
     return ReferralWalletSummary(
-      status: json['status'] == true,
-      walletBalance: (json['wallet_balance'] ?? '').toString(),
-      totalEarnings: _parseInt(json['total_earnings']),
+      status: root['status'] == true ||
+          (root['status']?.toString().toUpperCase() == 'SUCCESS') ||
+          (root['success'] == true),
+      walletBalance: (root['wallet_balance'] ??
+              root['walletBalance'] ??
+              root['balance'] ??
+              '')
+          .toString(),
+      totalEarnings: _parseInt(root['total_earnings'] ?? root['totalEarnings']),
       milestones: milestones
-          .whereType<Map<String, dynamic>>()
+          .whereType<Map>()
           .map(ReferralMilestone.fromJson)
           .toList(),
-      teamCount: _parseInt(json['team_count']),
-      totalTeamEarnings: _parseInt(json['total_team_earnings']),
+      teamCount: _parseInt(root['team_count'] ?? root['teamCount']),
+      totalTeamEarnings: _parseInt(
+        root['total_team_earnings'] ?? root['totalTeamEarnings'],
+      ),
       myTeam: myTeam
-          .whereType<Map<String, dynamic>>()
+          .whereType<Map>()
           .map(TeamMember.fromJson)
           .toList(),
       recentReferrals: recent
-          .whereType<Map<String, dynamic>>()
+          .whereType<Map>()
           .map(RecentReferral.fromJson)
           .toList(),
     );
@@ -104,7 +119,7 @@ class ReferralMilestone {
     required this.status,
   });
 
-  factory ReferralMilestone.fromJson(Map<String, dynamic> json) {
+  factory ReferralMilestone.fromJson(Map json) {
     return ReferralMilestone(
       targetReferrals: _parseInt(json['target_referrals']),
       rewardCoins: _parseInt(json['reward_coins']),
@@ -126,7 +141,7 @@ class TeamMember {
     required this.earnings,
   });
 
-  factory TeamMember.fromJson(Map<String, dynamic> json) {
+  factory TeamMember.fromJson(Map json) {
     return TeamMember(
       name: (json['name'] ?? '').toString(),
       since: (json['since'] ?? '').toString(),
@@ -147,7 +162,7 @@ class RecentReferral {
     required this.joinedOn,
   });
 
-  factory RecentReferral.fromJson(Map<String, dynamic> json) {
+  factory RecentReferral.fromJson(Map json) {
     return RecentReferral(
       name: (json['name'] ?? '').toString(),
       joinedMessage: (json['joined_message'] ?? '').toString(),

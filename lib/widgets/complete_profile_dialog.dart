@@ -75,6 +75,7 @@ class _CompleteProfileDialogState extends State<CompleteProfileDialog> {
     setState(() => _isSubmitting = true);
     try {
       await _ensureFirebaseInitialized();
+      if (!mounted) return;
       if (!_googleInitialized) {
         await GoogleSignIn.instance.initialize();
         _googleInitialized = true;
@@ -83,11 +84,17 @@ class _CompleteProfileDialogState extends State<CompleteProfileDialog> {
       final googleUser = await GoogleSignIn.instance.authenticate(
         scopeHint: const ['email'],
       );
+      if (!mounted) return;
 
       final idToken = googleUser.authentication.idToken;
+      if (idToken == null || idToken.trim().isEmpty) {
+        AppSnackbar.show('Unable to fetch Google idToken. Please try again.');
+        return;
+      }
       final authz = await googleUser.authorizationClient.authorizeScopes(
         const ['email'],
       );
+      if (!mounted) return;
       final credential = GoogleAuthProvider.credential(
         accessToken: authz.accessToken,
         idToken: idToken,
@@ -95,10 +102,12 @@ class _CompleteProfileDialogState extends State<CompleteProfileDialog> {
 
       final userCredential =
           await FirebaseAuth.instance.signInWithCredential(credential);
+      if (!mounted) return;
       final user = userCredential.user;
       final name = (user?.displayName ?? '').trim();
       final email = (user?.email ?? '').trim();
       final firebaseIdToken = await user?.getIdToken(true);
+      if (!mounted) return;
 
       if (name.isEmpty || email.isEmpty) {
         AppSnackbar.show(
@@ -121,6 +130,7 @@ class _CompleteProfileDialogState extends State<CompleteProfileDialog> {
         type: 'google',
         googleToken: firebaseIdToken,
       );
+      if (!mounted) return;
       if (!resp.success) {
         AppSnackbar.show(
           resp.message.isNotEmpty ? resp.message : 'Google sign-in failed',
@@ -136,11 +146,40 @@ class _CompleteProfileDialogState extends State<CompleteProfileDialog> {
         backgroundColor: AppColors.primary,
         textColor: Colors.white,
       );
-    } catch (_) {
-      AppSnackbar.show('Google sign-in failed. Please try again.');
+    } catch (e) {
+      final message = _friendlyGoogleErrorMessage(e);
+      if (message != null && message.trim().isNotEmpty) {
+        AppSnackbar.show(message);
+      }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  String? _friendlyGoogleErrorMessage(Object error) {
+    if (error is FirebaseAuthException) {
+      return (error.message ?? '').trim().isNotEmpty
+          ? error.message
+          : 'Google sign-in failed. Please try again.';
+    }
+
+    if (error is PlatformException) {
+      // Common cases: user cancellation / in-progress sign-in.
+      final code = (error.code).toLowerCase();
+      if (code.contains('canceled') || code.contains('cancelled')) {
+        return null; // user backed out: don't show as an error
+      }
+      if (code.contains('sign_in_canceled') ||
+          code.contains('sign_in_cancel')) {
+        return null;
+      }
+      if (code.contains('network') || code.contains('network_error')) {
+        return 'Network error during Google sign-in. Please try again.';
+      }
+      if ((error.message ?? '').trim().isNotEmpty) return error.message;
+    }
+
+    return 'Google sign-in failed. Please try again.';
   }
 
   Future<void> _sendOtp() async {
@@ -167,6 +206,7 @@ class _CompleteProfileDialogState extends State<CompleteProfileDialog> {
         email: email,
         type: 'manual',
       );
+      if (!mounted) return;
       if (!resp.success) {
         AppSnackbar.show(
           resp.message.isNotEmpty ? resp.message : 'Failed to send OTP',
@@ -200,6 +240,7 @@ class _CompleteProfileDialogState extends State<CompleteProfileDialog> {
     try {
       final repo = ProfileRepository();
       final ApiResponse resp = await repo.verifyCompleteProfileOtp(otp: otp);
+      if (!mounted) return;
       if (!resp.success) {
         AppSnackbar.show(
           resp.message.isNotEmpty ? resp.message : 'OTP verification failed',

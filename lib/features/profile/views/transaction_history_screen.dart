@@ -104,75 +104,89 @@ class _TransactionHistoryScreenState
           Expanded(
             child: isLoading
                 ? const _TransactionHistoryShimmer()
-                : CustomScrollView(
-                    slivers: [
-                      SliverPadding(
-                        padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 12.h),
-                        sliver: SliverToBoxAdapter(
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: SearchTextfield(
-                                  hintText: 'Search Transactions',
-                                  controller: _searchController,
-                                  onChange: (_) => setState(() {}),
-                                ),
-                              ),
-                              SizedBox(width: 10.w),
-                              SizedBox(
-                                height: 46.h,
-                                width: 46.h,
-                                child: IconButton(
-                                  onPressed: () {
-                                    _openFilterScreen(controller);
-                                  },
-                                  icon: const Icon(
-                                    Icons.tune,
-                                    color: AppColors.textPrimary,
+                : RefreshIndicator(
+                    color: AppColors.primary,
+                    onRefresh: () => _handleRefresh(controller),
+                    child: CustomScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      slivers: [
+                        SliverPadding(
+                          padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 12.h),
+                          sliver: SliverToBoxAdapter(
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: SearchTextfield(
+                                    hintText: 'Search Transactions',
+                                    controller: _searchController,
+                                    onChange: (_) => setState(() {}),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      if (filteredItems.isEmpty)
-                        const SliverToBoxAdapter(
-                          child: _TransactionEmptyState(),
-                        )
-                      else ...[
-                        for (final section in sections) ...[
-                          SliverToBoxAdapter(
-                            child: _MonthHeader(title: section.title),
-                          ),
-                          SliverList(
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                final item = section.items[index];
-                                return _TransactionTile(
-                                  item: item,
-                                  onTap: () {
-                                    context.push(
-                                      RouteConstants.transactionDetail,
-                                      extra: item,
-                                    );
-                                  },
-                                );
-                              },
-                              childCount: section.items.length,
+                                SizedBox(width: 10.w),
+                                SizedBox(
+                                  height: 46.h,
+                                  width: 46.h,
+                                  child: IconButton(
+                                    onPressed: () {
+                                      _openFilterScreen(controller);
+                                    },
+                                    icon: const Icon(
+                                      Icons.tune,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
-                        SliverToBoxAdapter(
-                          child: SizedBox(height: 24.h),
                         ),
+                        if (filteredItems.isEmpty)
+                          const SliverToBoxAdapter(
+                            child: _TransactionEmptyState(),
+                          )
+                        else ...[
+                          for (final section in sections) ...[
+                            SliverToBoxAdapter(
+                              child: _MonthHeader(title: section.title),
+                            ),
+                            SliverList(
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) {
+                                  final item = section.items[index];
+                                  return _TransactionTile(
+                                    item: item,
+                                    onTap: () {
+                                      context.push(
+                                        RouteConstants.transactionDetail,
+                                        extra: item,
+                                      );
+                                    },
+                                  );
+                                },
+                                childCount: section.items.length,
+                              ),
+                            ),
+                          ],
+                          SliverToBoxAdapter(
+                            child: SizedBox(height: 24.h),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _handleRefresh(TransactionHistoryController controller) async {
+    final filter = _activeFilter;
+    if (filter == null || filter.isEmpty) {
+      await controller.fetchHistory();
+      return;
+    }
+    await controller.applyFilter(filter);
   }
 
   Future<void> _openFilterScreen(

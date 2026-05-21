@@ -1,20 +1,42 @@
 // ignore_for_file: deprecated_member_use
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../constants/app_colors.dart';
 import '../constants/file_constants.dart';
+import 'app_html.dart';
+import 'app_network_image.dart';
 
 class BillSampleTermsCard extends StatelessWidget {
   const BillSampleTermsCard({
     super.key,
     required this.isExpanded,
     required this.onToggle,
+    this.billImageUrl,
+    this.termsText,
   });
 
   final bool isExpanded;
   final VoidCallback onToggle;
+  final String? billImageUrl;
+  final String? termsText;
+
+  String _normalizeTermsToHtml(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return '';
+
+    final looksLikeHtml = RegExp(r'<\s*\/?\s*[a-zA-Z][^>]*>').hasMatch(trimmed);
+    if (looksLikeHtml) return trimmed;
+
+    // Backend sometimes sends plain text with newlines/bullets; convert it into
+    // safe HTML while preserving line breaks.
+    final escaped = const HtmlEscape().convert(trimmed);
+    final withBreaks = escaped.replaceAll(RegExp(r'\r\n|\r|\n'), '<br/>');
+    return '<div>$withBreaks</div>';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -83,11 +105,18 @@ class BillSampleTermsCard extends StatelessWidget {
             SizedBox(height: 10.h),
             ClipRRect(
               borderRadius: BorderRadius.circular(12.r),
-              child: Image.asset(
-                FileConstants.sampleBill,
-                width: double.infinity,
-                fit: BoxFit.cover,
-              ),
+              child: (billImageUrl ?? '').trim().isNotEmpty
+                  ? AppNetworkImage(
+                      url: billImageUrl,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      showShimmer: true,
+                    )
+                  : Image.asset(
+                      FileConstants.sampleBill,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
             ),
             SizedBox(height: 16.h),
             Text(
@@ -98,56 +127,15 @@ class BillSampleTermsCard extends StatelessWidget {
                   ),
             ),
             SizedBox(height: 10.h),
-            Text(
-              'Pricing: The price shown for the refill cylinder is an estimate. '
-              'The final price will be determined and charged on the day of delivery.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textPrimary.withOpacity(0.7),
-                    height: 1.5,
+            (termsText ?? '').trim().isNotEmpty
+                ? AppHtml(html: _normalizeTermsToHtml(termsText!))
+                : Text(
+                    'Terms are not available at the moment.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textPrimary.withOpacity(0.7),
+                          height: 1.5,
+                        ),
                   ),
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              'Advance Payment: The amount you pay now is an advance deposit. '
-              'This amount will be adjusted against the actual refill cost at the time of delivery.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textPrimary.withOpacity(0.7),
-                    height: 1.5,
-                  ),
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              'Refunds for Overpayment: Any excess amount you paid will be promptly refunded to you.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textPrimary.withOpacity(0.7),
-                    height: 1.5,
-                  ),
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              'Payment for Underpayment: If the actual cost is more than your advance payment, '
-              'the remaining balance must be paid to the delivery person or electronically at the time of delivery.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textPrimary.withOpacity(0.7),
-                    height: 1.5,
-                  ),
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              'Final Cost Documentation: The final cost of the refill will be clearly stated on the cash memo.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textPrimary.withOpacity(0.7),
-                    height: 1.5,
-                  ),
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              'Delivery Completion: Delivery is considered complete once the cylinder is handed over to you.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textPrimary.withOpacity(0.7),
-                    height: 1.5,
-                  ),
-            ),
           ],
         ],
       ),

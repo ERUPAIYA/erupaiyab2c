@@ -5,7 +5,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../constants/app_colors.dart';
-import '../../../constants/file_constants.dart';
+import '../../../widgets/my_app_bar.dart';
+import '../../../widgets/search_textfield.dart';
 import '../models/faq_item.dart';
 
 class FaqScreen extends StatefulWidget {
@@ -16,97 +17,88 @@ class FaqScreen extends StatefulWidget {
 }
 
 class _FaqScreenState extends State<FaqScreen> {
+  final _searchController = TextEditingController();
   int _expandedIndex = 0;
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFFF7F3),
-      body: Stack(
-        children: [
-          const ColoredBox(color: Color(0xFFFFF7F3)),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: Image.asset(
-              FileConstants.ellipse14,
-              width: double.infinity,
-              fit: BoxFit.cover,
-            ),
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                const _FaqHeader(),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 24.h),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Customer Help',
-                          style:
-                              Theme.of(context).textTheme.titleSmall?.copyWith(
-                                    color: AppColors.textPrimary,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                        ),
-                        SizedBox(height: 12.h),
-                        ..._paymentsFaqs.asMap().entries.map(
-                          (entry) {
-                            final idx = entry.key;
-                            final item = entry.value;
-                            return Padding(
-                              padding: EdgeInsets.only(bottom: 12.h),
-                              child: _FaqCard(
-                                question: '${idx + 1}. ${item.question}',
-                                answer: item.answer,
-                                isExpanded: _expandedIndex == idx,
-                                onTap: () {
-                                  setState(() {
-                                    _expandedIndex =
-                                        _expandedIndex == idx ? -1 : idx;
-                                  });
-                                },
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
-}
-
-class _FaqHeader extends StatelessWidget {
-  const _FaqHeader();
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(8.w, 6.h, 16.w, 6.h),
-      child: Row(
+    final query = _searchController.text.trim().toLowerCase();
+    final filteredFaqs = query.isEmpty
+        ? _paymentsFaqs
+        : _paymentsFaqs.where((item) {
+            final q = item.question.toLowerCase();
+            final a = item.answer.toLowerCase();
+            return q.contains(query) || a.contains(query);
+          }).toList();
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Column(
         children: [
-          IconButton(
-            onPressed: () => context.pop(),
-            icon: Icon(Icons.arrow_back, color: Colors.black, size: 22.sp),
+          MyAppBar(
+            title: "Faq’s",
+            onBack: () => context.pop(),
+            showHelp: true,
+            onHelp: () {},
           ),
-          SizedBox(width: 4.w),
-          Text(
-            'FAQs',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Colors.black,
-                  fontWeight: FontWeight.w700,
-                ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 24.h),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SearchTextfield(
+                    hintText: "Search Faq’s",
+                    controller: _searchController,
+                    onChange: (_) => setState(() {}),
+                  ),
+                  SizedBox(height: 16.h),
+                  if (filteredFaqs.isEmpty)
+                    Padding(
+                      padding: EdgeInsets.only(top: 28.h),
+                      child: Center(
+                        child: Text(
+                          'No FAQs found.',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                color: AppColors.textPrimary.withOpacity(0.6),
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                    )
+                  else
+                    ...filteredFaqs.asMap().entries.map(
+                      (entry) {
+                        final idx = entry.key;
+                        final item = entry.value;
+                        final isExpanded = _expandedIndex == idx;
+                        return Padding(
+                          padding: EdgeInsets.only(bottom: 12.h),
+                          child: _FaqCard(
+                            question: item.question,
+                            answer: item.answer,
+                            isExpanded: isExpanded,
+                            onTap: () {
+                              setState(() {
+                                _expandedIndex = isExpanded ? -1 : idx;
+                              });
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -134,13 +126,7 @@ class _FaqCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16.r),
-        boxShadow: const [
-          BoxShadow(
-            color: AppColors.cardShadow,
-            blurRadius: 14,
-            offset: Offset(0, 6),
-          ),
-        ],
+        border: Border.all(color: AppColors.lightBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -170,7 +156,7 @@ class _FaqCard extends StatelessWidget {
           ),
           if (isExpanded) ...[
             SizedBox(height: 10.h),
-            const Divider(color: AppColors.lightBorder),
+            Divider(color: AppColors.lightBorder.withOpacity(0.9)),
             SizedBox(height: 8.h),
             Text(
               answer,

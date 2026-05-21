@@ -23,9 +23,12 @@ import '../../../services/location_service.dart';
 import '../../../services/notification_badge_service.dart';
 import '../../../services/push_notification_service.dart';
 import '../../../widgets/app_network_image.dart';
-import '../../../widgets/custom_elevated_button.dart';
+import '../../../widgets/app_snackbar.dart';
 import '../../../widgets/complete_profile_dialog.dart';
+import '../../../widgets/custom_elevated_button.dart';
 import '../../../widgets/k_dialog.dart';
+import '../../auth/controllers/auth_controller.dart';
+import '../../connectivity/controllers/connectivity_controller.dart';
 import '../../profile/controllers/profile_controller.dart';
 import '../../profile/views/offers_view.dart';
 import '../../profile/views/profile_view.dart';
@@ -64,8 +67,8 @@ class HomeView extends HookConsumerWidget {
       color: Colors.black,
       height: 0.9,
     );
-    final spinNavTextStyle = navTextStyle.copyWith(fontSize: 13.sp);
     final inactiveNavColor = AppColors.textPrimary.withOpacity(0.45);
+    final spinNavTextStyle = navTextStyle.copyWith(fontSize: 13.sp);
     final navIconBoxSize = 25.r;
     final middleNavIconBoxSize = 40.r;
     final spinCircleSize = middleNavIconBoxSize + 30.r;
@@ -130,21 +133,6 @@ class HomeView extends HookConsumerWidget {
         textStyle: spinNavTextStyle,
         activeColorPrimary: Colors.black,
         inactiveColorPrimary: inactiveNavColor,
-        // icon: _GradientFabIcon(
-        //   asset: FileConstants.scanUser,
-        //   size: 20.r,
-        //   iconColor: Colors.white,
-        // ),
-        // inactiveIcon: _GradientFabIcon(
-        //   asset: FileConstants.scanUser,
-        //   size: 20.r,
-        //   iconColor: Colors.white.withOpacity(0.75),
-        // ),
-        // title: 'Scan User',
-        // iconSize: 30.r,
-        // textStyle: navTextStyle,
-        // activeColorPrimary: AppColors.primary,
-        // inactiveColorPrimary: inactiveNavColor,
       ),
       PersistentBottomNavBarItem(
         contentPadding: 0,
@@ -252,8 +240,8 @@ class HomeView extends HookConsumerWidget {
           // color: Colors.white,
           colorBehindNavBar: Colors.white,
         ),
-        navBarHeight: 53.h,
-        padding: const EdgeInsets.only(top: 4, bottom: 10),
+        navBarHeight: 45.h,
+        padding: const EdgeInsets.only(top: 2, bottom: 6),
         backgroundColor: Colors.white,
         hideNavigationBarWhenKeyboardAppears: true,
         confineToSafeArea: true,
@@ -1208,10 +1196,10 @@ class _ReferStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () {
-        PersistentNavBarNavigator.pushNewScreen(
-          context,
-          screen: const ReferAndEarnView(),
-          withNavBar: false,
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const ReferAndEarnView(),
+          ),
         );
       },
       child: Container(
@@ -1881,11 +1869,16 @@ class _HomeContent extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final homeState = ref.watch(homeControllerProvider);
     final profileState = ref.watch(profileControllerProvider);
+    final authState = ref.watch(authControllerProvider);
+    final hasInternet = ref.watch(connectivityStatusProvider).value ?? true;
     final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
     final screenWidth = MediaQuery.sizeOf(context).width;
     final bannerCacheWidth = (screenWidth * devicePixelRatio).round();
 
     final didShowCompleteProfile = useRef(false);
+    // Track auth transitions across navigation; initialize to false so that if
+    // Home is already mounted (behind login) we still refresh once on login.
+    final wasAuthenticated = useRef<bool>(false);
 
     useEffect(() {
       Future.microtask(() {
@@ -1898,6 +1891,29 @@ class _HomeContent extends HookConsumerWidget {
       });
       return null;
     }, const []);
+
+    // If Home stays mounted across login (ex: PIN unlock/login), the initial
+    // `useEffect(const [])` won't re-run. Trigger a refresh when auth flips
+    // from unauthenticated -> authenticated.
+    useEffect(() {
+      final prev = wasAuthenticated.value;
+      final next = authState.isAuthenticated;
+      wasAuthenticated.value = next;
+      if (prev == false && next == true) {
+        Future.microtask(() {
+          ref
+              .read(homeControllerProvider.notifier)
+              .fetchQuickActionsIfNeeded(force: true);
+          ref
+              .read(homeControllerProvider.notifier)
+              .fetchAllQuickActionsIfNeeded(force: true);
+          ref
+              .read(profileControllerProvider.notifier)
+              .fetchProfileIfNeeded(force: true);
+        });
+      }
+      return null;
+    }, [authState.isAuthenticated]);
 
     useEffect(() {
       final needsProfile =
@@ -2020,6 +2036,10 @@ class _HomeContent extends HookConsumerWidget {
     }
 
     Future<void> handleServiceTap(String serviceName) async {
+      if (!hasInternet) {
+        AppSnackbar.show('No internet connection. Please try again.');
+        return;
+      }
       if (serviceName == 'Credit Card') {
         await ref
             .read(homeControllerProvider.notifier)
@@ -2112,7 +2132,7 @@ class _HomeContent extends HookConsumerWidget {
                       elevation: 0,
                       toolbarHeight: 54.h,
                       expandedHeight: MediaQuery.of(context).padding.top +
-                          30.h +
+                          36.h +
                           14.h +
                           bannerAreaHeight +
                           (topBanners.length > 1 ? 16.h : 0.h),
@@ -2126,7 +2146,7 @@ class _HomeContent extends HookConsumerWidget {
                               left: 16.w,
                               right: 16.w,
                               top: MediaQuery.of(context).padding.top +
-                                  54.h +
+                                  58.h +
                                   10.h,
                             ),
                             child: Column(
@@ -2219,17 +2239,17 @@ class _HomeContent extends HookConsumerWidget {
                             );
                           },
                           onReferTap: () {
-                            PersistentNavBarNavigator.pushNewScreen(
-                              context,
-                              screen: const ReferAndEarnView(),
-                              withNavBar: false,
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const ReferAndEarnView(),
+                              ),
                             );
                           },
                           onProfileTap: () {
-                            PersistentNavBarNavigator.pushNewScreen(
-                              context,
-                              screen: const ProfileView(),
-                              withNavBar: false,
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const ProfileView(),
+                              ),
                             );
                           },
                         ),
