@@ -6,15 +6,14 @@ import 'package:e_rupaiya/features/refer_and_earn/views/refer_and_earn_wallet_vi
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:persistent_bottom_nav_bar/persistent_bottom_nav_bar.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../constants/app_colors.dart';
-import '../../../constants/file_constants.dart';
 import '../../../constants/routes_constant.dart';
 import '../../../services/notification_badge_service.dart';
 import '../../../widgets/app_network_image.dart';
@@ -45,6 +44,32 @@ class NotificationsScreen extends HookConsumerWidget {
     final notificationsAsync = ref.watch(notificationsProvider);
     final dismissedIds = useState<Set<String>>(<String>{});
     final remindingIds = useState<Set<String>>(<String>{});
+    final localReadIds = ref.watch(notificationReadIdsProvider);
+
+    final feedData = notificationsAsync.asData?.value;
+    final unreadCountToSync = useMemoized(() {
+      if (feedData == null) return null;
+      final visibleNotifications = feedData.notifications
+          .where((n) => !dismissedIds.value.contains(n.id))
+          .toList(growable: false);
+      if (feedData.unreadCount > 0) return feedData.unreadCount;
+      return visibleNotifications
+          .where((n) => !n.isRead && !localReadIds.contains(n.id))
+          .length;
+    }, [
+      feedData,
+      dismissedIds.value,
+      localReadIds,
+    ]);
+
+    useEffect(() {
+      final count = unreadCountToSync;
+      if (count == null) return null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        NotificationBadgeService.syncFromList(count);
+      });
+      return null;
+    }, [unreadCountToSync]);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -68,18 +93,7 @@ class NotificationsScreen extends HookConsumerWidget {
             child: RefreshIndicator(
               onRefresh: () => ref.refresh(notificationsProvider.future),
               child: notificationsAsync.when(
-                loading: () => ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: const [
-                    SizedBox(height: 140),
-                    Center(
-                      child: SpinKitCircle(
-                        color: AppColors.primary,
-                        size: 48,
-                      ),
-                    ),
-                  ],
-                ),
+                loading: () => const _NotificationsLoadingSkeleton(),
                 error: (_, __) => ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   children: const [
@@ -90,10 +104,10 @@ class NotificationsScreen extends HookConsumerWidget {
                 data: (feed) {
                   final updates = feed.updates
                       .where((n) => !dismissedIds.value.contains(n.id))
-                      .toList();
+                      .toList(growable: false);
                   final notifications = feed.notifications
                       .where((n) => !dismissedIds.value.contains(n.id))
-                      .toList();
+                      .toList(growable: false);
                   if (updates.isEmpty && notifications.isEmpty) {
                     return ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
@@ -104,108 +118,124 @@ class NotificationsScreen extends HookConsumerWidget {
                     );
                   }
 
-                  final localReadIds = ref.watch(notificationReadIdsProvider);
-                  final unreadFromList = feed.unreadCount > 0
-                      ? feed.unreadCount
-                      : notifications
-                          .where(
-                            (n) => !n.isRead && !localReadIds.contains(n.id),
-                          )
-                          .length;
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    NotificationBadgeService.syncFromList(unreadFromList);
-                  });
                   final unreadNotifications = notifications
                       .where((n) => !n.isRead && !localReadIds.contains(n.id))
-                      .toList();
+                      .toList(growable: false);
 
-                  return SingleChildScrollView(
+                  final entries = <_NotificationsListEntry>[
+                    if (unreadNotifications.isNotEmpty) ...[
+                      const _NotificationsListEntry.header('Unread'),
+                      ...unreadNotifications
+                          .map(_NotificationsListEntry.unread),
+                    ],
+                    if (updates.isNotEmpty) ...[
+                      const _NotificationsListEntry.header('Updates'),
+                      ...updates.map(_NotificationsListEntry.update),
+                    ],
+                    const _NotificationsListEntry.bottomSpacer(),
+                  ];
+
+                  return CustomScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 24.h),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (unreadNotifications.isNotEmpty) ...[
-                          const _SectionTitle('Unread'),
-                          SizedBox(height: 10.h),
-                          ...unreadNotifications.map(
-                            (item) => Padding(
-                              padding: EdgeInsets.only(bottom: 12.h),
-                              child: _NotificationCard(
-                                item: item,
-                                onClose: () {
-                                  dismissedIds.value = {
-                                    ...dismissedIds.value,
-                                    item.id,
-                                  };
-                                },
-                                onPrimary: () =>
-                                    _handleNotificationTap(context, ref, item),
-                                onSecondary: item.showRemindButton
-                                    ? () async {
-                                        if (remindingIds.value
-                                            .contains(item.id)) {
-                                          return;
-                                        }
-                                        remindingIds.value = {
-                                          ...remindingIds.value,
-                                          item.id,
-                                        };
-                                        final ok = await ref
-                                            .read(
-                                                notificationsRepositoryProvider)
-                                            .remindMeLater(item.id);
-                                        final updated = Set<String>.from(
-                                          remindingIds.value,
-                                        )..remove(item.id);
-                                        remindingIds.value = updated;
-                                        if (ok) {
-                                          AppSnackbar.show(
-                                              'We will remind you later');
-                                          ref.invalidate(notificationsProvider);
-                                        } else {
-                                          AppSnackbar.show(
-                                            'Failed to set reminder. Please try again.',
-                                          );
-                                        }
-                                      }
-                                    : null,
-                                secondaryLoading:
-                                    remindingIds.value.contains(item.id),
-                                primaryLabel: _primaryLabelFor(item),
-                                secondaryLabel: item.showRemindButton
-                                    ? 'Remind me Later'
-                                    : null,
-                                isPrimaryFullWidth: !item.showRemindButton,
-                              ),
-                            ),
+                    slivers: [
+                      SliverPadding(
+                        padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 0),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              final entry = entries[index];
+                              if (entry.kind ==
+                                  _NotificationsListEntryKind.header) {
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _SectionTitle(entry.headerText ?? ''),
+                                    SizedBox(height: 10.h),
+                                  ],
+                                );
+                              }
+                              if (entry.kind ==
+                                  _NotificationsListEntryKind.bottomSpacer) {
+                                return SizedBox(height: 24.h);
+                              }
+
+                              final item = entry.item!;
+                              return Padding(
+                                padding: EdgeInsets.only(bottom: 12.h),
+                                child: RepaintBoundary(
+                                  child: _NotificationCard(
+                                    item: item,
+                                    onClose: () {
+                                      _handleNotificationClose(ref, item);
+                                      dismissedIds.value = {
+                                        ...dismissedIds.value,
+                                        item.id,
+                                      };
+                                    },
+                                    onPrimary: () => _handleNotificationTap(
+                                      context,
+                                      ref,
+                                      item,
+                                    ),
+                                    onSecondary: entry.kind ==
+                                            _NotificationsListEntryKind.unread
+                                        ? item.showRemindButton
+                                            ? () async {
+                                                if (remindingIds.value
+                                                    .contains(item.id)) {
+                                                  return;
+                                                }
+                                                remindingIds.value = {
+                                                  ...remindingIds.value,
+                                                  item.id,
+                                                };
+                                                final ok = await ref
+                                                    .read(
+                                                      notificationsRepositoryProvider,
+                                                    )
+                                                    .remindMeLater(item.id);
+                                                final updated =
+                                                    Set<String>.from(
+                                                  remindingIds.value,
+                                                )..remove(item.id);
+                                                remindingIds.value = updated;
+                                                if (ok) {
+                                                  AppSnackbar.show(
+                                                    'We will remind you later',
+                                                  );
+                                                  ref.invalidate(
+                                                    notificationsProvider,
+                                                  );
+                                                } else {
+                                                  AppSnackbar.show(
+                                                    'Failed to set reminder. Please try again.',
+                                                  );
+                                                }
+                                              }
+                                            : null
+                                        : null,
+                                    secondaryLoading:
+                                        remindingIds.value.contains(item.id),
+                                    primaryLabel: _primaryLabelFor(item),
+                                    secondaryLabel: entry.kind ==
+                                                _NotificationsListEntryKind
+                                                    .unread &&
+                                            item.showRemindButton
+                                        ? 'Remind me Later'
+                                        : null,
+                                    isPrimaryFullWidth: entry.kind ==
+                                            _NotificationsListEntryKind.update
+                                        ? true
+                                        : !item.showRemindButton,
+                                  ),
+                                ),
+                              );
+                            },
+                            childCount: entries.length,
                           ),
-                          SizedBox(height: 10.h),
-                        ],
-                        if (updates.isNotEmpty) ...[
-                          const _SectionTitle('Updates'),
-                          SizedBox(height: 10.h),
-                          ...updates.map(
-                            (item) => Padding(
-                              padding: EdgeInsets.only(bottom: 12.h),
-                              child: _NotificationCard(
-                                item: item,
-                                onClose: () {
-                                  dismissedIds.value = {
-                                    ...dismissedIds.value,
-                                    item.id,
-                                  };
-                                },
-                                onPrimary: () =>
-                                    _handleNotificationTap(context, ref, item),
-                                primaryLabel: _primaryLabelFor(item),
-                                isPrimaryFullWidth: true,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
+                        ),
+                      ),
+                    ],
                   );
                 },
               ),
@@ -213,6 +243,47 @@ class NotificationsScreen extends HookConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+enum _NotificationsListEntryKind { header, unread, update, bottomSpacer }
+
+class _NotificationsListEntry {
+  const _NotificationsListEntry._(
+    this.kind, {
+    this.headerText,
+    this.item,
+  });
+
+  const _NotificationsListEntry.header(String text)
+      : this._(_NotificationsListEntryKind.header, headerText: text);
+
+  const _NotificationsListEntry.unread(NotificationItem item)
+      : this._(_NotificationsListEntryKind.unread, item: item);
+
+  const _NotificationsListEntry.update(NotificationItem item)
+      : this._(_NotificationsListEntryKind.update, item: item);
+
+  const _NotificationsListEntry.bottomSpacer()
+      : this._(_NotificationsListEntryKind.bottomSpacer);
+
+  final _NotificationsListEntryKind kind;
+  final String? headerText;
+  final NotificationItem? item;
+}
+
+void _handleNotificationClose(WidgetRef ref, NotificationItem item) {
+  final readIds = ref.read(notificationReadIdsProvider);
+  final isAlreadyRead = item.isRead || readIds.contains(item.id);
+  if (!isAlreadyRead) {
+    NotificationBadgeService.decrement();
+    ref.read(notificationReadIdsProvider.notifier).state = {
+      ...readIds,
+      item.id,
+    };
+    unawaited(
+      ref.read(notificationsRepositoryProvider).markNotificationRead(item.id),
     );
   }
 }
@@ -582,6 +653,131 @@ class _SectionTitle extends StatelessWidget {
             color: Colors.black,
             fontWeight: FontWeight.w700,
           ),
+    );
+  }
+}
+
+class _NotificationsLoadingSkeleton extends StatelessWidget {
+  const _NotificationsLoadingSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Skeletonizer(
+      enabled: true,
+      child: IgnorePointer(
+        child: ListView.separated(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 24.h),
+          itemCount: 6,
+          separatorBuilder: (_, __) => SizedBox(height: 12.h),
+          itemBuilder: (_, __) => const _NotificationCardSkeleton(),
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationCardSkeleton extends StatelessWidget {
+  const _NotificationCardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(14.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: AppColors.textPrimary.withOpacity(0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 38.r,
+                height: 38.r,
+                decoration: BoxDecoration(
+                  color: AppColors.textPrimary.withOpacity(0.04),
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+              ),
+              SizedBox(width: 12.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Loading notification title',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    SizedBox(height: 6.h),
+                    Text(
+                      'Loading notification subtitle goes here',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.textPrimary.withOpacity(0.6),
+                            fontWeight: FontWeight.w500,
+                          ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(width: 10.w),
+              Container(
+                width: 26.r,
+                height: 26.r,
+                decoration: BoxDecoration(
+                  color: AppColors.textPrimary.withOpacity(0.04),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 14.h),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 30.h,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.textPrimary.withOpacity(0.04),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(width: 12.w),
+              Expanded(
+                child: SizedBox(
+                  height: 30.h,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.textPrimary.withOpacity(0.04),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

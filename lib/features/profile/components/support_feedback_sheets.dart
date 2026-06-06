@@ -110,7 +110,7 @@ class SupportExperienceSheet extends HookWidget {
           SizedBox(height: 14.h),
           SizedBox(
             width: double.infinity,
-            height: 48.h,
+            height: 40.h,
             child: ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop();
@@ -197,7 +197,7 @@ class SupportThankYouSheet extends StatelessWidget {
           SizedBox(height: 18.h),
           SizedBox(
             width: double.infinity,
-            height: 48.h,
+            height: 40.h,
             child: ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop();

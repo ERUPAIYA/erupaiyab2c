@@ -282,6 +282,10 @@ class _ElectricityFlow extends HookConsumerWidget {
         ref.watch(serviceLatestTransactionsProvider('electricity'));
 
     final billers = listingState.filteredBillers;
+    final showRecentSection = recentTransactions.maybeWhen(
+      data: (items) => items.isNotEmpty,
+      orElse: () => false,
+    );
 
     void openBiller(Biller biller) {
       ref.read(billerDetailControllerProvider.notifier).selectBiller(biller);
@@ -339,7 +343,12 @@ class _ElectricityFlow extends HookConsumerWidget {
           },
         ),
         Padding(
-          padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 12.h),
+          padding: EdgeInsets.fromLTRB(
+            16.w,
+            showRecentSection ? 0 : 12.h,
+            16.w,
+            12.h,
+          ),
           child: SearchTextfield(
             hintText: 'Search by biller',
             controller: searchController,
@@ -365,11 +374,11 @@ class _ElectricityFlow extends HookConsumerWidget {
                   ]
                 : null,
             child: ListView.builder(
-              padding: EdgeInsets.symmetric(horizontal: 16.w),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               itemCount: billers.length,
               itemBuilder: (context, index) {
                 final biller = billers[index];
-                return _ElectricityBillerTile(
+                return _BillerTile(
                   biller: biller,
                   onTap: () => openBiller(biller),
                 );
@@ -632,7 +641,10 @@ class _ElectricityRecentCardShimmer extends StatelessWidget {
 }
 
 class _ElectricityRecentCard extends StatelessWidget {
-  const _ElectricityRecentCard({required this.txn, required this.onPayNow});
+  const _ElectricityRecentCard({
+    required this.txn,
+    required this.onPayNow,
+  });
 
   final LatestTransaction txn;
   final VoidCallback onPayNow;
@@ -649,12 +661,17 @@ class _ElectricityRecentCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: const Color(0xFFE2E2E2)),
+        border: Border.all(
+          color: const Color(0xFFE2E2E2),
+        ),
       ),
       child: Column(
         children: [
           Padding(
-            padding: EdgeInsets.all(14.w),
+            padding: EdgeInsets.symmetric(
+              horizontal: 14.w,
+              vertical: 14.h,
+            ),
             child: Row(
               children: [
                 Container(
@@ -663,7 +680,9 @@ class _ElectricityRecentCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.black.withOpacity(0.08)),
+                    border: Border.all(
+                      color: Colors.black.withOpacity(0.08),
+                    ),
                   ),
                   child: ClipOval(
                     child: txn.icon.trim().isEmpty
@@ -713,9 +732,15 @@ class _ElectricityRecentCard extends StatelessWidget {
               ],
             ),
           ),
-          Divider(height: 1, color: AppColors.lightBorder.withOpacity(0.7)),
+          Divider(
+            height: 1,
+            color: AppColors.lightBorder.withOpacity(0.7),
+          ),
           Padding(
-            padding: EdgeInsets.all(14.w),
+            padding: EdgeInsets.symmetric(
+              horizontal: 14.w,
+              vertical: 14.h,
+            ),
             child: Row(
               children: [
                 Expanded(
@@ -777,9 +802,17 @@ class _ElectricityRecentCard extends StatelessWidget {
 
   String _formatDueDate(String? raw) {
     final value = (raw ?? '').trim();
-    if (value.isEmpty || value.toLowerCase() == 'null') return '';
+
+    if (value.isEmpty || value.toLowerCase() == 'null') {
+      return '';
+    }
+
     final parsed = DateTime.tryParse(value);
-    if (parsed == null) return 'Due On $value';
+
+    if (parsed == null) {
+      return 'Due On $value';
+    }
+
     const months = [
       'Jan',
       'Feb',
@@ -792,61 +825,12 @@ class _ElectricityRecentCard extends StatelessWidget {
       'Sep',
       'Oct',
       'Nov',
-      'Dec'
+      'Dec',
     ];
+
     final m = months[parsed.month - 1];
+
     return 'Due On ${parsed.day} $m ${parsed.year}';
-  }
-}
-
-class _ElectricityBillerTile extends StatelessWidget {
-  const _ElectricityBillerTile({required this.biller, this.onTap});
-
-  final Biller biller;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 14.h),
-        child: Row(
-          children: [
-            Container(
-              width: 40.w,
-              height: 40.w,
-              decoration: BoxDecoration(
-                color: AppColors.gradientStart.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(10.r),
-              ),
-              child: _BillerIcon(
-                name: biller.billerName,
-                iconUrl: biller.iconUrl,
-                size: 40.w,
-                borderRadius: BorderRadius.circular(10.r),
-              ),
-            ),
-            SizedBox(width: 14.w),
-            Expanded(
-              child: Text(
-                biller.billerName,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-            ),
-            Image.asset(
-              FileConstants.tiltArrow,
-              height: 25,
-              width: 25,
-              fit: BoxFit.contain,
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 
@@ -1022,18 +1006,15 @@ class _MobilePostpaidFlow extends HookConsumerWidget {
                       await ensureBillersLoaded();
                       if (!context.mounted) return;
 
-                      final billersNow = ref
-                          .read(billerListingControllerProvider)
-                          .filteredBillers;
+                      final billersNow =
+                          ref.read(billerListingControllerProvider).billers;
                       if (billersNow.isEmpty) return;
 
-                      final normalizedBiller =
-                          txn.billerName.trim().toLowerCase();
+                      final recentBillerName = txn.billerName.trim();
                       Biller? selected;
-                      if (normalizedBiller.isNotEmpty) {
+                      if (recentBillerName.isNotEmpty) {
                         for (final b in billersNow) {
-                          if (b.billerName.trim().toLowerCase() ==
-                              normalizedBiller) {
+                          if (b.billerName.trim() == recentBillerName) {
                             selected = b;
                             break;
                           }
@@ -2166,19 +2147,13 @@ class _BillerTile extends StatelessWidget {
   const _BillerTile({
     required this.biller,
     this.onTap,
-    this.trailingAsset,
-    this.trailingSize,
   });
 
   final Biller biller;
   final VoidCallback? onTap;
-  final String? trailingAsset;
-  final double? trailingSize;
 
   @override
   Widget build(BuildContext context) {
-    final asset = (trailingAsset ?? FileConstants.tiltArrow).trim();
-    final size = trailingSize ?? 25;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -2187,17 +2162,22 @@ class _BillerTile extends StatelessWidget {
           children: [
             // Provider logo placeholder
             Container(
-              width: 40,
-              height: 40,
+              width: 44,
+              height: 44,
+              padding: const EdgeInsets.all(3),
               decoration: BoxDecoration(
-                color: AppColors.gradientStart.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(10),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: AppColors.lightBorder2,
+                  width: 1,
+                ),
               ),
               child: _BillerIcon(
                 name: biller.billerName,
                 iconUrl: biller.iconUrl,
-                size: 40,
-                borderRadius: BorderRadius.circular(10),
+                size: 38,
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
             const SizedBox(width: 14),
@@ -2211,9 +2191,9 @@ class _BillerTile extends StatelessWidget {
               ),
             ),
             Image.asset(
-              asset,
-              height: size,
-              width: size,
+              FileConstants.tiltArrow,
+              height: 25,
+              width: 25,
               fit: BoxFit.contain,
             ),
           ],

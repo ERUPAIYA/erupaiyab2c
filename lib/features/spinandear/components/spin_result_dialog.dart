@@ -47,6 +47,8 @@ class _SpinResultDialogState extends State<SpinResultDialog> {
     final buttonLabel = isBetterLuck || isExtraSpin ? 'Try Again' : 'Claim Now';
 
     return Dialog(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),

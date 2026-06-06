@@ -1,5 +1,8 @@
 // ignore_for_file: deprecated_member_use
 
+import 'dart:async';
+
+import 'package:e_rupaiya/constants/file_constants.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -30,6 +33,8 @@ class CompleteProfileDialog extends StatefulWidget {
 
 enum _ProfileStep { details, otp, done }
 
+enum _OtpBannerType { success, error }
+
 class _CompleteProfileDialogState extends State<CompleteProfileDialog> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -43,8 +48,16 @@ class _CompleteProfileDialogState extends State<CompleteProfileDialog> {
   bool _otpVerified = false;
   bool _googleInitialized = false;
 
+  static const int _otpLength = 4;
+  static const int _otpResendCooldownSeconds = 59;
+  Timer? _otpTimer;
+  int _otpSecondsRemaining = 0;
+  _OtpBannerType? _otpBannerType;
+  String? _otpBannerMessage;
+
   @override
   void dispose() {
+    _otpTimer?.cancel();
     _nameController.dispose();
     _emailController.dispose();
     _otpController.dispose();
@@ -182,6 +195,41 @@ class _CompleteProfileDialogState extends State<CompleteProfileDialog> {
     return 'Google sign-in failed. Please try again.';
   }
 
+  void _setOtpBanner(_OtpBannerType type, String message) {
+    setState(() {
+      _otpBannerType = type;
+      _otpBannerMessage = message.trim();
+    });
+  }
+
+  void _clearOtpBanner() {
+    if (_otpBannerType == null && (_otpBannerMessage ?? '').isEmpty) return;
+    setState(() {
+      _otpBannerType = null;
+      _otpBannerMessage = null;
+    });
+  }
+
+  void _startOtpResendTimer() {
+    _otpTimer?.cancel();
+    setState(() => _otpSecondsRemaining = _otpResendCooldownSeconds);
+    _otpTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return timer.cancel();
+      if (_otpSecondsRemaining <= 0) {
+        timer.cancel();
+        return;
+      }
+      setState(() => _otpSecondsRemaining = _otpSecondsRemaining - 1);
+    });
+  }
+
+  String _formatOtpTimer(int seconds) {
+    final clamped = seconds.clamp(0, 3599);
+    final minutes = (clamped ~/ 60).toString().padLeft(2, '0');
+    final secs = (clamped % 60).toString().padLeft(2, '0');
+    return '$minutes:$secs';
+  }
+
   Future<void> _sendOtp() async {
     if (_isSubmitting) return;
     final name = _nameController.text.trim();
@@ -209,12 +257,13 @@ class _CompleteProfileDialogState extends State<CompleteProfileDialog> {
       if (!mounted) return;
       if (!resp.success) {
         AppSnackbar.show(
-          resp.message.isNotEmpty ? resp.message : 'Failed to send OTP',
-        );
+            resp.message.isNotEmpty ? resp.message : 'Failed to send OTP');
         return;
       }
       setState(() => _step = _ProfileStep.otp);
       _otpController.clear();
+      _clearOtpBanner();
+      _startOtpResendTimer();
       _otpFocus.requestFocus();
       AppSnackbar.show(
         resp.message.isNotEmpty ? resp.message : 'OTP sent to $email',
@@ -228,11 +277,50 @@ class _CompleteProfileDialogState extends State<CompleteProfileDialog> {
     }
   }
 
+  Future<void> _resendOtp() async {
+    if (_isSubmitting) return;
+    if (_otpSecondsRemaining > 0) return;
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    if (name.isEmpty || !_isValidEmail(email)) return;
+
+    setState(() {
+      _isSubmitting = true;
+      _otpVerified = false;
+    });
+    try {
+      final repo = ProfileRepository();
+      final ApiResponse resp = await repo.completeProfile(
+        name: name,
+        email: email,
+        type: 'manual',
+      );
+      if (!mounted) return;
+      if (!resp.success) {
+        _setOtpBanner(
+          _OtpBannerType.error,
+          resp.message.isNotEmpty ? resp.message : 'Something Went Wrong',
+        );
+        return;
+      }
+      _otpController.clear();
+      _clearOtpBanner();
+      _startOtpResendTimer();
+      _otpFocus.requestFocus();
+    } catch (_) {
+      if (!mounted) return;
+      _setOtpBanner(_OtpBannerType.error, 'Something Went Wrong');
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
   Future<void> _verifyOtp() async {
     if (_isSubmitting) return;
     final otp = _otpController.text.trim();
-    if (otp.length != 6) {
-      AppSnackbar.show('Please enter the 6-digit OTP');
+    if (otp.length != _otpLength) {
+      _setOtpBanner(
+          _OtpBannerType.error, 'Please enter the $_otpLength-digit OTP');
       return;
     }
 
@@ -242,19 +330,36 @@ class _CompleteProfileDialogState extends State<CompleteProfileDialog> {
       final ApiResponse resp = await repo.verifyCompleteProfileOtp(otp: otp);
       if (!mounted) return;
       if (!resp.success) {
-        AppSnackbar.show(
-          resp.message.isNotEmpty ? resp.message : 'OTP verification failed',
+        _setOtpBanner(
+          _OtpBannerType.error,
+          resp.message.isNotEmpty ? resp.message : 'Incorrect OTP',
         );
         return;
       }
       setState(() => _otpVerified = true);
+      _setOtpBanner(_OtpBannerType.success, 'OTP Verified');
 
+      _otpTimer?.cancel();
       setState(() => _step = _ProfileStep.done);
     } catch (_) {
-      AppSnackbar.show('OTP verification failed. Please try again.');
+      if (!mounted) return;
+      _setOtpBanner(_OtpBannerType.error, 'Something Went Wrong');
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  void _backToDetailsStep() {
+    if (_isSubmitting) return;
+    _otpTimer?.cancel();
+    _otpController.clear();
+    _clearOtpBanner();
+    setState(() {
+      _otpVerified = false;
+      _otpSecondsRemaining = 0;
+      _step = _ProfileStep.details;
+    });
+    _emailFocus.requestFocus();
   }
 
   Widget _headerIcon() {
@@ -278,7 +383,13 @@ class _CompleteProfileDialogState extends State<CompleteProfileDialog> {
             shape: BoxShape.circle,
             border: Border.all(color: const Color(0xFF0B8F3A), width: 2),
           ),
-          child: const Icon(Icons.shield, color: Color(0xFF0B8F3A), size: 28),
+          child: Padding(
+            padding: EdgeInsets.all(10.r),
+            child: Image.asset(
+              FileConstants.resetPinIcon,
+              fit: BoxFit.contain,
+            ),
+          ),
         );
       case _ProfileStep.done:
         return Container(
@@ -329,13 +440,11 @@ class _CompleteProfileDialogState extends State<CompleteProfileDialog> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             // Simple "G" mark without extra assets.
-            Text(
-              'G',
-              style: TextStyle(
-                fontSize: 18.sp,
-                fontWeight: FontWeight.w900,
-                color: Colors.blue.shade700,
-              ),
+            Image.asset(
+              FileConstants.googleLogo,
+              width: 18.w,
+              height: 18.h,
+              fit: BoxFit.contain,
             ),
             SizedBox(width: 10.w),
             Text(
@@ -445,46 +554,105 @@ class _CompleteProfileDialogState extends State<CompleteProfileDialog> {
               ),
         ),
         SizedBox(height: 8.h),
-        Text(
-          'Enter the 6-digit OTP sent to $email\nemail ID.',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.textPrimary.withOpacity(0.8),
-                height: 1.25,
+        RichText(
+          text: TextSpan(
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textPrimary.withOpacity(0.8),
+                  height: 1.25,
+                ),
+            children: [
+              TextSpan(
+                text:
+                    'Enter the $_otpLength-digit OTP sent to $email\nemail ID. ',
               ),
+              WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: TextButton(
+                  onPressed: _isSubmitting ? null : _backToDetailsStep,
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    foregroundColor: AppColors.primary,
+                  ),
+                  child: Text(
+                    'Change email',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
         SizedBox(height: 18.h),
         Pinput(
           controller: _otpController,
           focusNode: _otpFocus,
-          length: 6,
+          length: _otpLength,
           enabled: !_isSubmitting,
           keyboardType: TextInputType.number,
           defaultPinTheme: pinTheme,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           onCompleted: (_) => _verifyOtp(),
+          onChanged: (_) {
+            if (_otpVerified) setState(() => _otpVerified = false);
+            if (_otpBannerType == _OtpBannerType.error) _clearOtpBanner();
+          },
         ),
         SizedBox(height: 12.h),
-        if (_otpVerified)
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 7.h),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0B8F3A).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(999),
+        Row(
+          children: [
+            const Icon(Icons.access_time, size: 20, color: Colors.black),
+            SizedBox(width: 10.w),
+            Text(
+              _formatOtpTimer(_otpSecondsRemaining),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.verified, color: Color(0xFF0B8F3A), size: 18),
-                SizedBox(width: 6.w),
-                Text(
-                  'OTP Verified',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: const Color(0xFF0B8F3A),
-                        fontWeight: FontWeight.w800,
-                      ),
+            const Spacer(),
+            InkWell(
+              onTap: (_otpSecondsRemaining == 0 && !_isSubmitting)
+                  ? _resendOtp
+                  : null,
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 6.h, horizontal: 6.w),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.refresh,
+                      size: 18,
+                      color: (_otpSecondsRemaining == 0 && !_isSubmitting)
+                          ? AppColors.textPrimary.withOpacity(0.65)
+                          : AppColors.textPrimary.withOpacity(0.25),
+                    ),
+                    SizedBox(width: 8.w),
+                    Text(
+                      'Resend OTP',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: (_otpSecondsRemaining == 0 && !_isSubmitting)
+                                ? AppColors.textPrimary.withOpacity(0.55)
+                                : AppColors.textPrimary.withOpacity(0.25),
+                          ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
+          ],
+        ),
+        SizedBox(height: 12.h),
+        if (_otpBannerType != null &&
+            (_otpBannerMessage ?? '').trim().isNotEmpty)
+          _OtpBanner(
+            type: _otpBannerType!,
+            message: _otpBannerMessage!.trim(),
           ),
         SizedBox(height: 18.h),
         CustomElevatedButton(
@@ -573,6 +741,52 @@ class _CompleteProfileDialogState extends State<CompleteProfileDialog> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _OtpBanner extends StatelessWidget {
+  const _OtpBanner({
+    required this.type,
+    required this.message,
+  });
+
+  final _OtpBannerType type;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final isSuccess = type == _OtpBannerType.success;
+    final bgColor = isSuccess
+        ? const Color(0xFF0B8F3A).withOpacity(0.1)
+        : const Color(0xFFFFE7DE);
+    final fgColor =
+        isSuccess ? const Color(0xFF0B8F3A) : const Color(0xFFE54800);
+    final icon = isSuccess ? Icons.verified : Icons.error;
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 7.h),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: fgColor, size: 18),
+          SizedBox(width: 6.w),
+          Flexible(
+            child: Text(
+              message,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: fgColor,
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          ),
+        ],
       ),
     );
   }

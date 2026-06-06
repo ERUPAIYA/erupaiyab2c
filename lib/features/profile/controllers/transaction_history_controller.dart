@@ -8,32 +8,47 @@ import '../repositories/transaction_history_repository.dart';
 class TransactionHistoryState {
   const TransactionHistoryState({
     this.isLoading = false,
+    this.isFetchingMore = false,
     this.items = const [],
     this.errorMessage,
     this.selectedDays = 30,
     this.selectedLastYears,
     this.selectedRange,
+    this.currentPage = 1,
+    this.totalPages = 1,
+    this.limit = 20,
   });
 
   final bool isLoading;
+  final bool isFetchingMore;
   final List<TransactionHistoryEntry> items;
   final String? errorMessage;
   final int selectedDays;
   final int? selectedLastYears;
   final DateTimeRange? selectedRange;
+  final int currentPage;
+  final int totalPages;
+  final int limit;
+
+  bool get hasMore => currentPage < totalPages;
 
   static const _sentinel = Object();
 
   TransactionHistoryState copyWith({
     bool? isLoading,
+    bool? isFetchingMore,
     List<TransactionHistoryEntry>? items,
     String? errorMessage,
     int? selectedDays,
     Object? selectedLastYears = _sentinel,
     Object? selectedRange = _sentinel,
+    int? currentPage,
+    int? totalPages,
+    int? limit,
   }) {
     return TransactionHistoryState(
       isLoading: isLoading ?? this.isLoading,
+      isFetchingMore: isFetchingMore ?? this.isFetchingMore,
       items: items ?? this.items,
       errorMessage: errorMessage,
       selectedDays: selectedDays ?? this.selectedDays,
@@ -43,6 +58,9 @@ class TransactionHistoryState {
       selectedRange: selectedRange == _sentinel
           ? this.selectedRange
           : selectedRange as DateTimeRange?,
+      currentPage: currentPage ?? this.currentPage,
+      totalPages: totalPages ?? this.totalPages,
+      limit: limit ?? this.limit,
     );
   }
 }
@@ -66,6 +84,7 @@ class TransactionHistoryController
         super(const TransactionHistoryState());
 
   final TransactionHistoryRepository _repository;
+  TransactionHistoryFilter? _activeFilter;
 
   Future<void> fetchHistory({
     int? days,
@@ -74,12 +93,22 @@ class TransactionHistoryController
     TransactionHistoryFilter? filter,
   }) async {
     final resolvedDays = days ?? state.selectedDays;
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    _activeFilter = filter;
+    state = state.copyWith(
+      isLoading: true,
+      isFetchingMore: false,
+      errorMessage: null,
+      currentPage: 1,
+      totalPages: 1,
+      items: const [],
+    );
     try {
-      final items = await _repository.fetchHistory(
+      final page = await _repository.fetchHistoryPage(
         days: filter == null && lastYears == null && range == null
             ? resolvedDays
             : null,
+        page: 1,
+        limit: state.limit,
         fromDate: filter?.fromDate ?? range?.start,
         toDate: filter?.toDate ?? range?.end,
         lastYears: lastYears,
@@ -92,15 +121,55 @@ class TransactionHistoryController
       );
       state = state.copyWith(
         isLoading: false,
-        items: items,
+        items: page.items,
         selectedDays: resolvedDays,
         selectedLastYears: lastYears,
         selectedRange: range,
+        currentPage: page.currentPage,
+        totalPages: page.totalPages,
+        limit: page.limit,
       );
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
         errorMessage: 'Failed to load transactions. Please try again.',
+      );
+    }
+  }
+
+  Future<void> fetchNextPage() async {
+    if (state.isLoading || state.isFetchingMore || !state.hasMore) return;
+    state = state.copyWith(isFetchingMore: true, errorMessage: null);
+    try {
+      final nextPage = state.currentPage + 1;
+      final filter = _activeFilter;
+      final page = await _repository.fetchHistoryPage(
+        days: filter == null && state.selectedLastYears == null && state.selectedRange == null
+            ? state.selectedDays
+            : null,
+        page: nextPage,
+        limit: state.limit,
+        fromDate: filter?.fromDate ?? state.selectedRange?.start,
+        toDate: filter?.toDate ?? state.selectedRange?.end,
+        lastYears: state.selectedLastYears,
+        month: filter?.month,
+        status: filter?.status,
+        service: filter?.service,
+        paymentType: filter?.paymentType,
+        minAmount: filter?.minAmount,
+        maxAmount: filter?.maxAmount,
+      );
+      state = state.copyWith(
+        isFetchingMore: false,
+        items: [...state.items, ...page.items],
+        currentPage: page.currentPage,
+        totalPages: page.totalPages,
+        limit: page.limit,
+      );
+    } catch (_) {
+      state = state.copyWith(
+        isFetchingMore: false,
+        errorMessage: 'Failed to load more transactions.',
       );
     }
   }

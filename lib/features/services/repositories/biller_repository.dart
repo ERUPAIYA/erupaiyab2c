@@ -1,16 +1,14 @@
-import 'dart:developer';
-
 import 'package:dio/dio.dart';
 
 import '../../../constants/api_constants.dart';
 import '../../../services/dio_service.dart';
 import '../../../services/logger_service.dart';
-import '../models/bill_pay_response_model.dart';
+import '../../../services/payment_device_context_service.dart';
 import '../models/bill_response_model.dart';
-import '../models/recharge_status_result.dart';
-import '../models/service_payment_order_result.dart';
 import '../models/biller_detail_model.dart';
 import '../models/biller_model.dart';
+import '../models/recharge_status_result.dart';
+import '../models/service_payment_order_result.dart';
 
 class BillerRepository {
   BillerRepository({Dio? dio}) : _dio = dio ?? DioService.instance.client;
@@ -78,9 +76,7 @@ class BillerRepository {
       final payload = response.data as Map<String, dynamic>? ?? {};
       final status = (payload['status'] ?? '').toString().toUpperCase();
       if (status != 'SUCCESS') {
-        final note = (payload['note'] ?? '')
-            .toString()
-            .trim();
+        final note = (payload['note'] ?? '').toString().trim();
         throw BillerApiException(
           _extractBillFetchErrorMessage(payload),
           note: note,
@@ -110,6 +106,12 @@ class BillerRepository {
     double razorpayAmount = 0,
   }) async {
     try {
+      Map<String, dynamic> deviceContext = const <String, dynamic>{};
+      try {
+        deviceContext = await const PaymentDeviceContextService().collect();
+      } catch (_) {
+        deviceContext = const <String, dynamic>{};
+      }
       final data = <String, dynamic>{
         'payment_type': paymentType,
         'biller_name': billerName,
@@ -120,6 +122,7 @@ class BillerRepository {
         'masked_identifier': maskedIdentifier,
         'wallet_amount': walletAmount.toStringAsFixed(2),
         'razorpay_amount': razorpayAmount.toStringAsFixed(2),
+        ...deviceContext,
       };
 
       for (final entry in customerParams.entries) {

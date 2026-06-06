@@ -7,6 +7,7 @@ import 'package:e_rupaiya/features/mobile_prepaid/models/mobile_prepaid_state.da
 import 'package:e_rupaiya/widgets/search_textfield.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -14,6 +15,7 @@ import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:shimmer/shimmer.dart';
 
 import '../../../constants/app_colors.dart';
 import '../../../constants/file_constants.dart';
@@ -36,7 +38,6 @@ import '../controllers/contacts_cache_controller.dart';
 import '../controllers/mobile_prepaid_controller.dart';
 import '../controllers/prepaid_meta_controller.dart';
 import '../models/latest_transaction.dart';
-import '../models/my_number_info.dart';
 import '../models/operator_option.dart';
 import '../models/plan_item.dart';
 import '../models/recharge_quick_action_payload.dart';
@@ -45,6 +46,7 @@ import '../models/region_option.dart';
 List<int> _filterContactIndices(Map<String, dynamic> payload) {
   final rawEntries = payload['entries'] as List<dynamic>? ?? const [];
   final query = (payload['query'] as String? ?? '').toLowerCase();
+  final queryDigits = query.replaceAll(RegExp(r'\D'), '');
   if (rawEntries.isEmpty) return const [];
   if (query.isEmpty) {
     return List<int>.generate(rawEntries.length, (index) => index);
@@ -54,7 +56,10 @@ List<int> _filterContactIndices(Map<String, dynamic> payload) {
     final entry = rawEntries[i] as Map;
     final name = (entry['name'] as String? ?? '');
     final phone = (entry['phone'] as String? ?? '');
-    if (name.contains(query) || phone.contains(query)) {
+    final matchesName = name.contains(query);
+    final matchesPhone =
+        queryDigits.isNotEmpty ? phone.contains(queryDigits) : false;
+    if (matchesName || matchesPhone) {
       matches.add(i);
     }
   }
@@ -99,16 +104,90 @@ class MobilePrepaidView extends HookConsumerWidget {
     final contactsSectionKey = useMemoized(GlobalKey.new);
 
     final manualMobileController = useTextEditingController();
+    final manualNumberController = useTextEditingController();
+    final numericFocusNode = useFocusNode();
+    final alphaFocusNode = useFocusNode();
+    final searchMode = useState<_MobilePrepaidSearchMode>(
+      _MobilePrepaidSearchMode.abc,
+    );
     final planSearchController =
         useTextEditingController(text: state.planSearchQuery);
 
     final showPlans = state.mobile.isNotEmpty || state.operatorInfo != null;
+    final quickActionHandled = useRef(false);
+    final repeatTarget = useState<LatestTransaction?>(null);
+    final repeatHandledForId = useRef<String?>(null);
+
+    void handleRepeatRecharge(LatestTransaction payment) {
+      repeatTarget.value = payment;
+      final phone = _normalizeMobile(payment.serviceNo);
+      manualMobileController.text = phone;
+      Future.microtask(() async {
+        await controller.fetchOperatorAndPlans(phone);
+        final amountInt = payment.amount.toInt();
+        if (amountInt > 0) {
+          controller.updatePlanSearch('$amountInt');
+        }
+      });
+    }
+
+    void handleMyNumberRecharge(String mobile) {
+      final normalized = _normalizeMobile(mobile);
+      final items = recentPayments.asData?.value ?? const <LatestTransaction>[];
+      final match = items.cast<LatestTransaction?>().firstWhere(
+            (e) => e != null && _normalizeMobile(e.serviceNo) == normalized,
+            orElse: () => null,
+          );
+      if (match != null && match.amount.toInt() > 0) {
+        handleRepeatRecharge(match);
+        return;
+      }
+      controller.fetchOperatorAndPlans(normalized);
+    }
 
     useEffect(() {
       return () {
         controller.reset();
       };
     }, const []);
+
+    useEffect(() {
+      if (searchMode.value == _MobilePrepaidSearchMode.numeric) {
+        // When switching from ABC -> 123, carry any typed number over so the
+        // numeric search can continue seamlessly.
+        final fromAlpha = _normalizeMobile(contactSearchController.text);
+        if (fromAlpha.isNotEmpty && manualNumberController.text != fromAlpha) {
+          manualNumberController.text = fromAlpha;
+          manualNumberController.selection = TextSelection.collapsed(
+            offset: manualNumberController.text.length,
+          );
+        }
+        Future.microtask(() => numericFocusNode.requestFocus());
+      } else {
+        // When switching from 123 -> ABC, carry the digits back so the user
+        // can continue searching in the same field.
+        final fromNumeric = _normalizeMobile(manualNumberController.text);
+        if (fromNumeric.isNotEmpty &&
+            contactSearchController.text != fromNumeric) {
+          contactSearchController.text = fromNumeric;
+          contactSearchController.selection = TextSelection.collapsed(
+            offset: contactSearchController.text.length,
+          );
+        }
+        Future.microtask(() => alphaFocusNode.requestFocus());
+      }
+      return null;
+    }, [searchMode.value, numericFocusNode, alphaFocusNode]);
+
+    useEffect(() {
+      void listener() {
+        if (searchMode.value != _MobilePrepaidSearchMode.numeric) return;
+        contactQuery.value = manualNumberController.text;
+      }
+
+      manualNumberController.addListener(listener);
+      return () => manualNumberController.removeListener(listener);
+    }, [manualNumberController, searchMode.value]);
 
     Future<void> loadContacts() async {
       await contactsController.fetchIfNeeded();
@@ -141,6 +220,99 @@ class MobilePrepaidView extends HookConsumerWidget {
       });
       return null;
     }, [quickActionPayload]);
+
+    useEffect(() {
+      if (quickActionPayload == null) return null;
+      if (!quickActionPayload.autoOpenPaymentSheet) return null;
+      if (quickActionHandled.value) return null;
+      if (state.isFetching) return null;
+      if (state.plansByCategory.isEmpty) return null;
+
+      final targetAmount = quickActionPayload.amount;
+      if (targetAmount <= 0) return null;
+
+      String? matchedCategory;
+      PlanItem? matchedPlan;
+      for (final entry in state.plansByCategory.entries) {
+        for (final plan in entry.value) {
+          if (plan.amount != targetAmount) continue;
+          matchedCategory = entry.key;
+          matchedPlan = plan;
+          break;
+        }
+        if (matchedPlan != null) break;
+      }
+
+      if (matchedPlan == null) return null;
+      quickActionHandled.value = true;
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        if (matchedCategory != null && matchedCategory.isNotEmpty) {
+          controller.selectCategory(matchedCategory);
+        }
+        controller.selectPlan(matchedPlan!);
+        KDialog.instance.openSheet(
+          dialog: PrepaidPaymentBottomSheet(
+            plan: matchedPlan,
+            billerName: state.operatorInfo?.operatorName ?? 'Mobile Prepaid',
+            ecoinsRestrictionsPercent: state.ecoinsRestrictionsPercent,
+          ),
+        );
+      });
+      return null;
+    }, [
+      quickActionPayload,
+      state.isFetching,
+      state.plansByCategory,
+    ]);
+
+    useEffect(() {
+      final payment = repeatTarget.value;
+      if (payment == null) return null;
+      if (repeatHandledForId.value == payment.id) return null;
+      if (state.isFetching) return null;
+      if (state.plansByCategory.isEmpty) return null;
+
+      final amountInt = payment.amount.toInt();
+      if (amountInt <= 0) return null;
+
+      String? matchedCategory;
+      PlanItem? matchedPlan;
+      for (final entry in state.plansByCategory.entries) {
+        for (final plan in entry.value) {
+          if (plan.amount != amountInt) continue;
+          matchedCategory = entry.key;
+          matchedPlan = plan;
+          break;
+        }
+        if (matchedPlan != null) break;
+      }
+
+      repeatHandledForId.value = payment.id;
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        if (matchedPlan == null) return;
+        if (matchedCategory != null && matchedCategory.isNotEmpty) {
+          controller.selectCategory(matchedCategory);
+        }
+        controller.selectPlan(matchedPlan);
+        KDialog.instance.openSheet(
+          dialog: PrepaidPaymentBottomSheet(
+            plan: matchedPlan,
+            billerName: state.operatorInfo?.operatorName ?? 'Mobile Prepaid',
+            ecoinsRestrictionsPercent: state.ecoinsRestrictionsPercent,
+          ),
+        );
+      });
+
+      return null;
+    }, [
+      repeatTarget.value,
+      state.isFetching,
+      state.plansByCategory,
+    ]);
 
     Future<void> handleRequestPermission() async {
       final granted = await permissionService.requestContacts();
@@ -187,6 +359,16 @@ class MobilePrepaidView extends HookConsumerWidget {
             contactsState.contacts[i],
       ];
       visibleContactCount.value = 100;
+
+      // If user typed a phone number in ABC search and no contacts matched,
+      // automatically switch to the numeric (123) mode.
+      if (searchMode.value == _MobilePrepaidSearchMode.abc) {
+        final queryDigits = query.replaceAll(RegExp(r'\D'), '');
+        final looksNumericOnly = queryDigits.isNotEmpty && queryDigits == query;
+        if (looksNumericOnly && queryDigits.length >= 4 && indices.isEmpty) {
+          searchMode.value = _MobilePrepaidSearchMode.numeric;
+        }
+      }
     }
 
     useEffect(() {
@@ -259,6 +441,33 @@ class MobilePrepaidView extends HookConsumerWidget {
       }
     }
 
+    Future<void> handleManualProceed(String mobile) async {
+      final normalized = _normalizeMobile(mobile);
+      manualMobileController.text = normalized;
+      await controller.fetchOperatorAndPlans(normalized);
+      final latest = ref.read(mobilePrepaidControllerProvider);
+      if (latest.operatorInfo != null && latest.plansByCategory.isNotEmpty) {
+        return;
+      }
+      if (!context.mounted) return;
+      // If auto-detect fails we fallback to manual selection, so suppress the
+      // generic error snackbar/message for this path.
+      controller.clearError();
+      await _openOperatorSheet(
+        ref,
+        mobile: normalized,
+        onSelected: (operator, region) async {
+          await controller.fetchPlansForSelection(
+            mobileInput: normalized,
+            operatorName: operator.name,
+            circleName: region.name,
+            circleCode: region.code,
+            iconUrl: operator.iconUrl,
+          );
+        },
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: MyAppBar(
@@ -321,8 +530,15 @@ class MobilePrepaidView extends HookConsumerWidget {
                             contactsSectionKey: contactsSectionKey,
                             isLoading: contactsState.isLoading,
                             contacts: filteredContacts.value,
+                            allContacts: contactsState.contacts,
                             visibleCount: visibleContactCount.value,
                             contactSearchController: contactSearchController,
+                            manualNumberController: manualNumberController,
+                            numericFocusNode: numericFocusNode,
+                            alphaFocusNode: alphaFocusNode,
+                            searchMode: searchMode.value,
+                            onSearchModeChange: (mode) =>
+                                searchMode.value = mode,
                             onQueryChange: (value) =>
                                 contactQuery.value = value,
                             onReload: loadContacts,
@@ -342,12 +558,11 @@ class MobilePrepaidView extends HookConsumerWidget {
                                 _normalizeMobile(mobile),
                               );
                             },
+                            onManualProceed: handleManualProceed,
                             onRepeatRecent: (payment) {
-                              manualMobileController.text = payment.serviceNo;
-                              controller.fetchOperatorAndPlans(
-                                _normalizeMobile(payment.serviceNo),
-                              );
+                              handleRepeatRecharge(payment);
                             },
+                            onMyNumberRecharge: handleMyNumberRecharge,
                             onViewAllRecent: () => context.push(
                               RouteConstants.mobileRecentRecharges,
                             ),
@@ -369,13 +584,21 @@ class _ContactsSection extends StatelessWidget {
     required this.contactsSectionKey,
     required this.isLoading,
     required this.contacts,
+    required this.allContacts,
     required this.visibleCount,
     required this.contactSearchController,
+    required this.manualNumberController,
+    required this.numericFocusNode,
+    required this.alphaFocusNode,
+    required this.searchMode,
+    required this.onSearchModeChange,
     required this.onQueryChange,
     required this.onReload,
     required this.onLoadMore,
     required this.onSelect,
+    required this.onManualProceed,
     required this.onRepeatRecent,
+    required this.onMyNumberRecharge,
     required this.onViewAllRecent,
   });
 
@@ -387,13 +610,21 @@ class _ContactsSection extends StatelessWidget {
   final GlobalKey contactsSectionKey;
   final bool isLoading;
   final List<Contact> contacts;
+  final List<Contact> allContacts;
   final int visibleCount;
   final TextEditingController contactSearchController;
+  final TextEditingController manualNumberController;
+  final FocusNode numericFocusNode;
+  final FocusNode alphaFocusNode;
+  final _MobilePrepaidSearchMode searchMode;
+  final ValueChanged<_MobilePrepaidSearchMode> onSearchModeChange;
   final ValueChanged<String> onQueryChange;
   final VoidCallback onReload;
   final VoidCallback onLoadMore;
   final ValueChanged<String> onSelect;
+  final Future<void> Function(String mobile) onManualProceed;
   final ValueChanged<LatestTransaction> onRepeatRecent;
+  final ValueChanged<String> onMyNumberRecharge;
   final VoidCallback onViewAllRecent;
 
   @override
@@ -409,74 +640,125 @@ class _ContactsSection extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
-          _MobilePrepaidBanner(banners: banners),
-          const SizedBox(height: 14),
-          _MobilePrepaidSearchRow(
-            controller: contactSearchController,
-            onQueryChange: onQueryChange,
-            onContactsTap: () {
-              final target = contactsSectionKey.currentContext;
-              if (target == null) return;
-              Scrollable.ensureVisible(
-                target,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-                alignment: 0.05,
-              );
-            },
+          if (searchMode == _MobilePrepaidSearchMode.abc) ...[
+            _MobilePrepaidBanner(banners: banners),
+            const SizedBox(height: 14),
+          ],
+          _MobilePrepaidSearchSwitcher(
+            searchMode: searchMode,
+            onSearchModeChange: onSearchModeChange,
+            alphaController: contactSearchController,
+            numericController: manualNumberController,
+            numericFocusNode: numericFocusNode,
+            alphaFocusNode: alphaFocusNode,
+            onAlphaChanged: onQueryChange,
+            contacts: allContacts,
+            onProceed: onManualProceed,
           ),
-          const SizedBox(height: 18),
-          _MyNumberSection(numberForApi: myNumberForApi, onSelect: onSelect),
-          const SizedBox(height: 18),
-          _RecentRechargesSection(
-            recentPayments: recentPayments,
-            onRepeatRecent: onRepeatRecent,
-            onViewAllRecent: onViewAllRecent,
-          ),
-          const SizedBox(height: 18),
-          SizedBox(key: contactsSectionKey),
-          const _SectionHeader(title: 'My Contacts'),
-          const SizedBox(height: 10),
-          if (!hasContactsPermission)
-            ContactsPermissionCard(
-              onAllow: onRequestPermission,
-              outerPadding: EdgeInsets.zero,
-            )
-          else if (isLoading)
-            const Center(
-              child: SpinKitCircle(
-                color: AppColors.primary,
-                size: 48,
-              ),
-            )
-          else if (contacts.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              child: Center(
-                child: Text(
-                  'No contacts found',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textPrimary.withOpacity(0.6),
-                      ),
+          if (searchMode == _MobilePrepaidSearchMode.numeric) ...[
+            const SizedBox(height: 12),
+            const _SectionHeader(title: 'My Contacts'),
+            const SizedBox(height: 10),
+            if (!hasContactsPermission)
+              ContactsPermissionCard(
+                onAllow: onRequestPermission,
+                outerPadding: EdgeInsets.zero,
+              )
+            else if (isLoading)
+              const Center(
+                child: SpinKitCircle(
+                  color: AppColors.primary,
+                  size: 48,
                 ),
+              )
+            else if (contacts.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: Text(
+                    'No contacts found',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textPrimary.withOpacity(0.6),
+                        ),
+                  ),
+                ),
+              )
+            else ...[
+              ContactsList(
+                contacts: contacts,
+                visibleCount: visibleCount,
+                onSelect: onSelect,
               ),
-            )
-          else ...[
-            ContactsList(
-              contacts: contacts,
-              visibleCount: visibleCount,
+              if (contacts.length > visibleCount) ...[
+                const SizedBox(height: 10),
+                Center(
+                  child: Text(
+                    'Scroll to load more',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textPrimary.withOpacity(0.6),
+                        ),
+                  ),
+                ),
+              ],
+            ],
+          ] else ...[
+            const SizedBox(height: 18),
+            _MyNumberSection(
+              numberForApi: myNumberForApi,
               onSelect: onSelect,
+              onRecharge: onMyNumberRecharge,
             ),
-            if (contacts.length > visibleCount) ...[
-              const SizedBox(height: 10),
-              Center(
-                child: Text(
-                  'Scroll to load more',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textPrimary.withOpacity(0.6),
-                      ),
+            const SizedBox(height: 18),
+            _RecentRechargesSection(
+              recentPayments: recentPayments,
+              onRepeatRecent: onRepeatRecent,
+              onViewAllRecent: onViewAllRecent,
+            ),
+            const SizedBox(height: 18),
+            SizedBox(key: contactsSectionKey),
+            const _SectionHeader(title: 'My Contacts'),
+            const SizedBox(height: 10),
+            if (!hasContactsPermission)
+              ContactsPermissionCard(
+                onAllow: onRequestPermission,
+                outerPadding: EdgeInsets.zero,
+              )
+            else if (isLoading)
+              const Center(
+                child: SpinKitCircle(
+                  color: AppColors.primary,
+                  size: 48,
                 ),
+              )
+            else if (contacts.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: Text(
+                    'No contacts found',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textPrimary.withOpacity(0.6),
+                        ),
+                  ),
+                ),
+              )
+            else ...[
+              ContactsList(
+                contacts: contacts,
+                visibleCount: visibleCount,
+                onSelect: onSelect,
               ),
+              if (contacts.length > visibleCount) ...[
+                const SizedBox(height: 10),
+                Center(
+                  child: Text(
+                    'Scroll to load more',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textPrimary.withOpacity(0.6),
+                        ),
+                  ),
+                ),
+              ],
             ],
           ],
         ],
@@ -502,11 +784,7 @@ class _MobilePrepaidBanner extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: banners.when(
-          loading: () => Image.asset(
-            FileConstants.homeBanner2,
-            width: double.infinity,
-            fit: BoxFit.cover,
-          ),
+          loading: () => const _BannerShimmer(),
           error: (_, __) => Image.asset(
             FileConstants.homeBanner2,
             width: double.infinity,
@@ -530,6 +808,23 @@ class _MobilePrepaidBanner extends StatelessWidget {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+class _BannerShimmer extends StatelessWidget {
+  const _BannerShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFFE9E9E9),
+      highlightColor: const Color(0xFFF6F6F6),
+      child: Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: Colors.white,
       ),
     );
   }
@@ -570,6 +865,219 @@ class _MobilePrepaidSearchRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+enum _MobilePrepaidSearchMode { abc, numeric }
+
+class _MobilePrepaidSearchSwitcher extends StatelessWidget {
+  const _MobilePrepaidSearchSwitcher({
+    required this.searchMode,
+    required this.onSearchModeChange,
+    required this.alphaController,
+    required this.numericController,
+    required this.numericFocusNode,
+    required this.alphaFocusNode,
+    required this.onAlphaChanged,
+    required this.contacts,
+    required this.onProceed,
+  });
+
+  final _MobilePrepaidSearchMode searchMode;
+  final ValueChanged<_MobilePrepaidSearchMode> onSearchModeChange;
+  final TextEditingController alphaController;
+  final TextEditingController numericController;
+  final FocusNode numericFocusNode;
+  final FocusNode alphaFocusNode;
+  final ValueChanged<String> onAlphaChanged;
+  final List<Contact> contacts;
+  final Future<void> Function(String mobile) onProceed;
+
+  bool _isInContacts(String digits) {
+    if (digits.length < 10) return false;
+    final normalized = _normalizeMobile(digits);
+    for (final c in contacts) {
+      if (c.phones.isEmpty) continue;
+      final phone = _normalizeMobile(c.phones.first.number);
+      if (phone == normalized) return true;
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isNumeric = searchMode == _MobilePrepaidSearchMode.numeric;
+
+    return Column(
+      children: [
+        Container(
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.black.withOpacity(0.08)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              if (!isNumeric) ...[
+                Image.asset(
+                  FileConstants.orangeSearch,
+                  width: 20,
+                  height: 20,
+                  fit: BoxFit.contain,
+                ),
+                const SizedBox(width: 10),
+              ],
+              Expanded(
+                child: TextField(
+                  controller: isNumeric ? numericController : alphaController,
+                  focusNode: isNumeric ? numericFocusNode : alphaFocusNode,
+                  autofocus: true,
+                  keyboardType:
+                      isNumeric ? TextInputType.phone : TextInputType.text,
+                  textInputAction:
+                      isNumeric ? TextInputAction.done : TextInputAction.search,
+                  inputFormatters: isNumeric
+                      ? [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(10),
+                        ]
+                      : const [],
+                  onChanged: isNumeric ? null : onAlphaChanged,
+                  decoration: InputDecoration(
+                    border: InputBorder.none,
+                    isDense: true,
+                    hintText: isNumeric
+                        ? 'Enter mobile number'
+                        : 'Search by number or name',
+                    prefixText: isNumeric ? '+91 ' : null,
+                    prefixStyle:
+                        Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Colors.black,
+                              fontWeight: FontWeight.w700,
+                            ),
+                    hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textPrimary.withOpacity(0.45),
+                          fontWeight: FontWeight.w500,
+                        ),
+                  ),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              _SearchModeToggle(
+                mode: searchMode,
+                onChanged: onSearchModeChange,
+              ),
+            ],
+          ),
+        ),
+        if (isNumeric)
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: numericController,
+            builder: (context, value, _) {
+              final numericDigits = _normalizeMobile(value.text);
+              final isInContacts = _isInContacts(numericDigits);
+              final isEnabled = numericDigits.length == 10 && !isInContacts;
+              return Column(
+                children: [
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: ElevatedButton(
+                      onPressed:
+                          isEnabled ? () => onProceed(numericDigits) : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor:
+                            AppColors.primary.withOpacity(0.35),
+                        disabledForegroundColor: Colors.white.withOpacity(0.9),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        'Proceed',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+      ],
+    );
+  }
+}
+
+class _SearchModeToggle extends StatelessWidget {
+  const _SearchModeToggle({
+    required this.mode,
+    required this.onChanged,
+  });
+
+  final _MobilePrepaidSearchMode mode;
+  final ValueChanged<_MobilePrepaidSearchMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget chip(String label, _MobilePrepaidSearchMode value) {
+      final active = mode == value;
+      return InkWell(
+        onTap: () => onChanged(value),
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: active ? AppColors.primary : const Color(0xFFF2F2F2),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: active ? Colors.white : AppColors.textPrimary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF2F2F2),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          chip('ABC', _MobilePrepaidSearchMode.abc),
+          const SizedBox(width: 4),
+          chip('123', _MobilePrepaidSearchMode.numeric),
+        ],
+      ),
     );
   }
 }
@@ -705,12 +1213,8 @@ class _MyNumberCard extends StatelessWidget {
       color: AppColors.textPrimary,
       height: 1.1,
     );
-    final subtitleStyle = TextStyle(
-      fontSize: 12,
-      fontWeight: FontWeight.w500,
-      color: AppColors.textPrimary.withOpacity(0.55),
-      height: 1.1,
-    );
+    const subtitleStyle = TextStyle(
+        fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xff7C7C7C));
 
     return Stack(
       clipBehavior: Clip.hardEdge,
@@ -775,55 +1279,9 @@ class _OperatorBrandLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = operatorLabel.trim();
-    final iconUrl = operatorIconUrl?.trim() ?? '';
-    return SizedBox(
-      width: 44,
-      height: 44,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            height: 26,
-            width: 26,
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFE8E2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: iconUrl.isEmpty
-                ? Center(
-                    child: Text(
-                      label.isEmpty ? 'M' : label[0].toUpperCase(),
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            color: const Color(0xFFE85A2C),
-                            fontWeight: FontWeight.w900,
-                            height: 1,
-                          ),
-                    ),
-                  )
-                : Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: AppNetworkImage(
-                      url: iconUrl,
-                      fit: BoxFit.contain,
-                      showShimmer: false,
-                    ),
-                  ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label.isEmpty ? '' : label.toLowerCase(),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: const Color(0xFFE85A2C),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 9,
-                  height: 1,
-                ),
-          ),
-        ],
-      ),
+    return _OperatorIconBadge(
+      label: operatorLabel,
+      iconUrl: operatorIconUrl,
     );
   }
 }
@@ -839,10 +1297,26 @@ class _RecentRechargeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Widget buildScroller(Widget child) {
+      return LayoutBuilder(
+        builder: (context, constraints) => SizedBox(
+          height: 96,
+          child: OverflowBox(
+            alignment: Alignment.centerLeft,
+            minWidth: constraints.maxWidth,
+            maxWidth: constraints.maxWidth + 16,
+            child: SizedBox(
+              width: constraints.maxWidth + 16,
+              child: child,
+            ),
+          ),
+        ),
+      );
+    }
+
     return recentPayments.when(
-      loading: () => SizedBox(
-        height: 96,
-        child: ListView.separated(
+      loading: () => buildScroller(
+        ListView.separated(
           scrollDirection: Axis.horizontal,
           itemBuilder: (_, __) =>
               const MobilePrepaidRecentRechargeCardShimmer(),
@@ -854,18 +1328,21 @@ class _RecentRechargeRow extends StatelessWidget {
       data: (items) {
         final display = items.take(10).toList();
         if (display.isEmpty) return const SizedBox.shrink();
-        return SizedBox(
-          height: 96,
-          child: ListView.separated(
+        return buildScroller(
+          ListView.separated(
             scrollDirection: Axis.horizontal,
             itemBuilder: (context, index) => _RecentRechargeCard(
               title: display[index].billerName.trim().isNotEmpty
                   ? display[index].billerName
                   : display[index].serviceNo,
+              iconUrl: display[index].icon,
               mobile: display[index].serviceNo,
+              amount: display[index].amount,
               lastOn:
                   (display[index].transactionTime?.trim().isNotEmpty ?? false)
-                      ? display[index].transactionTime!.trim()
+                      ? _recentRechargeDateOnly(
+                          display[index].transactionTime,
+                        )
                       : '--',
               badgeLabel: _resolveDueOrExpiryLabel(
                 dueDate: display[index].dueDate,
@@ -905,17 +1382,29 @@ String? _resolveDueOrExpiryLabel({
   return (due != null) ? 'Due In $days Days' : 'Expires In $days Days';
 }
 
+String _recentRechargeDateOnly(String? raw) {
+  final value = raw?.trim() ?? '';
+  if (value.isEmpty) return '--';
+  final commaIndex = value.indexOf(',');
+  if (commaIndex <= 0) return value;
+  return value.substring(0, commaIndex).trim();
+}
+
 class _RecentRechargeCard extends StatelessWidget {
   const _RecentRechargeCard({
     required this.title,
+    required this.iconUrl,
     required this.mobile,
+    required this.amount,
     required this.lastOn,
     required this.badgeLabel,
     required this.onRepeat,
   });
 
   final String title;
+  final String iconUrl;
   final String mobile;
+  final num amount;
   final String lastOn;
   final String? badgeLabel;
   final VoidCallback onRepeat;
@@ -929,17 +1418,10 @@ class _RecentRechargeCard extends StatelessWidget {
       color: AppColors.textPrimary,
       height: 1.1,
     );
-    final secondaryStyle = TextStyle(
+    const secondaryStyle = TextStyle(
       fontSize: 12,
       fontWeight: FontWeight.w600,
-      color: AppColors.textPrimary.withOpacity(0.7),
-      height: 1.1,
-    );
-    final tertiaryStyle = TextStyle(
-      fontSize: 11,
-      fontWeight: FontWeight.w500,
-      color: AppColors.textPrimary.withOpacity(0.55),
-      height: 1.1,
+      color: Color(0xff7C7C7C),
     );
 
     final showBadge = (badgeLabel ?? '').trim().isNotEmpty;
@@ -947,7 +1429,7 @@ class _RecentRechargeCard extends StatelessWidget {
       clipBehavior: Clip.hardEdge,
       children: [
         Container(
-          width: 295,
+          width: 380,
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
           decoration: BoxDecoration(
             color: Colors.white,
@@ -956,23 +1438,9 @@ class _RecentRechargeCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Container(
-                height: 44,
-                width: 44,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFE8E2),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Text(
-                  title.trim().isEmpty ? 'R' : title.trim()[0].toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 18,
-                    color: Color(0xFFE85A2C),
-                    fontWeight: FontWeight.w900,
-                    height: 1.1,
-                  ),
-                ),
+              _OperatorIconBadge(
+                label: title,
+                iconUrl: iconUrl,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -986,19 +1454,21 @@ class _RecentRechargeCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: titleStyle,
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                     Text(
                       mobile,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: secondaryStyle,
+                      style: titleStyle,
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                     Text(
-                      'Last On - $lastOn',
+                      amount > 0
+                          ? 'Last Recharge ₹${amount.toString()} on $lastOn'
+                          : 'Last Recharge on $lastOn',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: tertiaryStyle,
+                      style: secondaryStyle,
                     ),
                   ],
                 ),
@@ -1018,6 +1488,48 @@ class _RecentRechargeCard extends StatelessWidget {
             child: _ExpiryPill(badgeLabel!.trim()),
           ),
       ],
+    );
+  }
+}
+
+class _OperatorIconBadge extends StatelessWidget {
+  const _OperatorIconBadge({
+    required this.label,
+    required this.iconUrl,
+  });
+
+  final String label;
+  final String? iconUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final trimmedLabel = label.trim();
+    final trimmedIconUrl = iconUrl?.trim() ?? '';
+    return Container(
+      height: 45,
+      width: 45,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E2E2)),
+      ),
+      child: trimmedIconUrl.isNotEmpty
+          ? AppNetworkImage(
+              url: trimmedIconUrl,
+              fit: BoxFit.contain,
+              showShimmer: false,
+            )
+          : Center(
+              child: Text(
+                trimmedLabel.isEmpty ? 'R' : trimmedLabel[0].toUpperCase(),
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: const Color(0xFFE85A2C),
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                    ),
+              ),
+            ),
     );
   }
 }
@@ -1103,44 +1615,44 @@ class _PlanSection extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
           child: SizedBox(
             height: 30.h,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: 2 + quickFilters.length,
-                separatorBuilder: (_, index) =>
-                    SizedBox(width: index == 0 ? 12.w : 6.w),
-                itemBuilder: (context, index) {
-                  if (index == 0) {
-                    return OutlinedButton.icon(
-                      onPressed: () => KDialog.instance.openSheet(
-                        dialog: FilterPlansSheet(
-                          validityOptions: state.validityFilters,
-                          dataOptions: state.dataFilters,
-                          initialValiditySelected: applied
-                              .where((t) => t != allFilterLabel)
-                              .where((t) => state.validityFilters.contains(t))
-                              .toSet(),
-                          initialDataSelected: applied
-                              .where((t) => t != allFilterLabel)
-                              .where((t) => state.dataFilters.contains(t))
-                              .toSet(),
-                          onApply: (validity, data) async {
-                            final selected = <String>[
-                              ...validity,
-                              ...data,
-                            ];
-                            final info = state.operatorInfo;
-                            if (info == null) return;
-                            await controller.fetchPlansForSelection(
-                              mobileInput: state.mobile,
-                              operatorName: info.operatorName,
-                              circleName: info.circle,
-                              circleCode: info.circleCode,
-                              iconUrl: info.iconUrl,
-                              filters: selected,
-                            );
-                          },
-                        ),
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: 2 + quickFilters.length,
+              separatorBuilder: (_, index) =>
+                  SizedBox(width: index == 0 ? 12.w : 6.w),
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return OutlinedButton.icon(
+                    onPressed: () => KDialog.instance.openSheet(
+                      dialog: FilterPlansSheet(
+                        validityOptions: state.validityFilters,
+                        dataOptions: state.dataFilters,
+                        initialValiditySelected: applied
+                            .where((t) => t != allFilterLabel)
+                            .where((t) => state.validityFilters.contains(t))
+                            .toSet(),
+                        initialDataSelected: applied
+                            .where((t) => t != allFilterLabel)
+                            .where((t) => state.dataFilters.contains(t))
+                            .toSet(),
+                        onApply: (validity, data) async {
+                          final selected = <String>[
+                            ...validity,
+                            ...data,
+                          ];
+                          final info = state.operatorInfo;
+                          if (info == null) return;
+                          await controller.fetchPlansForSelection(
+                            mobileInput: state.mobile,
+                            operatorName: info.operatorName,
+                            circleName: info.circle,
+                            circleCode: info.circleCode,
+                            iconUrl: info.iconUrl,
+                            filters: selected,
+                          );
+                        },
                       ),
+                    ),
                     style: OutlinedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: AppColors.textPrimary,
@@ -1163,61 +1675,64 @@ class _PlanSection extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                         fontSize: 12.sp,
                       ),
-                      ),
-                    );
-                  }
-                  if (index == 1) {
-                    return InkWell(
-                      onTap: () async {
-                        final info = state.operatorInfo;
-                        if (info == null) return;
-                        await controller.fetchPlansForSelection(
-                          mobileInput: state.mobile,
-                          operatorName: info.operatorName,
-                          circleName: info.circle,
-                          circleCode: info.circleCode,
-                          iconUrl: info.iconUrl,
-                          filters: const [],
-                        );
-                      },
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isAllSelected
-                              ? AppColors.primary.withOpacity(0.1)
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isAllSelected
-                                ? AppColors.primary.withOpacity(0.35)
-                                : AppColors.textPrimary.withOpacity(0.08),
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            allFilterLabel,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: isAllSelected
-                                      ? AppColors.primary
-                                      : AppColors.textPrimary.withOpacity(0.85),
-                                ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-                  final label = quickFilters[index - 2];
+                    ),
+                  );
+                }
+                if (index == 1) {
                   return InkWell(
                     onTap: () async {
                       final info = state.operatorInfo;
                       if (info == null) return;
+                      await controller.fetchPlansForSelection(
+                        mobileInput: state.mobile,
+                        operatorName: info.operatorName,
+                        circleName: info.circle,
+                        circleCode: info.circleCode,
+                        iconUrl: info.iconUrl,
+                        filters: const [],
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isAllSelected
+                            ? AppColors.primary.withOpacity(0.1)
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isAllSelected
+                              ? AppColors.primary.withOpacity(0.35)
+                              : AppColors.textPrimary.withOpacity(0.08),
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          allFilterLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: isAllSelected
+                                    ? AppColors.primary
+                                    : AppColors.textPrimary.withOpacity(0.85),
+                              ),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                final label = quickFilters[index - 2];
+                return InkWell(
+                  onTap: () async {
+                    final info = state.operatorInfo;
+                    if (info == null) return;
                     await controller.fetchPlansForSelection(
                       mobileInput: state.mobile,
                       operatorName: info.operatorName,
@@ -1297,6 +1812,7 @@ class _PlanSection extends StatelessWidget {
                     plan: plan,
                     billerName:
                         state.operatorInfo?.operatorName ?? 'Mobile Prepaid',
+                    ecoinsRestrictionsPercent: state.ecoinsRestrictionsPercent,
                   ),
                 ),
               );
@@ -1465,6 +1981,8 @@ class _PayNowSection extends StatelessWidget {
                           plan: plan,
                           billerName: state.operatorInfo?.operatorName ??
                               'Mobile Prepaid',
+                          ecoinsRestrictionsPercent:
+                              state.ecoinsRestrictionsPercent,
                         ),
                       ),
               style: ElevatedButton.styleFrom(
@@ -1580,6 +2098,7 @@ class _PayNowSection extends StatelessWidget {
             dialog: PrepaidPaymentBottomSheet(
               plan: plan,
               billerName: state.operatorInfo?.operatorName ?? 'Mobile Prepaid',
+              ecoinsRestrictionsPercent: state.ecoinsRestrictionsPercent,
             ),
           ),
         ),
@@ -2050,21 +2569,23 @@ class _SuggestedPlanCard extends StatelessWidget {
                           fontSize: 22,
                         ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    plan.planName.isNotEmpty ? plan.planName : 'Data Pack',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: const Color(0XFF222222),
-                          fontWeight: FontWeight.w400,
-                        ),
-                  ),
+                  if (plan.planName.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      plan.planName,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: const Color(0XFF222222),
+                            fontWeight: FontWeight.w400,
+                          ),
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   Expanded(
                     child: Text(
                       plan.description.isEmpty
                           ? 'No description available.'
                           : plan.description,
-                      maxLines: 2,
+                      maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: const Color(0XFF222222),
@@ -2101,10 +2622,12 @@ class _MyNumberSection extends ConsumerWidget {
   const _MyNumberSection({
     required this.numberForApi,
     required this.onSelect,
+    required this.onRecharge,
   });
 
   final String numberForApi;
   final ValueChanged<String> onSelect;
+  final ValueChanged<String> onRecharge;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2112,12 +2635,12 @@ class _MyNumberSection extends ConsumerWidget {
     if (resolved.isEmpty) return const SizedBox.shrink();
     final myNumberInfo = ref.watch(mobilePrepaidMyNumberProvider(resolved));
     return myNumberInfo.when(
-      loading: () => Column(
+      loading: () => const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _SectionHeader(title: 'My Number'),
-          const SizedBox(height: 10),
-          const MobilePrepaidMyNumberCardShimmer(),
+          _SectionHeader(title: 'My Number'),
+          SizedBox(height: 10),
+          MobilePrepaidMyNumberCardShimmer(),
         ],
       ),
       error: (_, __) => const SizedBox.shrink(),
@@ -2141,7 +2664,7 @@ class _MyNumberSection extends ConsumerWidget {
               lastOn: (info.lastOn?.trim().isNotEmpty ?? false)
                   ? info.lastOn!.trim()
                   : '--',
-              onRecharge: () => onSelect(mobile),
+              onRecharge: () => onRecharge(mobile),
             ),
           ],
         );

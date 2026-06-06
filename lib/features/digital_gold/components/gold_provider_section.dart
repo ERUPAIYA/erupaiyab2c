@@ -28,16 +28,17 @@ class GoldProviderSection extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: const Color(0xFF5B3A12),
-                      fontWeight: FontWeight.w700,
-                    ),
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               SizedBox(height: 4.h),
               Text(
                 subtitle,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.textPrimary.withOpacity(0.75),
+                      color: AppColors.textPrimary,
                       fontWeight: FontWeight.w500,
                     ),
               ),

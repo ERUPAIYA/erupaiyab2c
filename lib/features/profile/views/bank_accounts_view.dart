@@ -384,7 +384,7 @@ class _BankAccountSummaryCard extends StatelessWidget {
           CustomElevatedButton(
             onPressed: onView,
             label: 'View',
-            height: 35.h,
+            height: 33.h,
             width: 90.w,
             uppercaseLabel: false,
             backgroundColor: const Color(0xFFE85A2C),

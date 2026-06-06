@@ -8,6 +8,7 @@ class TransactionStatusAppBar extends StatelessWidget {
     super.key,
     required this.title,
     required this.backgroundColor,
+    this.backgroundGradient,
     this.onBack,
     this.height = 150,
     this.trailing,
@@ -15,6 +16,7 @@ class TransactionStatusAppBar extends StatelessWidget {
 
   final String title;
   final Color backgroundColor;
+  final Gradient? backgroundGradient;
   final VoidCallback? onBack;
   final double height;
   final Widget? trailing;
@@ -28,14 +30,15 @@ class TransactionStatusAppBar extends StatelessWidget {
           Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    backgroundColor,
-                    backgroundColor.withOpacity(0.92),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
+                gradient: backgroundGradient ??
+                    LinearGradient(
+                      colors: [
+                        backgroundColor,
+                        backgroundColor.withOpacity(0.92),
+                      ],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
                 borderRadius: const BorderRadius.vertical(
                   bottom: Radius.circular(28),
                 ),

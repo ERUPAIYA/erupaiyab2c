@@ -294,7 +294,9 @@ class BillerDetailView extends HookConsumerWidget {
       if (bill != null) {
         selectedAmountType.value = _PaymentAmountType.totalOutstanding;
         final amount = _resolveDateBasedAmount(bill);
-        billAmountController.text = amount.toStringAsFixed(2);
+        billAmountController.text = isFastTag
+            ? _formatAmountForInput(amount)
+            : amount.toStringAsFixed(2);
       }
       return null;
     }, [bill]);
@@ -352,6 +354,7 @@ class BillerDetailView extends HookConsumerWidget {
               log('Prefilled gas mobile for ${param.paramName}: ${tc.text}');
             } else if (mobilePrefill != null &&
                 mobilePrefill.isNotEmpty &&
+                !isLastFourField &&
                 (isMobileField ||
                     _isIdentifierParam(param.paramName, param.dataType))) {
               tc.text =
@@ -403,6 +406,7 @@ class BillerDetailView extends HookConsumerWidget {
           tc.text = _sanitizePhone(loggedInMobile);
         } else if (mobilePrefill != null &&
             mobilePrefill.isNotEmpty &&
+            !isLastFourField &&
             isMobileField) {
           tc.text = _sanitizePhone(mobilePrefill);
         } else if (last4Prefill != null &&
@@ -467,6 +471,7 @@ class BillerDetailView extends HookConsumerWidget {
           amountToPay,
           isCreditCardFlow: isCreditCardFlow,
           paymentTypeOverride: args?.paymentType,
+          ecoinsRestrictionsPercent: bill.ecoinsRestrictionsPercent,
         );
       });
       return null;
@@ -594,7 +599,7 @@ class BillerDetailView extends HookConsumerWidget {
                                   fieldErrors.value[param.paramName];
                               final label = isGasLockedMobile
                                   ? 'Mobile Number'
-                                  : 'Enter Your ${param.paramName}';
+                                  : param.paramName;
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 16),
                                 child: Column(
@@ -840,15 +845,17 @@ class BillerDetailView extends HookConsumerWidget {
                                 if (next ==
                                     _PaymentAmountType.totalOutstanding) {
                                   final amount = _resolveDateBasedAmount(bill);
-                                  billAmountController.text =
-                                      amount.toStringAsFixed(2);
+                                  billAmountController.text = isFastTag
+                                      ? _formatAmountForInput(amount)
+                                      : amount.toStringAsFixed(2);
                                 } else if (next ==
                                     _PaymentAmountType.minimumDue) {
                                   final amount = minimumDue ??
                                       totalOutstanding ??
                                       bill.amountInRupees;
-                                  billAmountController.text =
-                                      amount.toStringAsFixed(2);
+                                  billAmountController.text = isFastTag
+                                      ? _formatAmountForInput(amount)
+                                      : amount.toStringAsFixed(2);
                                 }
                               },
                               totalOutstanding: totalOutstanding,
@@ -857,6 +864,8 @@ class BillerDetailView extends HookConsumerWidget {
                               isPipedGas: isPipedGas,
                               allowCustomAmount: isFastTag,
                               isElectricity: isElectricity,
+                              showFullDetailsInline: isFastTag,
+                              hideAmountDisplayCard: isFastTag,
                             ),
                           ]
 
@@ -1023,7 +1032,8 @@ class BillerDetailView extends HookConsumerWidget {
                                             final isSuccess =
                                                 normalized == 'SUCCESS';
                                             final isPending =
-                                                normalized == 'PENDING';
+                                                normalized == 'PENDING' ||
+                                                    normalized == 'PROCESSING';
                                             final title = isSuccess
                                                 ? 'Payment Successful!'
                                                 : (isPending
@@ -1204,6 +1214,8 @@ class BillerDetailView extends HookConsumerWidget {
                                             isCreditCardFlow: isCreditCardFlow,
                                             paymentTypeOverride:
                                                 args?.paymentType,
+                                            ecoinsRestrictionsPercent:
+                                                bill.ecoinsRestrictionsPercent,
                                           );
                                         } else {
                                           // Open payment bottom sheet
@@ -1215,6 +1227,8 @@ class BillerDetailView extends HookConsumerWidget {
                                             isCreditCardFlow: isCreditCardFlow,
                                             paymentTypeOverride:
                                                 args?.paymentType,
+                                            ecoinsRestrictionsPercent:
+                                                bill.ecoinsRestrictionsPercent,
                                           );
                                         }
                                       },
@@ -1264,12 +1278,14 @@ class BillerDetailView extends HookConsumerWidget {
     double amount, {
     required bool isCreditCardFlow,
     String? paymentTypeOverride,
+    double? ecoinsRestrictionsPercent,
   }) {
     KDialog.instance.openSheet(
       dialog: PaymentBottomSheet(
         amount: amount,
         isCreditCardFlow: isCreditCardFlow,
         paymentTypeOverride: paymentTypeOverride,
+        ecoinsRestrictionsPercent: ecoinsRestrictionsPercent,
       ),
     );
   }
@@ -1525,8 +1541,9 @@ bool _isGasCylinderCategory(String? paymentType) {
   if (value.isEmpty) return false;
   // Only LPG cylinder booking ("Book Gas") should use cylinder-specific UI
   // (bill sample/terms + registered mobile prefills). Exclude Piped Gas (PNG).
-  final isPipedGas =
-      value.contains('piped') || value.contains('pipe') || value.contains('png');
+  final isPipedGas = value.contains('piped') ||
+      value.contains('pipe') ||
+      value.contains('png');
   if (isPipedGas) return false;
 
   return value.contains('lpg') ||
@@ -2127,6 +2144,8 @@ class _CompactBillSection extends StatelessWidget {
     required this.isPipedGas,
     this.allowCustomAmount = false,
     this.isElectricity = false,
+    this.showFullDetailsInline = false,
+    this.hideAmountDisplayCard = false,
   });
 
   final BillResponse bill;
@@ -2141,6 +2160,8 @@ class _CompactBillSection extends StatelessWidget {
   final bool isPipedGas;
   final bool allowCustomAmount;
   final bool isElectricity;
+  final bool showFullDetailsInline;
+  final bool hideAmountDisplayCard;
 
   @override
   Widget build(BuildContext context) {
@@ -2188,97 +2209,105 @@ class _CompactBillSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Details card (Electricity: white + arrow on card)
-        isElectricity
-            ? Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E2E2)),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: AppColors.cardShadow,
-                          blurRadius: 14,
-                          offset: Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        ...customerParams.entries.map(
-                          (entry) => _ColonInfoRow(
-                            label: entry.key,
-                            value: entry.value,
-                          ),
-                        ),
-                        if (earlyPayDate.isNotEmpty)
-                          _ColonInfoRow(
-                            label: 'Early Payment Date',
-                            value: earlyPayDate,
-                          ),
-                        if (pc.isNotEmpty)
-                          _ColonInfoRow(
-                            label: 'PC',
-                            value: pc,
-                          ),
-                      ],
-                    ),
-                  ),
-                  Positioned(
-                    right: 0,
-                    top: -20,
-                    child: _ToggleArrowButton(
-                      isExpanded: false,
-                      onTap: onToggle,
-                    ),
-                  ),
-                ],
+        (showFullDetailsInline && !isCreditCardFlow && !isPipedGas)
+            ? _FullDetailsSection(
+                bill: bill,
+                customerParams: customerParams,
+                onToggle: () {},
+                showToggle: false,
               )
-            : Column(
-                children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Column(
-                      children: [
-                        ...customerParams.entries.map(
-                          (entry) =>
-                              _InfoRow(label: entry.key, value: entry.value),
+            : isElectricity
+                ? Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFE2E2E2)),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: AppColors.cardShadow,
+                              blurRadius: 14,
+                              offset: Offset(0, 6),
+                            ),
+                          ],
                         ),
-                        if (earlyPayDate.isNotEmpty)
-                          _InfoRow(
-                            label: 'Early Payment Date',
-                            value: earlyPayDate,
-                          ),
-                      ],
-                    ),
-                  ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: _ToggleArrowButton(
-                        isExpanded: false,
-                        onTap: onToggle,
+                        child: Column(
+                          children: [
+                            ...customerParams.entries.map(
+                              (entry) => _ColonInfoRow(
+                                label: entry.key,
+                                value: entry.value,
+                              ),
+                            ),
+                            if (earlyPayDate.isNotEmpty)
+                              _ColonInfoRow(
+                                label: 'Early Payment Date',
+                                value: earlyPayDate,
+                              ),
+                            if (pc.isNotEmpty)
+                              _ColonInfoRow(
+                                label: 'PC',
+                                value: pc,
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
+                      Positioned(
+                        right: 0,
+                        top: -20,
+                        child: _ToggleArrowButton(
+                          isExpanded: false,
+                          onTap: onToggle,
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Column(
+                          children: [
+                            ...customerParams.entries.map(
+                              (entry) => _InfoRow(
+                                  label: entry.key, value: entry.value),
+                            ),
+                            if (earlyPayDate.isNotEmpty)
+                              _InfoRow(
+                                label: 'Early Payment Date',
+                                value: earlyPayDate,
+                              ),
+                          ],
+                        ),
+                      ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: _ToggleArrowButton(
+                            isExpanded: false,
+                            onTap: onToggle,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
 
         // Amount card (orange border)
-        Padding(
-          padding: EdgeInsets.only(top: isElectricity ? 22 : 0),
-          child: _AmountDisplayCard(bill: bill),
-        ),
+        if (!hideAmountDisplayCard)
+          Padding(
+            padding: EdgeInsets.only(top: isElectricity ? 22 : 0),
+            child: _AmountDisplayCard(bill: bill),
+          ),
 
         const SizedBox(height: 16),
 
@@ -2320,7 +2349,10 @@ class _CompactBillSection extends StatelessWidget {
             );
           },
           inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+            if (allowCustomAmount)
+              FilteringTextInputFormatter.digitsOnly
+            else
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
           ],
           onChanged: (value) {
             if (selectedAmountType != _PaymentAmountType.custom) {
@@ -2544,11 +2576,13 @@ class _FullDetailsSection extends StatelessWidget {
     required this.bill,
     required this.customerParams,
     required this.onToggle,
+    this.showToggle = true,
   });
 
   final BillResponse bill;
   final Map<String, String> customerParams;
   final VoidCallback onToggle;
+  final bool showToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -2626,16 +2660,18 @@ class _FullDetailsSection extends StatelessWidget {
               left: 0,
               right: 0,
               bottom: -21,
-              child: Center(
-                child: _ToggleArrowButton(
-                  isExpanded: true,
-                  onTap: onToggle,
-                ),
-              ),
+              child: showToggle
+                  ? Center(
+                      child: _ToggleArrowButton(
+                        isExpanded: true,
+                        onTap: onToggle,
+                      ),
+                    )
+                  : const SizedBox.shrink(),
             ),
           ],
         ),
-        const SizedBox(height: 24),
+        SizedBox(height: showToggle ? 24 : 0),
       ],
     );
   }
@@ -2877,6 +2913,11 @@ double _resolveDateBasedAmount(BillResponse bill) {
   }
 
   return bill.amountInRupees;
+}
+
+String _formatAmountForInput(double amount) {
+  final fixed = amount.toStringAsFixed(2);
+  return fixed.replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
 }
 
 DateTime? _parseDateString(String raw) {

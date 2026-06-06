@@ -254,15 +254,10 @@ class AppLockView extends HookConsumerWidget {
                           child: Column(
                             children: [
                               SizedBox(height: 16.h),
-                              CircleAvatar(
-                                radius: 38.r,
-                                backgroundColor:
-                                    AppColors.primary.withOpacity(0.1),
-                                child: Icon(
-                                  Icons.lock_outline,
-                                  size: 34.sp,
-                                  color: AppColors.primary,
-                                ),
+                              Image.asset(
+                                FileConstants.erupaiyaLogo,
+                                width: 70.w,
+                                height: 70.w,
                               ),
                               SizedBox(height: 14.h),
                               Text(
@@ -502,6 +497,9 @@ class AppLockView extends HookConsumerWidget {
                               SizedBox(height: 12.h),
                               Text(
                                 'Unlocking Securely...',
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                                 style: Theme.of(context)
                                     .textTheme
                                     .titleSmall
@@ -511,14 +509,10 @@ class AppLockView extends HookConsumerWidget {
                                     ),
                               ),
                               SizedBox(height: 10.h),
-                              SizedBox(
-                                height: 20.h,
-                                width: 20.h,
-                                child: const Center(
-                                  child: SpinKitCircle(
-                                    color: AppColors.primary,
-                                    size: 48,
-                                  ),
+                              const Center(
+                                child: SpinKitCircle(
+                                  color: AppColors.primary,
+                                  size: 48,
                                 ),
                               ),
                             ],

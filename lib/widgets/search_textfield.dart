@@ -27,6 +27,12 @@ class SearchTextfield extends StatelessWidget {
     return TextField(
       controller: controller,
       onChanged: onChange,
+      style: TextStyle(
+        color: Colors.black,
+        fontWeight: FontWeight.w500,
+        fontSize: 14.sp,
+      ),
+      cursorColor: Colors.black,
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: TextStyle(
@@ -34,7 +40,16 @@ class SearchTextfield extends StatelessWidget {
           fontWeight: FontWeight.w400,
           fontSize: 12.sp,
         ),
-        prefixIcon: prefixIcon,
+        prefixIcon: prefixIcon ??
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Image.asset(
+                FileConstants.orangeSearch,
+                width: 20,
+                height: 20,
+                fit: BoxFit.contain,
+              ),
+            ),
         // prefixIcon: Icon(
         //   Icons.search,
         //   color: AppColors.textPrimary.withOpacity(0.4),
@@ -48,15 +63,7 @@ class SearchTextfield extends StatelessWidget {
                       onChange?.call('');
                     },
                   )
-                : Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Image.asset(
-                      FileConstants.orangeSearch,
-                      width: 20,
-                      height: 20,
-                      fit: BoxFit.contain,
-                    ),
-                  ))
+                : null)
             : IconButton(
                 onPressed: onFilterPressed,
                 icon: Icon(

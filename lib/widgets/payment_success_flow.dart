@@ -171,11 +171,13 @@ class PaymentResultScreen extends StatefulWidget {
     this.onContactSupport,
     this.onShareReceipt,
     this.statusIcon = Icons.check,
+    this.statusIconAsset = '',
     this.statusIconColor = Colors.white,
     this.statusIconBorderColor = Colors.white,
     this.headerGradientColors = const [Color(0xFF0D5C32), Color(0xFF0E7340)],
     this.headerImageAsset = '',
     this.emphasizeSubtitle = false,
+    this.subtitleBackgroundColor,
     this.poweredByText = 'Powered by',
     this.poweredByLogo = '',
     this.playSound = true,
@@ -200,11 +202,13 @@ class PaymentResultScreen extends StatefulWidget {
   final FutureOr<void> Function(BuildContext context, String transactionId)?
       onShareReceipt;
   final IconData statusIcon;
+  final String statusIconAsset;
   final Color statusIconColor;
   final Color statusIconBorderColor;
   final List<Color> headerGradientColors;
   final String headerImageAsset;
   final bool emphasizeSubtitle;
+  final Color? subtitleBackgroundColor;
   final String poweredByText;
   final String poweredByLogo;
   final bool playSound;
@@ -299,6 +303,9 @@ class _PaymentResultScreenState extends State<PaymentResultScreen> {
                                   }
                                   return colors;
                                 }(),
+                                stops: widget.headerGradientColors.length == 4
+                                    ? const [0.0, 0.3446, 0.9055, 1.0]
+                                    : null,
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
                               ),
@@ -403,17 +410,20 @@ class _PaymentResultScreenState extends State<PaymentResultScreen> {
                     Container(
                       width: 60,
                       height: 60,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: widget.statusIconBorderColor,
-                          width: 2,
-                        ),
-                      ),
-                      child: Icon(
-                        widget.statusIcon,
-                        color: widget.statusIconColor,
-                        size: 32,
+                      alignment: Alignment.center,
+                      child: Center(
+                        child: widget.statusIconAsset.trim().isNotEmpty
+                            ? Image.asset(
+                                widget.statusIconAsset,
+                                width: 44,
+                                height: 44,
+                                fit: BoxFit.contain,
+                              )
+                            : Icon(
+                                widget.statusIcon,
+                                color: widget.statusIconColor,
+                                size: 44,
+                              ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -435,9 +445,10 @@ class _PaymentResultScreenState extends State<PaymentResultScreen> {
                           vertical: 10,
                         ),
                         decoration: BoxDecoration(
-                          color: widget.showBackButton
-                              ? const Color(0xFF470601)
-                              : const Color(0xFF09301A),
+                          color: widget.subtitleBackgroundColor ??
+                              (widget.showBackButton
+                                  ? const Color(0xFF470601)
+                                  : const Color(0xFF09301A)),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(

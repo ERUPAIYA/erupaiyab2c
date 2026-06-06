@@ -26,12 +26,35 @@ class PrepaidTransactionStatus {
   bool get isSuccess => status.trim().toUpperCase() == 'SUCCESS';
   bool get isFailed => status.trim().toUpperCase() == 'FAILED';
   bool get isPending => status.trim().toUpperCase() == 'PENDING';
+  bool get isProcessing => status.trim().toUpperCase() == 'PROCESSING';
 
   factory PrepaidTransactionStatus.fromJson(Map<String, dynamic> json) {
-    String read(String key) => (json[key] ?? '').toString().trim();
+    final data = json['data'];
+    final Map<String, dynamic> flattened = (data is Map)
+        ? <String, dynamic>{
+            ...json,
+            ...data.map((key, value) => MapEntry(key.toString(), value)),
+          }
+        : json;
+
+    String read(String key) => (flattened[key] ?? '').toString().trim();
+    String readPreferRoot(String key) =>
+        (json[key] ?? flattened[key] ?? '').toString().trim();
+
+    // Some APIs return a boolean `status` at the root level plus a string
+    // status inside `data.status` (e.g. SUCCESS/FAILED/PENDING).
+    final resolvedStatus = (() {
+      final raw = flattened['status'];
+      if (raw is bool) {
+        final nested = (data is Map) ? (data['status'] ?? '').toString() : '';
+        return nested.trim();
+      }
+      return (raw ?? '').toString().trim();
+    })();
+
     return PrepaidTransactionStatus(
-      status: read('status'),
-      message: read('message'),
+      status: resolvedStatus,
+      message: readPreferRoot('message'),
       amount: read('amount'),
       operatorName: read('operator'),
       mobile: read('mobile'),
@@ -45,4 +68,3 @@ class PrepaidTransactionStatus {
     );
   }
 }
-

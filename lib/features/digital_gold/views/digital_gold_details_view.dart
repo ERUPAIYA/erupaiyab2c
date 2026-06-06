@@ -7,13 +7,11 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../../../constants/routes_constant.dart';
 import '../../../widgets/app_snackbar.dart';
 import '../../../widgets/custom_elevated_button.dart';
-import '../../../widgets/k_dialog.dart';
 import '../../../widgets/my_app_bar.dart';
 import '../../profile/controllers/profile_controller.dart';
 import '../components/gold_confirm_details_card.dart';
 import '../components/gold_details_section_title.dart';
 import '../components/gold_form_field.dart';
-import '../components/gold_payment_summary_sheet.dart';
 import '../models/digital_gold_preview.dart';
 import '../models/digital_metal.dart';
 import '../repo/digital_gold_repo.dart';
@@ -403,10 +401,11 @@ class DigitalGoldDetailsView extends HookConsumerWidget {
                         return;
                       }
 
-                      KDialog.instance.openSheet(
-                        dialog: GoldPaymentSummarySheet(
-                          amount: amount.toDouble(),
-                          preview: preview ??
+                      context.push(
+                        '${RouteConstants.digitalGoldSummary}?metal=${theme.queryValue}',
+                        extra: <String, dynamic>{
+                          'amount': amount.toDouble(),
+                          'preview': preview ??
                               const DigitalGoldPreview(
                                 kycStatus: true,
                                 isUserRegistered: true,
@@ -416,13 +415,7 @@ class DigitalGoldDetailsView extends HookConsumerWidget {
                                 preTaxAmount: 0,
                                 totalAmount: 0,
                               ),
-                          metal: metal,
-                          onBuyNow: () {
-                            context.push(
-                              '${RouteConstants.digitalGoldSuccess}?metal=${theme.queryValue}',
-                            );
-                          },
-                        ),
+                        },
                       );
                     } catch (e) {
                       AppSnackbar.show(

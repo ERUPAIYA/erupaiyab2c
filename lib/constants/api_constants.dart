@@ -58,7 +58,6 @@ class ApiConstants {
   static const String billerIconBaseUrl = '$baseUrl/storage/billers';
   static const String offersBannerBaseUrl = '$baseUrl/storage/offers';
   static const String fetchBillEndpoint = '$baseUrl/api/bill/fetch';
-  // Deprecated: use `payBillAllServicesEndpoint` instead.
   // static const String payBillEndpoint = '$baseUrl/api/bill/pay';
   static const String payBillAllServicesEndpoint =
       '$baseUrl/api/bill/pay-allservices';
@@ -110,6 +109,10 @@ class ApiConstants {
   static const String digitalGoldBuyEndpoint = '$baseUrl/api/digital-gold/buy';
   static const String digitalGoldRecentPurchasesEndpoint =
       '$baseUrl/api/digital-gold/recent-purchases';
+  static const String digitalGoldDashboardEndpoint =
+      '$baseUrl/api/digital-gold/dashboard';
+  static const String digitalGoldSummaryEndpoint =
+      '$baseUrl/api/digital-gold/summary';
   static const String referralMilestonesEndpoint =
       '$baseUrl/api/referral/milestones';
   static const String withdrawEcoinsEndpoint =

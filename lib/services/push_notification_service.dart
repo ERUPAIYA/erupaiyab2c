@@ -313,6 +313,7 @@ class PushNotificationService {
         // Avoid calling auth-protected endpoint before login.
         return;
       }
+
       final trimmed = token.trim();
       if (trimmed.isEmpty || trimmed == _lastSyncedToken) return;
       final response = await ProfileRepository().updateDeviceToken(token);

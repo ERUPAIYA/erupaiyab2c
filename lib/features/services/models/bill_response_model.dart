@@ -11,6 +11,7 @@ class BillResponse {
     required this.additionalParams,
     required this.approvalRefNum,
     required this.note,
+    this.ecoinsRestrictionsPercent,
   });
 
   factory BillResponse.fromJson(Map<String, dynamic> json) {
@@ -19,6 +20,11 @@ class BillResponse {
         payload['billerResponse'] as Map<String, dynamic>? ?? {};
     final otherDetails = _parseKeyValueMap(billerResponse['otherDetails']);
     final additionalParams = _parseKeyValueMap(payload['additionalParams']);
+
+    final ecoinsRaw = json['ecoins_restrictions'];
+    final ecoinsRestrictionsPercent = ecoinsRaw == null
+        ? null
+        : double.tryParse(ecoinsRaw.toString().trim());
 
     return BillResponse(
       refId: payload['refId'] as String? ?? '',
@@ -32,6 +38,7 @@ class BillResponse {
       additionalParams: additionalParams,
       approvalRefNum: payload['approvalRefNum'] as String? ?? '',
       note: (json['note'] ?? '').toString(),
+      ecoinsRestrictionsPercent: ecoinsRestrictionsPercent,
     );
   }
 
@@ -46,6 +53,7 @@ class BillResponse {
   final Map<String, String> additionalParams;
   final String approvalRefNum;
   final String note;
+  final double? ecoinsRestrictionsPercent;
 
   /// Convert paisa string to rupees (e.g. "139000" → 1390.00)
   double get amountInRupees {

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 import '../../../constants/app_colors.dart';
 import '../../../widgets/k_dialog.dart';
@@ -63,16 +64,35 @@ class SupportTicketDetailScreen extends HookConsumerWidget {
                 padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 110.h),
                 children: [
                   if (state.isLoading && ticket == null)
-                    Padding(
-                      padding: EdgeInsets.symmetric(vertical: 28.h),
-                      child: const Center(
-                        child: SizedBox(
-                          height: 26,
-                          width: 26,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.primary,
-                          ),
+                    Skeletonizer(
+                      enabled: true,
+                      child: IgnorePointer(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const _HeaderRow(
+                                ticket: _SupportTicketDetailSkeletons.ticket),
+                            SizedBox(height: 12.h),
+                            const _MetaGrid(
+                                ticket: _SupportTicketDetailSkeletons.ticket),
+                            SizedBox(height: 14.h),
+                            const _DotDivider(),
+                            SizedBox(height: 14.h),
+                            const _SectionTitle(title: 'Issue Description'),
+                            SizedBox(height: 10.h),
+                            const _IssueDescriptionHeaderCard(
+                              ticket: _SupportTicketDetailSkeletons.ticket,
+                            ),
+                            SizedBox(height: 14.h),
+                            _QuestionText(
+                                text: _SupportTicketDetailSkeletons
+                                    .ticket.description),
+                            SizedBox(height: 14.h),
+                            const _AdminReplyCard(
+                              message:
+                                  _SupportTicketDetailSkeletons.adminMessage,
+                            ),
+                          ],
                         ),
                       ),
                     )
@@ -215,6 +235,28 @@ class _HeaderRow extends StatelessWidget {
       ],
     );
   }
+}
+
+class _SupportTicketDetailSkeletons {
+  const _SupportTicketDetailSkeletons._();
+
+  static const ticket = SupportTicketDetail(
+    id: '000000',
+    transactionId: 'TXN000000',
+    service: 'BBPS',
+    status: 'Open',
+    issueType: 'Recharge',
+    description: 'Loading ticket details…',
+    createdAt: '2026-01-01 00:00:00',
+    username: 'User',
+    messages: [],
+  );
+
+  static const adminMessage = SupportTicketMessage(
+    senderType: 'admin',
+    message: 'Loading reply…',
+    createdAt: '2026-01-01 00:00:00',
+  );
 }
 
 class _MetaGrid extends StatelessWidget {

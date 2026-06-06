@@ -22,6 +22,7 @@ class MobilePrepaidState {
     this.rechargeTransactionId,
     this.rechargeDateTime,
     this.verifiedTransaction,
+    this.ecoinsRestrictionsPercent,
   });
 
   final bool isFetching;
@@ -42,6 +43,7 @@ class MobilePrepaidState {
   final String? rechargeTransactionId;
   final String? rechargeDateTime;
   final PrepaidTransactionStatus? verifiedTransaction;
+  final double? ecoinsRestrictionsPercent;
 
   List<String> get categories => plansByCategory.keys.toList();
 
@@ -79,6 +81,7 @@ class MobilePrepaidState {
     Object? rechargeTransactionId = _sentinel,
     Object? rechargeDateTime = _sentinel,
     Object? verifiedTransaction = _sentinel,
+    Object? ecoinsRestrictionsPercent = _sentinel,
   }) {
     return MobilePrepaidState(
       isFetching: isFetching ?? this.isFetching,
@@ -111,6 +114,9 @@ class MobilePrepaidState {
       verifiedTransaction: verifiedTransaction == _sentinel
           ? this.verifiedTransaction
           : verifiedTransaction as PrepaidTransactionStatus?,
+      ecoinsRestrictionsPercent: ecoinsRestrictionsPercent == _sentinel
+          ? this.ecoinsRestrictionsPercent
+          : ecoinsRestrictionsPercent as double?,
     );
   }
 }

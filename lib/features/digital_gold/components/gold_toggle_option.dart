@@ -22,41 +22,41 @@ class GoldToggleOption extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(24.r),
-      child: Row(
-        children: [
-          Container(
-            width: 18.w,
-            height: 18.w,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: selected ? Colors.white : Colors.white70,
-                width: 2,
-              ),
-              color: selected ? Colors.white : Colors.transparent,
-            ),
-            child: selected
-                ? Center(
-                    child: Container(
-                      width: 6.w,
-                      height: 6.w,
-                      decoration: BoxDecoration(
-                        color: activeColor,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  )
-                : null,
-          ),
-          SizedBox(width: 8.w),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.black,
-                  fontWeight: FontWeight.w600,
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: 6.h),
+        child: Row(
+          children: [
+            Container(
+              width: 20.w,
+              height: 20.w,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: selected ? activeColor : Colors.transparent,
+                border: Border.all(
+                  color: selected
+                      ? activeColor
+                      : AppColors.textPrimary.withOpacity(0.35),
+                  width: 1.6,
                 ),
-          ),
-        ],
+              ),
+              child: selected
+                  ? Icon(
+                      Icons.check,
+                      size: 14.sp,
+                      color: Colors.white,
+                    )
+                  : null,
+            ),
+            SizedBox(width: 10.w),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: selected ? activeColor : Colors.black,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -57,10 +57,7 @@ class SimpleQuickActionCard extends StatelessWidget {
                 color: Colors.white,
                 borderRadius:
                     BorderRadius.circular(16.r), // more rounded than current
-                border: Border.all(
-                  color: const Color.fromARGB(255, 239, 238, 238),
-                  width: 1, // slightly thicker
-                ),
+                border: Border.all(color: const Color(0xffE2E2E2)),
               ),
               child: LeadingIcon(
                 asset: leadingAsset,

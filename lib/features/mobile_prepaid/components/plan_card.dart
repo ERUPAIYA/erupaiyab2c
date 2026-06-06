@@ -199,21 +199,31 @@ class _PlanInfoRow extends StatelessWidget {
         return Row(
           children: [
             Expanded(
-              child: Wrap(
-                spacing: 16.w,
-                runSpacing: 6.h,
-                children: [
-                  if (hasValidity)
-                    _PlanInfoColumn(
-                      label: 'Validity',
-                      value: plan.validity,
-                    ),
-                  if (hasData)
-                    _PlanInfoColumn(
-                      label: 'Data',
-                      value: dataValue,
-                    ),
-                ],
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (hasValidity)
+                      _PlanInfoColumn(
+                        label: 'Validity',
+                        value: plan.validity,
+                      ),
+                    if (hasValidity && hasData) ...[
+                      SizedBox(width: 14.w),
+                      VerticalDivider(
+                        width: 12.w,
+                        thickness: 1,
+                        color: AppColors.lightBorder,
+                      ),
+                      SizedBox(width: 14.w),
+                    ],
+                    if (hasData)
+                      _PlanInfoColumn(
+                        label: 'Data',
+                        value: dataValue,
+                      ),
+                  ],
+                ),
               ),
             ),
             if (hasBenefitImages)

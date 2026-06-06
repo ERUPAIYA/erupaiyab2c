@@ -100,6 +100,7 @@ class FileConstants {
   static String healthInsurance =
       'assets/images/png/home_icon/healthInsurance.png';
   static String curve = 'assets/images/png/home_icon/curve.png';
+  static String googleLogo = 'assets/images/png/home_icon/Google Logo.png';
   static String creditcard = 'assets/images/png/credit_icon.png';
   static String spin = 'assets/images/png/spin.png';
   static String spinBlast = 'assets/images/png/spin_blast.png';
@@ -109,6 +110,9 @@ class FileConstants {
       'assets/images/png/home_icon/agent_collection.png';
   static String eChalan = 'assets/images/png/home_icon/e_challan.png';
   static String referBg = 'assets/images/png/home_icon/referBg.png';
+  static String failedIcon = 'assets/images/png/failedIcon.png';
+  static String pendingIcon = 'assets/images/png/pendingIcon.png';
+  static String successIcon = 'assets/images/png/successIcon.png';
   static String nps = 'assets/images/png/home_icon/nps.png';
   static String donation = 'assets/images/png/home_icon/donation.png';
   static String education = 'assets/images/png/home_icon/education.png';
@@ -133,11 +137,18 @@ class FileConstants {
   static String homeBanner10 = 'assets/images/png/home_icon/homebanner10.png';
   static String homeBanner12 = 'assets/images/png/home_icon/homeBanner12.png';
   static String digitalGold = 'assets/images/png/home_icon/digital_gold.png';
+  static String upGraph = 'assets/images/png/digital_gold_silver/upGraph.png';
+  static String downGraph =
+      'assets/images/png/digital_gold_silver/downGraph.png';
   static String rightArrow = 'assets/images/png/home_icon/right_arrow.png';
   static String giftIcon = 'assets/images/png/home_icon/giftIcon.png';
   static String spinIcon = 'assets/images/png/home_icon/spinIcon.png';
   static String faqIcon = 'assets/images/png/home_icon/faq.png';
   static String digitalSilverGif = 'assets/gif/silver.gif';
+  static String goldSip = 'assets/images/png/digital_gold_silver/goldSip.png';
+  static String sipBg = 'assets/images/png/digital_gold_silver/sigBg.png';
+  static String coinsDeck =
+      'assets/images/png/digital_gold_silver/coinDeck.png';
   static String digitalGoldGif = 'assets/gif/gold.gif';
   static String spinRewardGif = 'assets/gif/spinrewardGif.gif';
   static String spincoin = 'assets/images/png/home_icon/spincoin.png';
@@ -195,7 +206,27 @@ class FileConstants {
 
   //Digital Gold & Silver
   static String mmtcPamp = 'assets/images/png/digital_gold_silver/mmtcPamp.png';
+  static String portfolioBg =
+      'assets/images/png/digital_gold_silver/portfolioBg.png';
+  static String sellGoldBanner =
+      'assets/images/png/digital_gold_silver/sellGoldBanner.png';
+  static String goldDustbin =
+      'assets/images/png/digital_gold_silver/goldDustbin.png';
+  static String rightGradientLine =
+      'assets/images/png/digital_gold_silver/rightGradientLine.png';
+  static String leftGradientLine =
+      'assets/images/png/digital_gold_silver/leftGradientLine.png';
+  static String trackSavings =
+      'assets/images/png/digital_gold_silver/trackSavings.png';
+  static String righTrack =
+      'assets/images/png/digital_gold_silver/rightTrack.png';
+  static String goldCoin =
+      'assets/images/png/digital_gold_silver/gold_coin.png';
+  static String silverCoin =
+      'assets/images/png/digital_gold_silver/silverCoin.png';
   static String viewGold = 'assets/images/png/digital_gold_silver/viewGold.png';
+  static String liveSignal =
+      'assets/images/png/digital_gold_silver/liveSignal.png';
   static String buyMore = 'assets/images/png/digital_gold_silver/buyMore.png';
   static String pngReva = 'assets/images/png/digital_gold_silver/pngReva.png';
   static String designBottomRight =

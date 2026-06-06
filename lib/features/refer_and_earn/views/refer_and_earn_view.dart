@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:e_rupaiya/features/refer_and_earn/services/referral_share_service.dart';
 import 'package:e_rupaiya/widgets/app_snackbar.dart';
 import 'package:flutter/material.dart';
@@ -272,19 +274,11 @@ class _PrimaryPillButton extends HookWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 20.w,
-              height: 20.w,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Image.asset(
-                  FileConstants.coin_3d,
-                  width: 14.w,
-                  height: 14.w,
-                ),
+            Center(
+              child: Image.asset(
+                FileConstants.coin_3d,
+                width: 20.w,
+                height: 20.w,
               ),
             ),
             SizedBox(width: 8.w),

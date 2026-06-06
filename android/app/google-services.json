@@ -50,11 +50,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "715562519142-uf6fk0mhalp0ecg0uqucecj6otqnn92g.apps.googleusercontent.com",
+          "client_id": "715562519142-6l6nf076gk48eegmfqi9o27elrlqi1fr.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.innoplix.erupiya",
-            "certificate_hash": "b445406b56d2d7cfc231f0f400296366d10da03d"
+            "certificate_hash": "d69630c312a199045e4a4a297c52c451c1751a0b"
           }
         },
         {

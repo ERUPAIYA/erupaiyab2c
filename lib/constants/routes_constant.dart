@@ -21,6 +21,7 @@ class RouteConstants {
   static const String creditCardIntro = '/credit-card';
   static const String creditCardListing = '/credit-card/billers';
   static const String creditCardMyCards = '/credit-card/cards';
+  static const String creditCardPay = '/credit-card/pay';
   static const String creditCardTransactions = '/credit-card/transactions';
   static const String creditCardTransactionDetail =
       '/credit-card/transactions/detail';
@@ -50,6 +51,13 @@ class RouteConstants {
   static const String referAndEarnWallet = '/refer-and-earn/wallet';
   static const String digitalGold = '/digital-gold';
   static const String digitalGoldDetails = '/digital-gold/details';
+  static const String digitalGoldSummary = '/digital-gold/summary';
   static const String digitalGoldSuccess = '/digital-gold/success';
+  static const String digitalGoldSellConfirm = '/digital-gold/sell/confirm';
+  static const String digitalGoldSellSuccess = '/digital-gold/sell/success';
   static const String digitalGoldLocker = '/digital-gold/locker';
+  static const String digitalGoldAlerts = '/digital-gold/alerts';
+  static const String digitalGoldSipSetup = '/digital-gold/sip/setup';
+  static const String digitalGoldSipPortfolio = '/digital-gold/sip/portfolio';
+  static const String digitalGoldSipSuccess = '/digital-gold/sip/success';
 }

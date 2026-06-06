@@ -2,14 +2,17 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:persistent_bottom_nav_bar/persistent_bottom_nav_bar.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 import '../../../constants/app_colors.dart';
 import '../../../constants/file_constants.dart';
 import '../../../constants/routes_constant.dart';
 import '../../../widgets/app_network_image.dart';
+import '../../../widgets/infinite_scroll_listener.dart';
 import '../../../widgets/k_dialog.dart';
 import '../../../widgets/my_app_bar.dart';
 import '../../../widgets/search_textfield.dart';
@@ -18,13 +21,6 @@ import '../controllers/transaction_history_controller.dart';
 import '../models/transaction_history_entry.dart';
 import '../models/transaction_history_filter.dart';
 import 'transaction_filter_screen.dart';
-
-extension _AppColorExt on Color {
-  static const Color primaryFaint =
-      Color(0x14000000); // replace with actual primary at 0.08
-  static const Color lightBorderFaint =
-      Color(0x4D000000); // replace with actual lightBorder at 0.3
-}
 
 class TransactionHistoryScreen extends ConsumerStatefulWidget {
   const TransactionHistoryScreen({super.key});
@@ -38,6 +34,9 @@ class _TransactionHistoryScreenState
     extends ConsumerState<TransactionHistoryScreen> {
   final TextEditingController _searchController = TextEditingController();
   TransactionHistoryFilter? _activeFilter;
+  List<TransactionHistoryEntry>? _cachedItems;
+  String _cachedQuery = '';
+  List<_TxnSection> _cachedSections = const [];
 
   @override
   void dispose() {
@@ -64,26 +63,17 @@ class _TransactionHistoryScreenState
     final items = ref.watch(
       transactionHistoryControllerProvider.select((s) => s.items),
     );
-    final selectedDays = ref.watch(
-      transactionHistoryControllerProvider.select((s) => s.selectedDays),
+    final isFetchingMore = ref.watch(
+      transactionHistoryControllerProvider.select((s) => s.isFetchingMore),
     );
-    final selectedLastYears = ref.watch(
-      transactionHistoryControllerProvider.select((s) => s.selectedLastYears),
-    );
-    final selectedRange = ref.watch(
-      transactionHistoryControllerProvider.select((s) => s.selectedRange),
+    final hasMore = ref.watch(
+      transactionHistoryControllerProvider.select((s) => s.hasMore),
     );
 
     final controller = ref.read(transactionHistoryControllerProvider.notifier);
     final query = _searchController.text.trim().toLowerCase();
-    final filteredItems = query.isEmpty
-        ? items
-        : items.where((item) {
-            final haystack =
-                '${item.billerName} ${item.paymentType}'.toLowerCase();
-            return haystack.contains(query);
-          }).toList();
-    final sections = _buildSections(filteredItems);
+    final filteredItems = _filterItems(items, query);
+    final sections = _sectionsFor(items, query, filteredItems);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -107,77 +97,124 @@ class _TransactionHistoryScreenState
                 : RefreshIndicator(
                     color: AppColors.primary,
                     onRefresh: () => _handleRefresh(controller),
-                    child: CustomScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      slivers: [
-                        SliverPadding(
-                          padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 12.h),
-                          sliver: SliverToBoxAdapter(
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: SearchTextfield(
-                                    hintText: 'Search Transactions',
-                                    controller: _searchController,
-                                    onChange: (_) => setState(() {}),
-                                  ),
-                                ),
-                                SizedBox(width: 10.w),
-                                SizedBox(
-                                  height: 46.h,
-                                  width: 46.h,
-                                  child: IconButton(
-                                    onPressed: () {
-                                      _openFilterScreen(controller);
-                                    },
-                                    icon: const Icon(
-                                      Icons.tune,
-                                      color: AppColors.textPrimary,
+                    child: InfiniteScrollListener(
+                      isLoading: isFetchingMore,
+                      hasMore: hasMore,
+                      onEndReached: () => controller.fetchNextPage(),
+                      child: CustomScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        slivers: [
+                          SliverPadding(
+                            padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 12.h),
+                            sliver: SliverToBoxAdapter(
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: SearchTextfield(
+                                      hintText: 'Search Transactions',
+                                      controller: _searchController,
+                                      onChange: (_) => setState(() {}),
                                     ),
                                   ),
-                                ),
-                              ],
+                                  SizedBox(width: 10.w),
+                                  SizedBox(
+                                    height: 46.h,
+                                    width: 46.h,
+                                    child: IconButton(
+                                      onPressed: () {
+                                        _openFilterScreen(controller);
+                                      },
+                                      icon: const Icon(
+                                        Icons.tune,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                        if (filteredItems.isEmpty)
-                          const SliverToBoxAdapter(
-                            child: _TransactionEmptyState(),
-                          )
-                        else ...[
-                          for (final section in sections) ...[
+                          if (filteredItems.isEmpty)
+                            const SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: _TransactionEmptyState(),
+                            )
+                          else ...[
+                            for (final section in sections) ...[
+                              SliverToBoxAdapter(
+                                child: _MonthHeader(title: section.title),
+                              ),
+                              SliverList(
+                                delegate: SliverChildBuilderDelegate(
+                                  (context, index) {
+                                    final item = section.items[index];
+                                    return _TransactionTile(
+                                      item: item,
+                                      onTap: () {
+                                        context.push(
+                                          RouteConstants.transactionDetail,
+                                          extra: item,
+                                        );
+                                      },
+                                    );
+                                  },
+                                  childCount: section.items.length,
+                                ),
+                              ),
+                            ],
                             SliverToBoxAdapter(
-                              child: _MonthHeader(title: section.title),
+                              child: SizedBox(height: 12.h),
                             ),
-                            SliverList(
-                              delegate: SliverChildBuilderDelegate(
-                                (context, index) {
-                                  final item = section.items[index];
-                                  return _TransactionTile(
-                                    item: item,
-                                    onTap: () {
-                                      context.push(
-                                        RouteConstants.transactionDetail,
-                                        extra: item,
-                                      );
-                                    },
-                                  );
-                                },
-                                childCount: section.items.length,
+                            SliverToBoxAdapter(
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 200),
+                                child: isFetchingMore
+                                    ? Padding(
+                                        padding: EdgeInsets.only(bottom: 24.h),
+                                        child: const Center(
+                                          child: SpinKitCircle(
+                                            color: AppColors.primary,
+                                            size: 48,
+                                          ),
+                                        ))
+                                    : SizedBox(height: 24.h),
                               ),
                             ),
                           ],
-                          SliverToBoxAdapter(
-                            child: SizedBox(height: 24.h),
-                          ),
                         ],
-                      ],
+                      ),
                     ),
                   ),
           ),
         ],
       ),
     );
+  }
+
+  List<TransactionHistoryEntry> _filterItems(
+    List<TransactionHistoryEntry> items,
+    String query,
+  ) {
+    if (query.isEmpty) return items;
+    return items.where((item) {
+      final haystack = '${item.billerName} ${item.paymentType}';
+      return haystack.toLowerCase().contains(query);
+    }).toList(growable: false);
+  }
+
+  List<_TxnSection> _sectionsFor(
+    List<TransactionHistoryEntry> items,
+    String query,
+    List<TransactionHistoryEntry> filteredItems,
+  ) {
+    if (identical(items, _cachedItems) && query == _cachedQuery) {
+      return _cachedSections;
+    }
+    _cachedItems = items;
+    _cachedQuery = query;
+    final sections = _buildSections(filteredItems);
+    _cachedSections = sections;
+    return sections;
   }
 
   Future<void> _handleRefresh(TransactionHistoryController controller) async {
@@ -513,11 +550,32 @@ Color _amountColor(_TxnStatus status) {
   }
 }
 
+const int _txnCacheMaxEntries = 1000;
+final Map<String, DateTime?> _txnDateCache = <String, DateTime?>{};
+final Map<String, String> _txnTimeLabelCache = <String, String>{};
+final Map<String, String> _txnMonthKeyCache = <String, String>{};
+
+void _putBounded<K, V>(Map<K, V> map, K key, V value) {
+  if (map.length >= _txnCacheMaxEntries && !map.containsKey(key)) {
+    map.remove(map.keys.first);
+  }
+  map[key] = value;
+}
+
 String _formatTxnTime(String raw) {
-  final value = raw.trim();
-  if (value.isEmpty) return '';
-  final parsed = _parseTxnDate(value);
-  if (parsed == null) return value;
+  final key = raw.trim();
+  final cached = _txnTimeLabelCache[key];
+  if (cached != null) return cached;
+
+  if (key.isEmpty) {
+    _putBounded(_txnTimeLabelCache, key, '');
+    return '';
+  }
+  final parsed = _parseTxnDate(key);
+  if (parsed == null) {
+    _putBounded(_txnTimeLabelCache, key, key);
+    return key;
+  }
   const months = [
     'January',
     'February',
@@ -537,7 +595,9 @@ String _formatTxnTime(String raw) {
   final hour = parsed.hour % 12 == 0 ? 12 : parsed.hour % 12;
   final minute = parsed.minute.toString().padLeft(2, '0');
   final ampm = parsed.hour >= 12 ? 'PM' : 'AM';
-  return '$day $month ${parsed.year}, $hour:$minute$ampm';
+  final label = '$day $month ${parsed.year}, $hour:$minute$ampm';
+  _putBounded(_txnTimeLabelCache, key, label);
+  return label;
 }
 
 class _TxnSection {
@@ -559,9 +619,15 @@ List<_TxnSection> _buildSections(List<TransactionHistoryEntry> items) {
 }
 
 String _monthKey(String raw) {
-  final value = raw.trim();
-  final parsed = _parseTxnDate(value);
-  if (parsed == null) return 'Transactions';
+  final key = raw.trim();
+  final cached = _txnMonthKeyCache[key];
+  if (cached != null) return cached;
+
+  final parsed = _parseTxnDate(key);
+  if (parsed == null) {
+    _putBounded(_txnMonthKeyCache, key, 'Transactions');
+    return 'Transactions';
+  }
   const months = [
     'January',
     'February',
@@ -576,21 +642,34 @@ String _monthKey(String raw) {
     'November',
     'December',
   ];
-  return '${months[parsed.month - 1]},${parsed.year}';
+  final label = '${months[parsed.month - 1]},${parsed.year}';
+  _putBounded(_txnMonthKeyCache, key, label);
+  return label;
 }
 
 DateTime? _parseTxnDate(String raw) {
-  final normalized = raw.trim();
-  if (normalized.isEmpty) return null;
+  final key = raw.trim();
+  if (_txnDateCache.containsKey(key)) return _txnDateCache[key];
+
+  if (key.isEmpty) {
+    _putBounded(_txnDateCache, key, null);
+    return null;
+  }
   final direct = DateTime.tryParse(
-    normalized.contains(' ') ? normalized.replaceFirst(' ', 'T') : normalized,
+    key.contains(' ') ? key.replaceFirst(' ', 'T') : key,
   );
-  if (direct != null) return direct;
+  if (direct != null) {
+    _putBounded(_txnDateCache, key, direct);
+    return direct;
+  }
 
   final match = RegExp(
     r'(\d{1,2})\s+([A-Za-z]{3,})(?:\s+(\d{4}))?,\s*(\d{1,2}):(\d{2})(am|pm|AM|PM)',
-  ).firstMatch(normalized);
-  if (match == null) return null;
+  ).firstMatch(key);
+  if (match == null) {
+    _putBounded(_txnDateCache, key, null);
+    return null;
+  }
 
   final day = int.parse(match.group(1)!);
   final monthRaw = match.group(2)!.toLowerCase();
@@ -625,9 +704,14 @@ DateTime? _parseTxnDate(String raw) {
       (name) => monthRaw.startsWith(name.substring(0, 3)),
     );
   }
-  if (monthIndex == -1) return null;
+  if (monthIndex == -1) {
+    _putBounded(_txnDateCache, key, null);
+    return null;
+  }
 
-  return DateTime(year, monthIndex + 1, day, hour, minute);
+  final dt = DateTime(year, monthIndex + 1, day, hour, minute);
+  _putBounded(_txnDateCache, key, dt);
+  return dt;
 }
 
 class _FilterFab extends StatelessWidget {
@@ -823,8 +907,8 @@ class _TransactionEmptyState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
-              width: 120.w,
-              height: 120.w,
+              width: 100.w,
+              height: 100.w,
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: AppColors.primary.withOpacity(0.08),
@@ -869,27 +953,89 @@ class _TransactionHistoryShimmer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Hoist shimmer color outside List.generate to avoid repeated withOpacity calls
-    final shimmerColor = AppColors.lightBorder.withOpacity(0.3);
-    final shimmerDecoration = BoxDecoration(
-      color: shimmerColor,
-      borderRadius: BorderRadius.circular(16.r),
+    return Skeletonizer(
+      enabled: true,
+      child: IgnorePointer(
+        child: ListView.separated(
+          padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 80.h),
+          physics: const AlwaysScrollableScrollPhysics(),
+          itemCount: 6,
+          separatorBuilder: (_, __) => SizedBox(height: 12.h),
+          itemBuilder: (_, __) => const _TransactionTileSkeleton(),
+        ),
+      ),
     );
+  }
+}
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 80.h),
-      child: Column(
-        children: List.generate(
-          6,
-          (_) => Padding(
-            padding: EdgeInsets.only(bottom: 12.h),
-            child: DecoratedBox(
-              // ✅ DecoratedBox instead of Container — no layout overhead
-              decoration: shimmerDecoration,
-              child: SizedBox(height: 64.h, width: double.infinity),
-            ),
+class _TransactionTileSkeleton extends StatelessWidget {
+  const _TransactionTileSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final titleStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.w700,
+        );
+    final subStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: AppColors.textPrimary.withOpacity(0.7),
+          fontWeight: FontWeight.w500,
+        );
+    final amountStyle = Theme.of(context).textTheme.titleSmall?.copyWith(
+          color: Colors.green,
+          fontWeight: FontWeight.w700,
+        );
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          bottom: BorderSide(
+            color: AppColors.lightBorder.withOpacity(0.8),
           ),
         ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44.w,
+            height: 44.w,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: AppColors.primary.withOpacity(0.4),
+              ),
+            ),
+            child: Center(
+              child: Icon(
+                Icons.account_balance_wallet_outlined,
+                size: 20.sp,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+          SizedBox(width: 12.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Loading transaction', style: titleStyle),
+                SizedBox(height: 1.h),
+                Text('Loading date & time', style: subStyle),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('₹ 0.00', style: amountStyle),
+              SizedBox(height: 1.h),
+              Text('Paid From', style: subStyle),
+            ],
+          ),
+        ],
       ),
     );
   }

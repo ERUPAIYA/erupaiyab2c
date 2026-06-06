@@ -108,6 +108,19 @@ class SettingsView extends HookConsumerWidget {
 
     Future<void> toggleLocation(bool enabled) async {
       if (isLocationLoading.value) return;
+      if (!enabled) {
+        final confirmed = await showDialog<bool>(
+              context: context,
+              barrierDismissible: true,
+              builder: (_) => const _DisableLocationDialog(),
+            ) ??
+            false;
+        if (!confirmed) {
+          isLocationEnabled.value = true;
+          return;
+        }
+      }
+
       isLocationLoading.value = true;
       try {
         if (enabled) {
@@ -287,18 +300,15 @@ class _SettingsTile extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.trailing,
-    this.onTap,
   });
 
   final IconData icon;
   final String title;
   final Widget trailing;
-  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: onTap,
       borderRadius: BorderRadius.circular(18.r),
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
@@ -354,29 +364,6 @@ class _IconBadge extends StatelessWidget {
         color: AppColors.primary,
         size: 22.sp,
       ),
-    );
-  }
-}
-
-class _GradientPill extends StatelessWidget {
-  const _GradientPill({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 40.h,
-      width: 56.w,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20.r),
-        gradient: const LinearGradient(
-          colors: [AppColors.gradientMid, AppColors.gradientEnd],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Center(child: child),
     );
   }
 }
@@ -464,6 +451,7 @@ class _DeleteAccountConfirmDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      backgroundColor: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
       child: Padding(
         padding: EdgeInsets.fromLTRB(22.w, 22.h, 22.w, 16.h),
@@ -508,21 +496,23 @@ class _DeleteAccountConfirmDialog extends StatelessWidget {
               children: [
                 Expanded(
                   child: SizedBox(
-                    height: 44.h,
-                    child: OutlinedButton(
-                      onPressed: () => navigatorKey.currentState?.pop(),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(
-                          color: AppColors.textPrimary.withOpacity(0.18),
-                        ),
+                    height: 40.h,
+                    child: ElevatedButton(
+                      onPressed: onConfirm,
+                      style: ElevatedButton.styleFrom(
+                        elevation: 0,
                         shape: RoundedRectangleBorder(
+                          side: BorderSide(
+                            color: const Color.fromARGB(255, 0, 0, 0)
+                                .withOpacity(0.18),
+                          ),
                           borderRadius: BorderRadius.circular(12.r),
                         ),
                       ),
                       child: Text(
-                        'Cancel',
+                        'Yes, delete',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppColors.textPrimary.withOpacity(0.8),
+                              color: const Color.fromARGB(255, 0, 0, 0),
                               fontWeight: FontWeight.w700,
                             ),
                       ),
@@ -532,20 +522,21 @@ class _DeleteAccountConfirmDialog extends StatelessWidget {
                 SizedBox(width: 10.w),
                 Expanded(
                   child: SizedBox(
-                    height: 44.h,
-                    child: ElevatedButton(
-                      onPressed: onConfirm,
-                      style: ElevatedButton.styleFrom(
-                        elevation: 0,
+                    height: 40.h,
+                    child: OutlinedButton(
+                      onPressed: () => navigatorKey.currentState?.pop(),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide.none,
                         backgroundColor: AppColors.primary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12.r),
                         ),
                       ),
                       child: Text(
-                        'Yes, delete',
+                        'Cancel',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.white,
+                              color: const Color.fromARGB(255, 255, 255, 255)
+                                  .withOpacity(0.8),
                               fontWeight: FontWeight.w700,
                             ),
                       ),
@@ -567,6 +558,7 @@ class _DisableNotificationsDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      backgroundColor: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
       child: Padding(
         padding: EdgeInsets.fromLTRB(22.w, 22.h, 22.w, 16.h),
@@ -612,18 +604,20 @@ class _DisableNotificationsDialog extends StatelessWidget {
                 Expanded(
                   child: SizedBox(
                     height: 44.h,
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(false),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(
-                          color: AppColors.textPrimary.withOpacity(0.18),
-                        ),
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      style: ElevatedButton.styleFrom(
+                        elevation: 0,
+                        backgroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
+                          side: BorderSide(
+                            color: AppColors.textPrimary.withOpacity(0.18),
+                          ),
                           borderRadius: BorderRadius.circular(12.r),
                         ),
                       ),
                       child: Text(
-                        'Cancel',
+                        'Disable',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: AppColors.textPrimary.withOpacity(0.8),
                               fontWeight: FontWeight.w700,
@@ -636,17 +630,123 @@ class _DisableNotificationsDialog extends StatelessWidget {
                 Expanded(
                   child: SizedBox(
                     height: 44.h,
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.of(context).pop(true),
-                      style: ElevatedButton.styleFrom(
-                        elevation: 0,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide.none,
                         backgroundColor: AppColors.primary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12.r),
                         ),
                       ),
                       child: Text(
-                        'Disable',
+                        'Cancel',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DisableLocationDialog extends StatelessWidget {
+  const _DisableLocationDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(22.w, 22.h, 22.w, 16.h),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 64.r,
+              height: 64.r,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF1EB),
+                borderRadius: BorderRadius.circular(18.r),
+                border: Border.all(color: const Color(0xFFF2B9A6)),
+              ),
+              child: Icon(
+                Icons.location_off_outlined,
+                color: AppColors.primary,
+                size: 34.sp,
+              ),
+            ),
+            SizedBox(height: 14.h),
+            Text(
+              'Turn Off Location Access?',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              'If you turn off location access, some features may not work correctly.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textPrimary.withOpacity(0.75),
+                    height: 1.35,
+                  ),
+            ),
+            SizedBox(height: 18.h),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 44.h,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      style: ElevatedButton.styleFrom(
+                        elevation: 0,
+                        backgroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          side: BorderSide(
+                            color: AppColors.textPrimary.withOpacity(0.18),
+                          ),
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                      ),
+                      child: Text(
+                        'Turn off',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppColors.textPrimary.withOpacity(0.8),
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 10.w),
+                Expanded(
+                  child: SizedBox(
+                    height: 44.h,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide.none,
+                        backgroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                      ),
+                      child: Text(
+                        'Cancel',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: Colors.white,
                               fontWeight: FontWeight.w800,
@@ -677,13 +777,15 @@ class _DeleteAccountOtpDialog extends HookWidget {
   Widget build(BuildContext context) {
     final otpController = useTextEditingController();
     final isLoading = useState(false);
+    final errorText = useState<String?>(null);
 
     Future<void> verifyOtp() async {
       final otp = otpController.text.trim();
       if (otp.length < 4) {
-        AppSnackbar.show('Please enter the 4-digit OTP.');
+        errorText.value = 'Please enter the 4-digit OTP.';
         return;
       }
+      errorText.value = null;
       isLoading.value = true;
       final result = await repository.verifyDeleteAccountOtp(otp);
       isLoading.value = false;
@@ -692,86 +794,136 @@ class _DeleteAccountOtpDialog extends HookWidget {
       }
       if (result.success) {
         await onVerified();
+      } else {
+        errorText.value =
+            'That OTP is not valid. Please check it and try again.';
       }
     }
 
-    return AlertDialog(
+    final defaultPinTheme = PinTheme(
+      width: 44.w,
+      height: 44.w,
+      textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14.r),
+        border: Border.all(color: const Color(0xFFD6D6D6)),
+      ),
+    );
+
+    return Dialog(
+      backgroundColor: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
-      title: Text(
-        'Enter OTP',
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Please enter the 4-digit OTP sent to your registered number.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.textPrimary.withOpacity(0.7),
-                  height: 1.4,
-                ),
-          ),
-          SizedBox(height: 14.h),
-          Pinput(
-            length: 4,
-            controller: otpController,
-            keyboardType: TextInputType.number,
-            defaultPinTheme: PinTheme(
-              width: 48.w,
-              height: 48.w,
-              textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(22.w, 22.h, 22.w, 16.h),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Enter OTP',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
                   ),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF7F3),
-                borderRadius: BorderRadius.circular(12.r),
-                border: Border.all(color: AppColors.lightBorder),
-              ),
             ),
-            focusedPinTheme: PinTheme(
-              width: 48.w,
-              height: 48.w,
-              textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
+            SizedBox(height: 8.h),
+            Text(
+              'Please enter the 4-digit OTP sent to your registered number.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textPrimary.withOpacity(0.7),
+                    height: 1.4,
                   ),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF7F3),
-                borderRadius: BorderRadius.circular(12.r),
-                border: Border.all(color: AppColors.primary),
-              ),
             ),
-          ),
-        ],
+            SizedBox(height: 18.h),
+            Pinput(
+              length: 4,
+              controller: otpController,
+              keyboardType: TextInputType.number,
+              onChanged: (_) => errorText.value = null,
+              defaultPinTheme: defaultPinTheme,
+              focusedPinTheme: defaultPinTheme.copyWith(
+                decoration: defaultPinTheme.decoration?.copyWith(
+                  border: Border.all(color: AppColors.primary),
+                ),
+              ),
+              errorPinTheme: defaultPinTheme.copyBorderWith(
+                border: Border.all(color: Colors.red),
+              ),
+              errorTextStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.red,
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+            if (errorText.value != null && errorText.value!.isNotEmpty) ...[
+              SizedBox(height: 12.h),
+              Text(
+                errorText.value!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.red,
+                      fontWeight: FontWeight.w500,
+                    ),
+              ),
+            ],
+            SizedBox(height: 20.h),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 42.h,
+                    child: OutlinedButton(
+                      onPressed: isLoading.value
+                          ? null
+                          : () => navigatorKey.currentState?.pop(),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                          color: AppColors.textPrimary.withOpacity(0.18),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppColors.textPrimary.withOpacity(0.8),
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 10.w),
+                Expanded(
+                  child: SizedBox(
+                    height: 42.h,
+                    child: ElevatedButton(
+                      onPressed: isLoading.value ? null : verifyOtp,
+                      style: ElevatedButton.styleFrom(
+                        elevation: 0,
+                        backgroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                      ),
+                      child: Text(
+                        isLoading.value ? 'Verifying...' : 'Verify',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
-      actions: [
-        TextButton(
-          onPressed:
-              isLoading.value ? null : () => navigatorKey.currentState?.pop(),
-          child: Text(
-            'Cancel',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textPrimary.withOpacity(0.7),
-                  fontWeight: FontWeight.w600,
-                ),
-          ),
-        ),
-        TextButton(
-          onPressed: isLoading.value ? null : verifyOtp,
-          child: Text(
-            isLoading.value ? 'Verifying...' : 'Verify',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-        ),
-      ],
     );
   }
 }

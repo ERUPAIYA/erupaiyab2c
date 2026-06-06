@@ -18,6 +18,7 @@ class TransactionHistoryEntry {
     required this.paymentMode,
     required this.vpa,
     required this.rrn,
+    this.routes = const [],
   });
 
   final String paymentStatus;
@@ -38,8 +39,20 @@ class TransactionHistoryEntry {
   final String paymentMode;
   final String vpa;
   final String rrn;
+  final List<TransactionRoute> routes;
 
   factory TransactionHistoryEntry.fromJson(Map<String, dynamic> json) {
+    final rawRoutes = json['routes'];
+    final routes = rawRoutes is List
+        ? rawRoutes
+            .whereType<Map>()
+            .map(
+              (e) => TransactionRoute.fromJson(
+                e.map((key, value) => MapEntry(key.toString(), value)),
+              ),
+            )
+            .toList()
+        : const <TransactionRoute>[];
     return TransactionHistoryEntry(
       paymentStatus: _stringOrEmpty(json['payment_status']),
       paymentType: _stringOrEmpty(json['payment_type']),
@@ -63,6 +76,34 @@ class TransactionHistoryEntry {
       paymentMode: _stringOrEmpty(json['payment_mode']),
       vpa: _stringOrEmpty(json['vpa']),
       rrn: _stringOrEmpty(json['rrn']),
+      routes: routes,
+    );
+  }
+}
+
+class TransactionRoute {
+  const TransactionRoute({
+    required this.routeName,
+    required this.routeKey,
+    required this.deeplink,
+    required this.params,
+  });
+
+  final String routeName;
+  final String routeKey;
+  final String deeplink;
+  final Map<String, dynamic> params;
+
+  factory TransactionRoute.fromJson(Map<String, dynamic> json) {
+    final rawParams = json['params'];
+    final params = rawParams is Map
+        ? rawParams.map((key, value) => MapEntry(key.toString(), value))
+        : const <String, dynamic>{};
+    return TransactionRoute(
+      routeName: _stringOrEmpty(json['route_name']),
+      routeKey: _stringOrEmpty(json['route_key']),
+      deeplink: _stringOrEmpty(json['deeplink']),
+      params: params,
     );
   }
 }

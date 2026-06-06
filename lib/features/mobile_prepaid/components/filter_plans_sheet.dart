@@ -43,14 +43,14 @@ class _FilterPlansSheetState extends State<FilterPlansSheet> {
       : Set<String>.from(widget.initialDataSelected);
 
   void _clearAll() {
-    setState(() {
-      _selectedValidity
-        ..clear()
-        ..add(_allLabel);
-      _selectedData
-        ..clear()
-        ..add(_allLabel);
-    });
+    _selectedValidity
+      ..clear()
+      ..add(_allLabel);
+    _selectedData
+      ..clear()
+      ..add(_allLabel);
+    widget.onApply(const <String>{}, const <String>{});
+    Navigator.of(context).pop();
   }
 
   Widget _chipGroup({
@@ -183,7 +183,7 @@ class _FilterPlansSheetState extends State<FilterPlansSheet> {
                     label: 'Clear All',
                     uppercaseLabel: false,
                     isBorder: true,
-                    height: 40.h,
+                    height: 36.h,
                     backgroundColor: Colors.white,
                     borderColor: AppColors.textPrimary.withOpacity(0.18),
                     labelColor: Colors.black,
@@ -201,7 +201,7 @@ class _FilterPlansSheetState extends State<FilterPlansSheet> {
                     },
                     label: 'Apply',
                     uppercaseLabel: false,
-                    height: 40.h,
+                    height: 36.h,
                   ),
                 ),
               ],

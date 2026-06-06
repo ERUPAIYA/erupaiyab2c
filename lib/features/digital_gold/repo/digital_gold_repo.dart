@@ -1,10 +1,15 @@
+// ignore_for_file: avoid_print
+
 import 'package:dio/dio.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../constants/api_constants.dart';
 import '../../../services/dio_service.dart';
+import '../models/digital_gold_dashboard.dart';
 import '../models/digital_gold_otp_response.dart';
 import '../models/digital_gold_preview.dart';
+import '../models/digital_gold_purchase_receipt.dart';
+import '../models/digital_gold_summary.dart';
 import '../models/recent_purchase.dart';
 
 final digitalGoldRepoProvider = Provider<DigitalGoldRepo>(
@@ -33,10 +38,66 @@ final goldBalanceProvider = FutureProvider<double>((ref) async {
   }
 });
 
+final digitalGoldDashboardProvider =
+    FutureProvider<DigitalGoldDashboard>((ref) async {
+  final repo = ref.watch(digitalGoldRepoProvider);
+  return repo.fetchDashboard();
+});
+
+final digitalGoldSummaryProvider = FutureProvider.autoDispose
+    .family<DigitalGoldSummary, DigitalGoldSummaryRequest>(
+  (ref, request) async {
+    final repo = ref.watch(digitalGoldRepoProvider);
+    return repo.fetchSummary(
+      weightOfGold: request.weightOfGold,
+      totalPrice: request.totalPrice,
+    );
+  },
+);
+
+class DigitalGoldSummaryRequest {
+  const DigitalGoldSummaryRequest({
+    required this.weightOfGold,
+    required this.totalPrice,
+  });
+
+  final String weightOfGold;
+  final String totalPrice;
+
+  @override
+  bool operator ==(Object other) {
+    return other is DigitalGoldSummaryRequest &&
+        other.weightOfGold == weightOfGold &&
+        other.totalPrice == totalPrice;
+  }
+
+  @override
+  int get hashCode => Object.hash(weightOfGold, totalPrice);
+}
+
 class DigitalGoldRepo {
   DigitalGoldRepo({Dio? dio}) : _dio = dio ?? DioService.instance.client;
 
   final Dio _dio;
+
+  Future<DigitalGoldDashboard> fetchDashboard() async {
+    try {
+      final response =
+          await _dio.get(ApiConstants.digitalGoldDashboardEndpoint);
+      final payload = response.data as Map<String, dynamic>? ?? {};
+      if (payload['status'] == true) {
+        return DigitalGoldDashboard.fromJson(payload);
+      }
+      final message =
+          payload['message']?.toString() ?? 'Unable to fetch dashboard';
+      throw Exception(message);
+    } on DioException catch (e) {
+      final message = e.response?.data is Map<String, dynamic>
+          ? (e.response?.data['message']?.toString())
+          : null;
+      throw Exception(message ?? 'Unable to fetch dashboard');
+    }
+  }
 
   Future<DigitalGoldPreview> fetchProceedPreview({
     required String calculationType,
@@ -172,7 +233,7 @@ class DigitalGoldRepo {
     }
   }
 
-  Future<void> buyGold({
+  Future<DigitalGoldPurchaseReceipt> buyGold({
     required String refId,
     required String billingAddressId,
     required String customerId,
@@ -192,20 +253,50 @@ class DigitalGoldRepo {
           'otp': otp,
         },
       );
-      final data = response.data as Map<String, dynamic>? ?? {};
-      if (data['status'] == true) {
-        return;
+      final payload = response.data as Map<String, dynamic>? ?? {};
+      if (payload['status'] == true) {
+        final data = payload['data'];
+        final dataMap =
+            data is Map<String, dynamic> ? data : const <String, dynamic>{};
+        return DigitalGoldPurchaseReceipt.fromApi(dataMap);
       }
-      if (data['status'] == false && data['message'] != null) {
-        final message = data['message'].toString();
+      if (payload['status'] == false && payload['message'] != null) {
+        final message = payload['message'].toString();
         throw Exception(message);
       }
-      throw Exception(data['message'] ?? 'Unable to buy gold');
+      throw Exception(payload['message'] ?? 'Unable to buy gold');
     } on DioException catch (e) {
       final message = e.response?.data is Map<String, dynamic>
           ? (e.response?.data['message']?.toString())
           : null;
       throw Exception(message ?? 'Unable to buy gold');
+    }
+  }
+
+  Future<DigitalGoldSummary> fetchSummary({
+    required String weightOfGold,
+    required String totalPrice,
+  }) async {
+    try {
+      final response = await _dio.post(
+        ApiConstants.digitalGoldSummaryEndpoint,
+        data: {
+          'weight_of_gold': weightOfGold,
+          'total_price': totalPrice,
+        },
+      );
+      final payload = response.data as Map<String, dynamic>? ?? {};
+      if (payload['status'] == true) {
+        return DigitalGoldSummary.fromJson(payload);
+      }
+      final message =
+          payload['message']?.toString() ?? 'Unable to fetch summary';
+      throw Exception(message);
+    } on DioException catch (e) {
+      final message = e.response?.data is Map<String, dynamic>
+          ? (e.response?.data['message']?.toString())
+          : null;
+      throw Exception(message ?? 'Unable to fetch summary');
     }
   }
 

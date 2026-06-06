@@ -21,6 +21,8 @@ import '../controllers/auth_controller.dart';
 class ResetMpinView extends HookConsumerWidget {
   const ResetMpinView({super.key});
 
+  static const int _otpLength = 4;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authControllerProvider);
@@ -44,10 +46,11 @@ class ResetMpinView extends HookConsumerWidget {
     void applyOtpCode(String code) {
       final digits = code.replaceAll(RegExp(r'\D'), '');
       if (digits.isEmpty) return;
-      final trimmed = digits.length > 6 ? digits.substring(0, 6) : digits;
+      final trimmed =
+          digits.length > _otpLength ? digits.substring(0, _otpLength) : digits;
       otpController.text = trimmed;
       errorText.value = null;
-      if (trimmed.length == 6) {
+      if (trimmed.length == _otpLength) {
         otpFocus.unfocus();
         newPinFocus.requestFocus();
       }
@@ -63,7 +66,9 @@ class ResetMpinView extends HookConsumerWidget {
 
       () async {
         try {
-          await autoFill.listenForCode(smsCodeRegexPattern: r'\d{6}');
+          await autoFill.listenForCode(
+            smsCodeRegexPattern: '\\d{$_otpLength}',
+          );
         } catch (_) {}
       }();
 
@@ -91,9 +96,8 @@ class ResetMpinView extends HookConsumerWidget {
       if (isRequestingOtp.value) return;
       isRequestingOtp.value = true;
       loadingMessage.value = 'Sending OTP...';
-      final message = await ref
-          .read(authControllerProvider.notifier)
-          .requestForgotPinOtp();
+      final message =
+          await ref.read(authControllerProvider.notifier).requestForgotPinOtp();
       isRequestingOtp.value = false;
       if (!context.mounted) return;
 
@@ -120,8 +124,8 @@ class ResetMpinView extends HookConsumerWidget {
       final pin = newPinController.text.trim();
       final confirmPin = confirmPinController.text.trim();
 
-      if (otp.length != 6) {
-        errorText.value = 'Please enter a valid 6-digit OTP.';
+      if (otp.length != _otpLength) {
+        errorText.value = 'Please enter a valid $_otpLength-digit OTP.';
         otpFocus.requestFocus();
         return;
       }
@@ -171,7 +175,7 @@ class ResetMpinView extends HookConsumerWidget {
       };
     }, const []);
 
-    final otpVerified = otpController.text.trim().length == 6;
+    final otpVerified = otpController.text.trim().length == _otpLength;
 
     final otpTheme = PinTheme(
       width: 52.w,
@@ -265,17 +269,15 @@ class ResetMpinView extends HookConsumerWidget {
                       SizedBox(height: 16.h),
                       Text(
                         'Reset Your MPIN',
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineSmall
-                            ?.copyWith(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w800,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.w800,
+                                ),
                       ),
                       SizedBox(height: 8.h),
                       Text(
-                        'Enter the 6-digit OTP sent to your mobile number.',
+                        'Enter the $_otpLength-digit OTP sent to your mobile number.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: AppColors.textPrimary.withOpacity(0.7),
                               height: 1.4,
@@ -298,7 +300,7 @@ class ResetMpinView extends HookConsumerWidget {
                             Pinput(
                               controller: otpController,
                               focusNode: otpFocus,
-                              length: 6,
+                              length: _otpLength,
                               keyboardType: TextInputType.number,
                               inputFormatters: [
                                 FilteringTextInputFormatter.digitsOnly

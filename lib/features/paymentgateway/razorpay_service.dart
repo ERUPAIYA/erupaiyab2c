@@ -62,11 +62,14 @@ class RazorpayService {
       },
     );
 
+    final normalizedAmountPaise =
+        amount > 0 && amount < 1 ? 100 : (amount * 100).round();
+
     final options = <String, Object?>{
       'key': key,
       if (orderId != null && orderId.trim().isNotEmpty)
         'order_id': orderId.trim(),
-      'amount': (amount * 100).round(),
+      'amount': normalizedAmountPaise,
       'name': name,
       if (description != null) 'description': description,
       if (prefill != null && prefill.isNotEmpty) 'prefill': prefill,
