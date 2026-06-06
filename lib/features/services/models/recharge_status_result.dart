@@ -16,11 +16,25 @@ class RechargeStatusResult {
   bool get isSuccess => status.trim().toUpperCase() == 'SUCCESS';
   bool get isFailed => status.trim().toUpperCase() == 'FAILED';
   bool get isPending => status.trim().toUpperCase() == 'PENDING';
+  bool get isProcessing => status.trim().toUpperCase() == 'PROCESSING';
 
   factory RechargeStatusResult.fromJson(Map<String, dynamic> json) {
-    String read(String key) => (json[key] ?? '').toString().trim();
+    final data = json['data'] is Map<String, dynamic>
+        ? json['data'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+
+    String read(String key) {
+      final nested = (data[key] ?? '').toString().trim();
+      if (nested.isNotEmpty) return nested;
+      return (json[key] ?? '').toString().trim();
+    }
+
+    final rawStatus = json['status'];
+    final resolvedStatus =
+        rawStatus is bool ? read('status') : (json['status'] ?? '').toString().trim();
+
     return RechargeStatusResult(
-      status: read('status'),
+      status: resolvedStatus,
       message: read('message'),
       transactionId: read('transaction_id').isNotEmpty
           ? read('transaction_id')
@@ -30,4 +44,3 @@ class RechargeStatusResult {
     );
   }
 }
-

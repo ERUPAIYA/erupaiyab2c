@@ -202,31 +202,29 @@ class CreditCardListingView extends HookConsumerWidget {
                                 ),
                           ),
                           const SizedBox(height: 12),
-                          ListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: remaining.length,
-                            itemBuilder: (context, index) {
-                              final biller = remaining[index];
-                              return _BillerListTile(
-                                biller: biller,
-                                onTap: () {
-                                  ref
-                                      .read(
-                                        billerDetailControllerProvider.notifier,
-                                      )
-                                      .selectBiller(biller);
-                                  context.push(
-                                    RouteConstants.billerDetail,
-                                    extra: BillerDetailArgs(
-                                      biller: biller,
-                                      isCreditCard: true,
-                                      paymentType: 'Credit card',
-                                    ),
-                                  );
-                                },
-                              );
-                            },
+                          Column(
+                            children: [
+                              for (final biller in remaining)
+                                _BillerListTile(
+                                  biller: biller,
+                                  onTap: () {
+                                    ref
+                                        .read(
+                                          billerDetailControllerProvider
+                                              .notifier,
+                                        )
+                                        .selectBiller(biller);
+                                    context.push(
+                                      RouteConstants.billerDetail,
+                                      extra: BillerDetailArgs(
+                                        biller: biller,
+                                        isCreditCard: true,
+                                        paymentType: 'Credit card',
+                                      ),
+                                    );
+                                  },
+                                ),
+                            ],
                           ),
                           const SizedBox(height: 12),
                         ],
@@ -248,6 +246,7 @@ class _BillerGridTile extends StatelessWidget {
 
   final Biller biller;
   final VoidCallback? onTap;
+  static const double _tileHeight = 112;
 
   @override
   Widget build(BuildContext context) {
@@ -255,7 +254,7 @@ class _BillerGridTile extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        constraints: const BoxConstraints.tightFor(height: 112),
+        constraints: const BoxConstraints.tightFor(height: _tileHeight),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -271,23 +270,29 @@ class _BillerGridTile extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _BillerIcon(
-              name: biller.billerName,
-              iconUrl: biller.iconUrl,
-              size: 36,
-              backgroundColor: AppColors.gradientStart.withOpacity(0.5),
-              isCircle: true,
+            _ProviderIconFrame(
+              child: _BillerIcon(
+                name: biller.billerName,
+                iconUrl: biller.iconUrl,
+                size: 38,
+                backgroundColor: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
             const SizedBox(height: 10),
-            Text(
-              biller.billerName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
+            SizedBox(
+              height: 32,
+              child: Text(
+                biller.billerName,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                      height: 1.15,
+                    ),
+              ),
             ),
           ],
         ),
@@ -307,21 +312,17 @@ class _BillerListTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppColors.gradientStart.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(10),
-              ),
+            _ProviderIconFrame(
+              size: 44,
               child: _BillerIcon(
                 name: biller.billerName,
                 iconUrl: biller.iconUrl,
-                size: 40,
-                backgroundColor: Colors.transparent,
+                size: 38,
+                backgroundColor: Colors.white,
+                borderRadius: BorderRadius.circular(14),
               ),
             ),
             const SizedBox(width: 12),
@@ -336,8 +337,8 @@ class _BillerListTile extends StatelessWidget {
             ),
             Image.asset(
               FileConstants.tiltArrow,
-              height: 25,
-              width: 25,
+              height: 22,
+              width: 22,
               fit: BoxFit.contain,
             ),
           ],
@@ -353,14 +354,14 @@ class _BillerIcon extends StatelessWidget {
     required this.iconUrl,
     required this.size,
     required this.backgroundColor,
-    this.isCircle = false,
+    required this.borderRadius,
   });
 
   final String name;
   final String? iconUrl;
   final double size;
   final Color backgroundColor;
-  final bool isCircle;
+  final BorderRadius borderRadius;
 
   @override
   Widget build(BuildContext context) {
@@ -370,7 +371,7 @@ class _BillerIcon extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(isCircle ? size / 2 : 10),
+        borderRadius: borderRadius,
       ),
       alignment: Alignment.center,
       child: Text(
@@ -390,10 +391,35 @@ class _BillerIcon extends StatelessWidget {
       url: iconUrl,
       width: size,
       height: size,
-      fit: BoxFit.cover,
-      borderRadius: BorderRadius.circular(isCircle ? size / 2 : 10),
+      fit: BoxFit.contain,
+      borderRadius: borderRadius,
       placeholder: fallback,
       errorWidget: fallback,
+    );
+  }
+}
+
+class _ProviderIconFrame extends StatelessWidget {
+  const _ProviderIconFrame({
+    required this.child,
+    this.size = 44,
+  });
+
+  final Widget child;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.lightBorder, width: 1),
+      ),
+      child: child,
     );
   }
 }

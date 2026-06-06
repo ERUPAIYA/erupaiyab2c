@@ -9,7 +9,6 @@ import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../constants/app_colors.dart';
-import '../../../constants/file_constants.dart';
 import '../../../constants/routes_constant.dart';
 import '../../../widgets/app_network_image.dart';
 import '../../../widgets/my_app_bar.dart';
@@ -24,6 +23,8 @@ import '../utils/banner_redirect_mapper.dart';
 class HomeSearchView extends HookConsumerWidget {
   const HomeSearchView({super.key});
 
+  static const double _bannerHeight = 120;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final searchController = useTextEditingController();
@@ -35,7 +36,7 @@ class HomeSearchView extends HookConsumerWidget {
     final bannerError = useState<String?>(null);
     final bannerPage = useState(0);
     final bannerController =
-        useMemoized(() => PageController(viewportFraction: 0.92), const []);
+        useMemoized(() => PageController(viewportFraction: 1), const []);
     Timer? debounce;
 
     useEffect(() {
@@ -94,113 +95,89 @@ class HomeSearchView extends HookConsumerWidget {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Column(
-        children: [
-          MyAppBar(
-            title: 'All Services',
-            showHelp: false,
-            onBack: () => Navigator.of(context).pop(),
-            onHelp: () {},
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: SearchTextfield(
-              hintText: 'Search Services',
-              controller: searchController,
-              onChange: (value) {
-                query.value = value;
-              },
+      body: SafeArea(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            MyAppBar(
+              title: 'All Services',
+              showHelp: false,
+              onBack: () => Navigator.of(context).pop(),
+              onHelp: () {},
             ),
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: banners.value.isNotEmpty
-                  ? SizedBox(
-                      height: 84,
-                      width: double.infinity,
-                      child: PageView.builder(
-                        controller: bannerController,
-                        onPageChanged: (page) => bannerPage.value = page,
-                        itemCount: banners.value.length,
-                        itemBuilder: (_, index) {
-                          final banner = banners.value[index];
-                          return GestureDetector(
-                            onTap: () => BannerRedirectMapper.handle(
-                              context,
-                              banner.redirectUrl,
-                            ),
-                            child: Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 6),
-                              child: AppNetworkImage(
-                                url: banner.image,
-                                height: 84,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          );
-                        },
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: SearchTextfield(
+                hintText: 'Search Services',
+                controller: searchController,
+                onChange: (value) {
+                  query.value = value;
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (bannerError.value == null && banners.value.isNotEmpty)
+              SizedBox(
+                height: _bannerHeight,
+                child: PageView.builder(
+                  controller: bannerController,
+                  padEnds: false,
+                  onPageChanged: (page) => bannerPage.value = page,
+                  itemCount: banners.value.length,
+                  itemBuilder: (_, index) {
+                    final banner = banners.value[index];
+                    return GestureDetector(
+                      onTap: () => BannerRedirectMapper.handle(
+                        context,
+                        banner.redirectUrl,
                       ),
-                    )
-                  : Image.asset(
-                      FileConstants.homeBanner1,
-                      height: 84,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    ),
-            ),
-          ),
-          if (bannerError.value != null) ...[
-            const SizedBox(height: 6),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                bannerError.value!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.red.shade700,
-                    ),
+                      child: AppNetworkImage(
+                        url: banner.image,
+                        width: double.infinity,
+                        height: _bannerHeight,
+                        fit: BoxFit.contain,
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          if (isLoading.value)
-            const Center(
-              child: SpinKitCircle(
-                color: AppColors.primary,
-                size: 48,
-              ),
-            )
-          else if (error.value != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-              child: Text(
-                error.value!,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.red.shade700,
-                    ),
-              ),
-            )
-          else if (results.value.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-              child: Text(
-                'No services found',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textPrimary.withOpacity(0.6),
-                    ),
-              ),
-            )
-          else
-            Expanded(
-              child: SafeArea(
+            const SizedBox(height: 12),
+            if (isLoading.value)
+              const Center(
+                child: SpinKitCircle(
+                  color: AppColors.primary,
+                  size: 48,
+                ),
+              )
+            else if (error.value != null)
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                child: Text(
+                  error.value!,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.red.shade700,
+                      ),
+                ),
+              )
+            else if (results.value.isEmpty)
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                child: Text(
+                  'No services found',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.textPrimary.withOpacity(0.6),
+                      ),
+                ),
+              )
+            else
+              SafeArea(
                 top: false,
                 child: ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
                   padding: EdgeInsets.fromLTRB(
                     16,
                     8,
@@ -219,8 +196,9 @@ class HomeSearchView extends HookConsumerWidget {
                         } else if (normalized == 'mobile prepaid') {
                           context.push(RouteConstants.mobilePrepaid);
                         } else if (normalized == 'digital gold') {
-                          context
-                              .push('${RouteConstants.digitalGold}?entry=home');
+                          context.push(
+                            '${RouteConstants.digitalGold}?entry=home',
+                          );
                         } else if (normalized == 'digital silver') {
                           context.push(
                             '${RouteConstants.digitalGold}?metal=silver&entry=home',
@@ -236,8 +214,8 @@ class HomeSearchView extends HookConsumerWidget {
                   },
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

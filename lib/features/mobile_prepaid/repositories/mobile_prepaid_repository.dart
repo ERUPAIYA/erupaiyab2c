@@ -5,17 +5,17 @@ import 'package:dio/dio.dart';
 import '../../../constants/api_constants.dart';
 import '../../../services/dio_service.dart';
 import '../../../services/logger_service.dart';
-import '../models/operator_info.dart';
-import '../models/operator_option.dart';
+import '../../home/models/banner_model.dart';
 import '../models/latest_transaction.dart';
 import '../models/my_number_info.dart';
+import '../models/operator_info.dart';
+import '../models/operator_option.dart';
 import '../models/plan_item.dart';
-import '../models/prepaid_transaction_status.dart';
 import '../models/prepaid_plans_response.dart';
+import '../models/prepaid_transaction_status.dart';
 import '../models/recharge_order_result.dart';
 import '../models/recharge_result.dart';
 import '../models/region_option.dart';
-import '../../home/models/banner_model.dart';
 
 class MobilePrepaidRepository {
   MobilePrepaidRepository({Dio? dio})
@@ -135,10 +135,8 @@ class MobilePrepaidRepository {
     List<String> filters = const [],
   }) async {
     try {
-      final normalizedFilters = filters
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .toList();
+      final normalizedFilters =
+          filters.map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
       final response = await _dio.post(
         ApiConstants.prepaidFetchPlansEndpoint,
         data: {
@@ -159,9 +157,7 @@ class MobilePrepaidRepository {
 
       final filtersMap = payload['filters'] as Map<String, dynamic>? ?? {};
       final validityFilters = (filtersMap['validity'] is List)
-          ? (filtersMap['validity'] as List)
-              .map((e) => e.toString())
-              .toList()
+          ? (filtersMap['validity'] as List).map((e) => e.toString()).toList()
           : const <String>[];
       final dataFilters = (filtersMap['data'] is List)
           ? (filtersMap['data'] as List).map((e) => e.toString()).toList()
@@ -169,6 +165,8 @@ class MobilePrepaidRepository {
       final filterTags = (payload['filterTags'] is List)
           ? (payload['filterTags'] as List).map((e) => e.toString()).toList()
           : normalizedFilters;
+      final ecoinsRestrictionsPercent =
+          double.tryParse((payload['ecoins_restrictions'] ?? '').toString());
 
       final result = <String, List<PlanItem>>{};
       data.forEach((key, value) {
@@ -184,6 +182,7 @@ class MobilePrepaidRepository {
         validityFilters: validityFilters,
         dataFilters: dataFilters,
         filterTags: filterTags,
+        ecoinsRestrictionsPercent: ecoinsRestrictionsPercent,
       );
     } catch (e, stackTrace) {
       logger.error(

@@ -1,9 +1,12 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../constants/app_colors.dart';
@@ -16,6 +19,7 @@ import '../components/policy_section_title.dart';
 import '../components/support_transaction_card.dart';
 import '../controllers/help_support_controller.dart';
 import '../models/help_topic.dart';
+import '../models/support_latest_transaction.dart';
 import 'recent_payment_help_screen.dart';
 
 class HelpSupportScreen extends HookConsumerWidget {
@@ -104,13 +108,17 @@ class HelpSupportScreen extends HookConsumerWidget {
                                   height: 90.h,
                                   child: state.isLoading &&
                                           state.latestTransactions.isEmpty
-                                      ? const Center(
-                                          child: SizedBox(
-                                            height: 24,
-                                            width: 24,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: AppColors.primary,
+                                      ? Skeletonizer(
+                                          enabled: true,
+                                          child: ListView.separated(
+                                            scrollDirection: Axis.horizontal,
+                                            itemCount: 3,
+                                            separatorBuilder: (_, __) =>
+                                                SizedBox(width: 12.w),
+                                            itemBuilder: (_, __) =>
+                                                const SupportTransactionCard(
+                                              transaction:
+                                                  _HelpSupportSkeletons.tx,
                                             ),
                                           ),
                                         )
@@ -161,16 +169,16 @@ class HelpSupportScreen extends HookConsumerWidget {
                                 const PolicySectionTitle(text: 'Help Topics'),
                                 SizedBox(height: 10.h),
                                 if (state.isLoading && state.helpTopics.isEmpty)
-                                  Padding(
-                                    padding:
-                                        EdgeInsets.symmetric(vertical: 16.h),
-                                    child: const Center(
-                                      child: SizedBox(
-                                        height: 24,
-                                        width: 24,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: AppColors.primary,
+                                  Skeletonizer(
+                                    enabled: true,
+                                    child: IgnorePointer(
+                                      child: Column(
+                                        children: List.generate(
+                                          6,
+                                          (index) => _HelpTopicTile(
+                                            title: 'Loading help topic',
+                                            onTap: () {},
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -284,6 +292,21 @@ class _HelpTopicTile extends StatelessWidget {
       ),
     );
   }
+}
+
+class _HelpSupportSkeletons {
+  const _HelpSupportSkeletons._();
+
+  static const tx = SupportLatestTransaction(
+    id: '0',
+    paymentType: 'Recharge',
+    billerName: 'Biller',
+    amount: '0',
+    status: 'Pending',
+    date: '2026-01-01 00:00:00',
+    type: 'BBPS',
+    transactionId: '',
+  );
 }
 
 class _TicketsCard extends StatelessWidget {
@@ -488,27 +511,49 @@ class _ContactHelpCard extends StatelessWidget {
                   color: Colors.white.withOpacity(0.9),
                 ),
           ),
-          SizedBox(height: 12.h),
-          SizedBox(
-            height: 36.h,
-            child: OutlinedButton(
-              onPressed: onTap,
-              style: OutlinedButton.styleFrom(
-                backgroundColor: Colors.white.withOpacity(0.15),
-                side: BorderSide(color: Colors.white.withOpacity(0.6)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20.r),
-                ),
-              ),
-              child: Text(
-                'Chat With Us',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-            ),
-          ),
+          //TO:DO: Implement chat support and uncomment below code
+          // SizedBox(height: 12.h),
+          // SizedBox(
+          //   height: 36.h,
+          //   child: OutlinedButton(
+          //     onPressed: onTap,
+          //     style: OutlinedButton.styleFrom(
+          //       backgroundColor: Colors.white.withOpacity(0.15),
+          //       side: BorderSide(color: Colors.white.withOpacity(0.6)),
+          //       shape: RoundedRectangleBorder(
+          //         borderRadius: BorderRadius.circular(20.r),
+          //       ),
+          //     ),
+          //     child: Text(
+          //       'Chat With Us',
+          //       style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          //             color: Colors.white,
+          //             fontWeight: FontWeight.w700,
+          //           ),
+          //     ),
+          //   ),
+          // ),
+          // SizedBox(height: 12.h),
+          // SizedBox(
+          //   height: 36.h,
+          //   child: OutlinedButton(
+          //     onPressed: onTap,
+          //     style: OutlinedButton.styleFrom(
+          //       backgroundColor: Colors.white.withOpacity(0.15),
+          //       side: BorderSide(color: Colors.white.withOpacity(0.6)),
+          //       shape: RoundedRectangleBorder(
+          //         borderRadius: BorderRadius.circular(20.r),
+          //       ),
+          //     ),
+          //     child: Text(
+          //       'Chat With Us',
+          //       style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          //             color: Colors.white,
+          //             fontWeight: FontWeight.w700,
+          //           ),
+          //     ),
+          //   ),
+          // ),
         ],
       ),
     );

@@ -43,6 +43,7 @@ class AppNetworkImage extends StatelessWidget {
     }
 
     final isSvg = trimmed.toLowerCase().endsWith('.svg');
+    final isGif = trimmed.toLowerCase().endsWith('.gif');
     final resolvedUrl = fitToDeviceWidth && !isSvg
         ? _appendWidthParam(context, trimmed)
         : trimmed;
@@ -64,8 +65,10 @@ class AppNetworkImage extends StatelessWidget {
         width: width,
         height: height,
         fit: fit,
-        memCacheWidth: cacheWidth,
-        memCacheHeight: cacheHeight,
+        // For animated GIFs, resizing via memCacheWidth/Height can result in a
+        // non-animated (single-frame) image on some platforms.
+        memCacheWidth: isGif ? null : cacheWidth,
+        memCacheHeight: isGif ? null : cacheHeight,
         placeholder: (_, __) => _buildLoading(),
         errorWidget: (_, __, ___) => errorWidget ?? _buildPlaceholder(),
       ),

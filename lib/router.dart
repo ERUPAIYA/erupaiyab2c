@@ -12,11 +12,18 @@ import 'features/auth/views/pin_setup_view.dart';
 import 'features/auth/views/splash_view.dart';
 import 'features/digital_gold/models/digital_gold_preview.dart';
 import 'features/digital_gold/models/digital_metal.dart';
-import 'features/digital_gold/repo/digital_gold_repo.dart';
+import 'features/digital_gold/models/digital_gold_purchase_receipt.dart';
 import 'features/digital_gold/views/digital_gold_details_view.dart';
 import 'features/digital_gold/views/digital_gold_locker_view.dart';
+import 'features/digital_gold/views/digital_gold_summary_view.dart';
 import 'features/digital_gold/views/digital_gold_success_view.dart';
+import 'features/digital_gold/views/digital_gold_success_v2_view.dart';
+import 'features/digital_gold/views/digital_gold_sell_confirm_view.dart';
+import 'features/digital_gold/views/digital_gold_sell_success_view.dart';
 import 'features/digital_gold/views/digital_gold_view.dart';
+import 'features/digital_gold/sip/views/sip_portfolio_view.dart';
+import 'features/digital_gold/sip/views/sip_setup_view.dart';
+import 'features/digital_gold/sip/views/sip_success_view.dart';
 import 'features/educationFees/views/education_fees_amount_view.dart';
 import 'features/educationFees/views/education_fees_payment_view.dart';
 import 'features/educationFees/views/education_fees_recipient_view.dart';
@@ -57,6 +64,7 @@ import 'features/services/views/biller_listing_view.dart';
 import 'features/services/views/credit_card_intro_view.dart';
 import 'features/services/views/credit_card_listing_view.dart';
 import 'features/services/views/credit_card_my_cards_view.dart';
+import 'features/services/views/credit_card_pay_deeplink_view.dart';
 import 'features/services/views/credit_card_transaction_detail_screen.dart';
 import 'features/services/views/credit_card_transactions_screen.dart';
 import 'features/spinandear/views/spin_and_win_view.dart';
@@ -72,16 +80,20 @@ final routerProvider = Provider<GoRouter>(
       redirect: (context, state) {
         logger.info('Redirecting to ${state.matchedLocation}');
         final authState = ref.read(authControllerProvider);
+        final location = state.matchedLocation;
+
+        // Always let the in-app splash render on cold start/reopen.
+        // SplashView itself decides whether to continue to Home or Login
+        // after the lottie animation and auth check finish.
+        if (location == RouteConstants.splash) return null;
 
         // While still checking stored tokens, don't redirect.
         if (authState.isLoading) return null;
 
         final isAuthenticated = authState.isAuthenticated;
-        final location = state.matchedLocation;
 
         // Auth screens that unauthenticated users may visit.
         const authRoutes = [
-          RouteConstants.splash,
           RouteConstants.login,
           RouteConstants.register,
           RouteConstants.otp,
@@ -106,7 +118,7 @@ final routerProvider = Provider<GoRouter>(
       routes: <GoRoute>[
         GoRoute(
           path: RouteConstants.splash,
-          builder: (context, state) => const SplashView(),
+          builder: (context, state) => SplashView(key: state.pageKey),
         ),
         GoRoute(
           path: RouteConstants.home,
@@ -214,6 +226,26 @@ final routerProvider = Provider<GoRouter>(
         GoRoute(
           path: RouteConstants.creditCardMyCards,
           builder: (context, state) => const CreditCardMyCardsView(),
+        ),
+        GoRoute(
+          path: RouteConstants.creditCardPay,
+          builder: (context, state) {
+            final extra = state.extra as Map<String, dynamic>? ?? const {};
+            String read(String key) => (extra[key] ?? '').toString();
+            double? readDouble(String key) {
+              final raw = extra[key];
+              if (raw is num) return raw.toDouble();
+              return double.tryParse((raw ?? '').toString());
+            }
+
+            return CreditCardPayDeeplinkView(
+              billerName: read('biller_name'),
+              maskedIdentifier: read('masked_identifier'),
+              customerMobile: read('customer_mobile'),
+              amount: readDouble('amount'),
+              iconUrl: read('icon'),
+            );
+          },
         ),
         GoRoute(
           path: RouteConstants.creditCardTransactions,
@@ -347,10 +379,13 @@ final routerProvider = Provider<GoRouter>(
                 DigitalMetalTheme.fromQuery(state.uri.queryParameters['metal']);
             final validateRegistration =
                 state.uri.queryParameters['entry'] == 'home';
+            final useLegacyDashboard =
+                state.uri.queryParameters['legacy'] == '1';
             return DigitalGoldView(
               mode: mode,
               metal: metal,
               validateRegistration: validateRegistration,
+              useLegacyDashboard: useLegacyDashboard,
             );
           },
         ),
@@ -370,11 +405,68 @@ final routerProvider = Provider<GoRouter>(
           },
         ),
         GoRoute(
+          path: RouteConstants.digitalGoldSummary,
+          builder: (context, state) {
+            final metal =
+                DigitalMetalTheme.fromQuery(state.uri.queryParameters['metal']);
+            final extra = state.extra as Map<String, dynamic>? ?? {};
+            return DigitalGoldSummaryView(
+              amount: (extra['amount'] as num? ?? 0).toDouble(),
+              metal: metal,
+              isBuyingInRupees: extra['isBuyingInRupees'] as bool? ?? true,
+              preview: extra['preview'] as DigitalGoldPreview? ??
+                  const DigitalGoldPreview(
+                    kycStatus: true,
+                    isUserRegistered: true,
+                    myGoldBalance: 0,
+                    taxAmt1: 0,
+                    taxAmt2: 0,
+                    preTaxAmount: 0,
+                    totalAmount: 0,
+                  ),
+            );
+          },
+        ),
+        GoRoute(
           path: RouteConstants.digitalGoldSuccess,
           builder: (context, state) {
             final metal =
                 DigitalMetalTheme.fromQuery(state.uri.queryParameters['metal']);
-            return DigitalGoldSuccessView(metal: metal);
+            final useLegacy = state.uri.queryParameters['legacy'] == '1';
+            return useLegacy
+                ? DigitalGoldSuccessView(metal: metal)
+                : DigitalGoldSuccessV2View(metal: metal);
+          },
+        ),
+        GoRoute(
+          path: RouteConstants.digitalGoldSellConfirm,
+          builder: (context, state) {
+            final metal =
+                DigitalMetalTheme.fromQuery(state.uri.queryParameters['metal']);
+            final extra = state.extra as Map<String, dynamic>? ?? {};
+            return DigitalGoldSellConfirmView(
+              amount: (extra['amount'] as num? ?? 0).toDouble(),
+              preview: extra['preview'] as DigitalGoldPreview? ??
+                  const DigitalGoldPreview(
+                    kycStatus: true,
+                    isUserRegistered: true,
+                    myGoldBalance: 0,
+                    taxAmt1: 0,
+                    taxAmt2: 0,
+                    preTaxAmount: 0,
+                    totalAmount: 0,
+                  ),
+              isSellingInRupees: extra['isBuyingInRupees'] as bool? ?? true,
+              metal: metal,
+            );
+          },
+        ),
+        GoRoute(
+          path: RouteConstants.digitalGoldSellSuccess,
+          builder: (context, state) {
+            final metal =
+                DigitalMetalTheme.fromQuery(state.uri.queryParameters['metal']);
+            return DigitalGoldSellSuccessView(metal: metal);
           },
         ),
         GoRoute(
@@ -383,6 +475,23 @@ final routerProvider = Provider<GoRouter>(
             final metal =
                 DigitalMetalTheme.fromQuery(state.uri.queryParameters['metal']);
             return DigitalGoldLockerView(metal: metal);
+          },
+        ),
+        GoRoute(
+          path: RouteConstants.digitalGoldSipSetup,
+          builder: (context, state) => const DigitalGoldSipSetupView(),
+        ),
+        GoRoute(
+          path: RouteConstants.digitalGoldSipPortfolio,
+          builder: (context, state) => const DigitalGoldSipPortfolioView(),
+        ),
+        GoRoute(
+          path: RouteConstants.digitalGoldSipSuccess,
+          builder: (context, state) {
+            final extra = state.extra as Map<String, dynamic>?;
+            return DigitalGoldSipSuccessView(
+              receipt: extra?['receipt'] as DigitalGoldPurchaseReceipt?,
+            );
           },
         ),
         GoRoute(

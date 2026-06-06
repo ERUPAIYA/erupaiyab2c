@@ -18,6 +18,7 @@ class AppColors {
   static const Color red = Colors.redAccent;
   static const Color green = Colors.green;
   static const Color lightBorder = Color(0xFFE4DFDA);
+  static const Color lightBorder2 = Color(0xFFE2E2E2);
 
   static const LinearGradient authBackgroundGradient = LinearGradient(
     colors: [gradientStart, gradientMid, gradientEnd],

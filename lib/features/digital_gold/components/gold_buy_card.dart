@@ -22,7 +22,7 @@ class GoldBuyCard extends StatelessWidget {
     required this.prefixText,
     this.unitText,
     required this.cardColor,
-    required this.chipGradient,
+    this.chipGradient,
     required this.toggleActiveColor,
   });
 
@@ -38,7 +38,7 @@ class GoldBuyCard extends StatelessWidget {
   final String prefixText;
   final String? unitText;
   final Color cardColor;
-  final LinearGradient chipGradient;
+  final LinearGradient? chipGradient;
   final Color toggleActiveColor;
 
   @override
@@ -91,9 +91,7 @@ class GoldBuyCard extends StatelessWidget {
                     label: option.label,
                     onTap: () => onAmountSelected(option.value),
                     gradient: chipGradient,
-                    color: chipGradient == null
-                        ? const Color(0xFF7A7A7A)
-                        : null,
+                    color: null,
                   ),
                 )
                 .toList(),

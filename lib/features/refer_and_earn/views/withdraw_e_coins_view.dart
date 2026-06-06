@@ -21,6 +21,7 @@ class WithdrawECoinsView extends HookConsumerWidget {
   const WithdrawECoinsView({super.key, required this.walletBalance});
 
   final String walletBalance;
+  static const int minimumWithdrawCoins = 100;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -32,6 +33,9 @@ class WithdrawECoinsView extends HookConsumerWidget {
     final bankAccounts = useState<List<BankAccountEntry>>([]);
     final isFetchingBanks = useState(false);
     final repository = useMemoized(() => BankAccountsRepository());
+    final isAmountBelowMinimum =
+        amount.value > 0 && amount.value < minimumWithdrawCoins;
+    final canWithdraw = amount.value >= minimumWithdrawCoins;
 
     useEffect(() {
       controller.text = '0';
@@ -87,7 +91,7 @@ class WithdrawECoinsView extends HookConsumerWidget {
         child: SafeArea(
           top: false,
           child: InkWell(
-            onTap: amount.value == 0
+            onTap: !canWithdraw
                 ? null
                 : () async {
                     if (isFetchingBanks.value) return;
@@ -112,7 +116,7 @@ class WithdrawECoinsView extends HookConsumerWidget {
             child: Container(
               height: 42.h,
               decoration: BoxDecoration(
-                color: amount.value == 0
+                color: !canWithdraw
                     ? const Color(0xFFE85A2C).withOpacity(0.5)
                     : const Color(0xFFE85A2C),
                 borderRadius: BorderRadius.circular(28.r),
@@ -141,29 +145,14 @@ class WithdrawECoinsView extends HookConsumerWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Container(
-                        width: 36.w,
-                        height: 36.w,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE85A2C),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
-                              blurRadius: 6,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: Center(
-                          child: Image.asset(
-                            FileConstants.coin_3d,
-                            width: 18.w,
-                            height: 18.w,
-                          ),
+                      Center(
+                        child: Image.asset(
+                          FileConstants.coin_3d,
+                          width: 30.w,
+                          height: 30.w,
                         ),
                       ),
-                      SizedBox(width: 10.w),
+                      SizedBox(width: 8.w),
                       Text(
                         _formatAmount(totalBalanceDouble),
                         style:
@@ -264,9 +253,20 @@ class WithdrawECoinsView extends HookConsumerWidget {
                           ),
                         ),
                       ),
+                      if (isAmountBelowMinimum) ...[
+                        SizedBox(height: 8.h),
+                        Text(
+                          'Enter at least 100 E-Coins to withdraw.',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                        ),
+                      ],
                       SizedBox(height: 8.h),
                       Text(
-                        'Min: 100 Coins | Max: ${_formatAmount(totalBalanceDouble)} Coins',
+                        'Min: $minimumWithdrawCoins Coins | Max: ${_formatAmount(totalBalanceDouble)} Coins',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: AppColors.textPrimary.withOpacity(0.6),
                             ),
@@ -345,7 +345,7 @@ class WithdrawECoinsView extends HookConsumerWidget {
                       ),
                       SizedBox(height: 6.h),
                       const _NoteItem(
-                        text: 'Minimum 100 E-Coins Required To Withdraw.',
+                        text: 'Minimum 100 E-Coins are required to withdraw.',
                       ),
                       const _NoteItem(
                         text:

@@ -196,43 +196,63 @@ class EducationFeesAmountView extends HookConsumerWidget {
                                 height: 120.h,
                                 fit: BoxFit.contain,
                               ),
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    '₹',
-                                    style: TextStyle(
-                                      fontSize: 32.sp,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                  SizedBox(width: 4.w),
-                                  SizedBox(
-                                    width: 140.w,
-                                    child: TextField(
-                                      controller: amountController,
-                                      focusNode: amountFocusNode,
-                                      autofocus: true,
-                                      keyboardType: TextInputType.number,
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.digitsOnly,
-                                      ],
-                                      textAlign: TextAlign.left,
-                                      style: TextStyle(
-                                        fontSize: 32.sp,
-                                        fontWeight: FontWeight.w800,
-                                        color: AppColors.textPrimary,
+                              Builder(
+                                builder: (context) {
+                                  final amountTextStyle = TextStyle(
+                                    fontSize: 32.sp,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.textPrimary,
+                                  );
+                                  final strut = StrutStyle(
+                                    fontSize: 32.sp,
+                                    height: 1,
+                                    forceStrutHeight: true,
+                                  );
+                                  return Row(
+                                    // mainAxisSize: MainAxisSize.min,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    textBaseline: TextBaseline.alphabetic,
+                                    children: [
+                                      Padding(
+                                        padding: EdgeInsets.only(left: 45.w),
+                                        child: Text(
+                                          '₹',
+                                          style: amountTextStyle,
+                                          strutStyle: strut,
+                                        ),
                                       ),
-                                      decoration: const InputDecoration(
-                                        border: InputBorder.none,
-                                        isDense: true,
-                                        contentPadding: EdgeInsets.zero,
+                                      SizedBox(width: 4.w),
+                                      SizedBox(
+                                        width: 140.w,
+                                        child: TextField(
+                                          controller: amountController,
+                                          focusNode: amountFocusNode,
+                                          autofocus: true,
+                                          maxLines: 1,
+                                          keyboardType: TextInputType.number,
+                                          inputFormatters: [
+                                            FilteringTextInputFormatter
+                                                .digitsOnly,
+                                          ],
+                                          textAlign: TextAlign.left,
+                                          textAlignVertical:
+                                              TextAlignVertical.center,
+                                          strutStyle: strut,
+                                          style: amountTextStyle,
+                                          decoration: const InputDecoration(
+                                            border: InputBorder.none,
+                                            isDense: true,
+                                            contentPadding: EdgeInsets.zero,
+                                          ),
+                                          onChanged:
+                                              controller.updateAmountInput,
+                                        ),
                                       ),
-                                      onChanged: controller.updateAmountInput,
-                                    ),
-                                  ),
-                                ],
+                                    ],
+                                  );
+                                },
                               ),
                             ],
                           ),

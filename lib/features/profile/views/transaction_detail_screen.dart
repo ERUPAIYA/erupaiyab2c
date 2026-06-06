@@ -14,6 +14,7 @@ import '../../../widgets/app_snackbar.dart';
 import '../../../widgets/custom_elevated_button.dart';
 import '../../../widgets/k_action_button.dart';
 import '../../../widgets/transaction_status_app_bar.dart';
+import '../../mobile_prepaid/models/recharge_quick_action_payload.dart';
 import '../models/transaction_history_entry.dart';
 import '../utils/receipt_actions.dart';
 
@@ -49,6 +50,32 @@ class TransactionDetailScreen extends StatelessWidget {
     final paymentMethod = tx.method.trim();
     final status = tx.paymentStatus.trim().toUpperCase();
     final isFailed = status == 'FAILED' || status == 'FAIL';
+    final isSuccessful = status == 'SUCCESS';
+    final statusBackgroundGradient = isFailed
+        ? const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFFF5D5D),
+              Color(0xFFC04242),
+              Color(0xFF981919),
+              Color(0xFF8E0303),
+            ],
+            stops: [0.0, 0.35, 0.7, 1.0],
+          )
+        : isSuccessful
+            ? const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFF004C1E),
+                  Color(0xFF149248),
+                  Color(0xFF136E3C),
+                  Color(0xFF007340),
+                ],
+                stops: [0.0, 0.35, 0.7, 1.0],
+              )
+            : null;
     final isProcessing = status == 'PENDING' || status == 'PROCESSING';
     final typeLower = tx.paymentType.trim().toLowerCase();
     final isRecharge = typeLower.contains('recharge');
@@ -83,6 +110,8 @@ class TransactionDetailScreen extends StatelessWidget {
     final txnIdLabel = isUpi ? 'UPI Transaction ID' : 'Transaction ID';
     const referenceLabel = 'Reference ID';
 
+    final canRetry = !isFailed || tx.routes.isNotEmpty;
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: Column(
@@ -91,6 +120,7 @@ class TransactionDetailScreen extends StatelessWidget {
             title: statusMeta.label,
             height: 130,
             backgroundColor: statusMeta.color,
+            backgroundGradient: statusBackgroundGradient,
             onBack: () => context.pop(),
           ),
           Expanded(
@@ -243,6 +273,35 @@ class TransactionDetailScreen extends StatelessWidget {
                           label: referenceLabel,
                           value: refId,
                         ),
+                      SizedBox(height: 18.h),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: KActionButton(
+                              label: 'Share Receipt',
+                              icon: Icons.share_outlined,
+                              onPressed: () =>
+                                  ReceiptActions.handleReceiptAction(
+                                context,
+                                transactionId: _resolveReceiptTransactionId(
+                                  refId: refId,
+                                  txnId: txnId,
+                                ),
+                                action: ReceiptAction.share,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 12.w),
+                          Expanded(
+                            child: KActionButton(
+                              label: 'Contact Support',
+                              icon: Icons.headset_mic_outlined,
+                              onPressed: () =>
+                                  context.push(RouteConstants.helpCenterChat),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ],
                 ),
@@ -251,21 +310,62 @@ class TransactionDetailScreen extends StatelessWidget {
           ),
         ],
       ),
-      bottomNavigationBar: isFailed || (isRecharge && !isCreditCard)
-          ? SafeArea(
-              top: false,
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 16.h),
-                child: CustomElevatedButton(
-                  onPressed: () => context.push(RouteConstants.mobilePrepaid),
-                  label: isFailed ? 'Retry' : 'Recharge Now',
-                  height: 40.h,
-                  uppercaseLabel: false,
-                  showArrow: false,
-                ),
-              ),
-            )
-          : null,
+      bottomNavigationBar:
+          canRetry && (isFailed || (isRecharge && !isCreditCard))
+              ? SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 16.h),
+                    child: CustomElevatedButton(
+                      onPressed: () {
+                        if (isFailed) {
+                          if (_handleRetryFromRoutes(context, tx)) return;
+
+                          if (isRecharge && !isCreditCard) {
+                            final amountInt = int.tryParse(
+                                    tx.amount.replaceAll(',', '').trim()) ??
+                                0;
+                            context.push(
+                              RouteConstants.mobilePrepaid,
+                              extra: RechargeQuickActionPayload(
+                                phone: tx.maskedIdentifier,
+                                amount: amountInt,
+                                operatorName: tx.billerName,
+                                iconUrl: tx.iconUrl,
+                                autoOpenPaymentSheet: true,
+                              ),
+                            );
+                            return;
+                          }
+
+                          if (isCreditCard) {
+                            context.push(
+                              RouteConstants.creditCardPay,
+                              extra: <String, dynamic>{
+                                'biller_name': tx.billerName,
+                                'masked_identifier': tx.maskedIdentifier,
+                                'customer_mobile': tx.customerMobile,
+                                'amount': double.tryParse(
+                                  tx.amount.replaceAll(',', '').trim(),
+                                ),
+                                'payment_type': tx.paymentType,
+                                'icon': tx.iconUrl,
+                              },
+                            );
+                            return;
+                          }
+                        }
+
+                        context.push(RouteConstants.mobilePrepaid);
+                      },
+                      label: isFailed ? 'Retry' : 'Recharge Now',
+                      height: 40.h,
+                      uppercaseLabel: false,
+                      showArrow: false,
+                    ),
+                  ),
+                )
+              : null,
     );
   }
 }
@@ -633,6 +733,55 @@ class _PoweredByRow extends StatelessWidget {
   }
 }
 
+bool _handleRetryFromRoutes(BuildContext context, TransactionHistoryEntry tx) {
+  final routes = tx.routes;
+  if (routes.isEmpty) return false;
+
+  for (final route in routes) {
+    final key = route.routeKey.trim().toLowerCase();
+    final deeplink = route.deeplink.trim().toLowerCase();
+    final params = route.params;
+
+    // Mobile prepaid recharge retry.
+    if (key == 'mobile_recharge' || deeplink.contains('mobile-recharge')) {
+      final phone = (params['masked_identifier'] ??
+              params['customer_mobile'] ??
+              tx.maskedIdentifier)
+          .toString()
+          .trim();
+      final operatorName =
+          (params['biller_name'] ?? tx.billerName).toString().trim();
+      final amountInt = _toInt(params['amount']) ??
+          int.tryParse(tx.amount.replaceAll(',', '').trim()) ??
+          0;
+
+      context.push(
+        RouteConstants.mobilePrepaid,
+        extra: RechargeQuickActionPayload(
+          phone: phone,
+          amount: amountInt,
+          operatorName: operatorName,
+          iconUrl: tx.iconUrl,
+          autoOpenPaymentSheet: true,
+        ),
+      );
+      return true;
+    }
+  }
+
+  // Unknown route type: fall back to existing logic.
+  return false;
+}
+
+int? _toInt(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  final text = value.toString().trim();
+  if (text.isEmpty) return null;
+  return int.tryParse(text) ?? double.tryParse(text)?.toInt();
+}
+
 class _StatusMeta {
   const _StatusMeta({required this.label, required this.color});
 
@@ -646,7 +795,7 @@ _StatusMeta _statusMeta(String rawStatus) {
     case 'SUCCESS':
       return const _StatusMeta(
         label: 'Transaction Successful',
-        color: Color(0xFF1AAE57),
+        color: Color(0xFF007340),
       );
     case 'PENDING':
       return const _StatusMeta(
@@ -657,7 +806,7 @@ _StatusMeta _statusMeta(String rawStatus) {
     case 'FAIL':
       return const _StatusMeta(
         label: 'Transaction Failed',
-        color: Color(0xFFE53935),
+        color: Color(0xFF8E0303),
       );
     default:
       return const _StatusMeta(

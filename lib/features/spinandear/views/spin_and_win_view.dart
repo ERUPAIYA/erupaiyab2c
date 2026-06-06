@@ -566,6 +566,8 @@ class _NoSpinsLeftDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 24),
       child: Padding(

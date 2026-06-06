@@ -16,6 +16,7 @@ import '../../paymentgateway/razorpay_service.dart';
 import '../../profile/controllers/profile_controller.dart';
 import '../models/digital_gold_otp_response.dart';
 import '../models/digital_gold_preview.dart';
+import '../models/digital_gold_purchase_receipt.dart';
 import '../models/digital_metal.dart';
 import '../repo/digital_gold_repo.dart';
 
@@ -29,9 +30,10 @@ class GoldPaymentSummarySheet extends HookConsumerWidget {
   });
 
   final double amount;
-  final VoidCallback onBuyNow;
+  final ValueChanged<DigitalGoldPurchaseReceipt> onBuyNow;
   final DigitalMetal metal;
   final DigitalGoldPreview preview;
+  static const int _otpLength = 4;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -48,7 +50,9 @@ class GoldPaymentSummarySheet extends HookConsumerWidget {
 
     void onWalletUsedChanged(String value) {
       final parsed = int.tryParse(value.replaceAll(RegExp(r'\D'), '')) ?? 0;
-      final maxAllowed = (preview.totalAmount * 0.05).floor();
+      final maxAllowedByBalance = (walletBalance * 0.05).floor();
+      final maxAllowed =
+          maxAllowedByBalance.clamp(0, preview.totalAmount.floor());
       final clamped =
           parsed.clamp(0, walletBalance.toInt()).clamp(0, maxAllowed);
       if (walletController.text != clamped.toString()) {
@@ -71,7 +75,8 @@ class GoldPaymentSummarySheet extends HookConsumerWidget {
     final walletUsed = walletUsedInput.value.toDouble();
     final payable =
         (preview.totalAmount - walletUsed).clamp(0, double.infinity).toDouble();
-    final maxAllowedWallet = (preview.totalAmount * 0.05).floorToDouble();
+    final maxAllowedWalletByBalance =
+        (walletBalance * 0.05).floorToDouble().clamp(0, preview.totalAmount);
 
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
@@ -143,27 +148,18 @@ class GoldPaymentSummarySheet extends HookConsumerWidget {
           SizedBox(height: 10.h),
           Row(
             children: [
-              Container(
-                height: 22.r,
-                width: 22.r,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFEDD8),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.lightBorder),
-                ),
-                child: Image.asset(FileConstants.goldcoin),
-              ),
+              Image.asset(FileConstants.coin_3d, width: 20.w, height: 20.h),
               SizedBox(width: 8.w),
               Expanded(
                 child: Text(
-                  'Balance ${walletBalance.toStringAsFixed(0)} Coins (Max 5%)',
+                  'Balance ${walletBalance.toStringAsFixed(0)} Coins (Max ${maxAllowedWalletByBalance.toStringAsFixed(0)})',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textPrimary.withOpacity(0.6),
+                        color: AppColors.textPrimary,
                       ),
                 ),
               ),
               SizedBox(
-                width: 80.w,
+                width: 56.w,
                 child: TextField(
                   controller: walletController,
                   keyboardType: TextInputType.number,
@@ -198,7 +194,7 @@ class GoldPaymentSummarySheet extends HookConsumerWidget {
           SizedBox(height: 6.h),
           _SummaryRow(
             label:
-                'You Used ${walletUsed.toStringAsFixed(0)} E-Coins (Max ${maxAllowedWallet.toStringAsFixed(0)})',
+                'You Used ${walletUsed.toStringAsFixed(0)} E-Coins (Max ${maxAllowedWalletByBalance.toStringAsFixed(0)})',
             value: '-₹${walletUsed.toStringAsFixed(2)}',
             valueColor: Colors.red,
           ),
@@ -221,9 +217,9 @@ class GoldPaymentSummarySheet extends HookConsumerWidget {
             TextField(
               controller: otpController,
               keyboardType: TextInputType.number,
-              maxLength: 6,
+              maxLength: _otpLength,
               decoration: InputDecoration(
-                hintText: 'Enter 6-digit OTP',
+                hintText: 'Enter $_otpLength-digit OTP',
                 counterText: '',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12.r),
@@ -248,9 +244,9 @@ class GoldPaymentSummarySheet extends HookConsumerWidget {
                     if (isOtpMode.value) {
                       // Handle OTP submission and payment
                       if (otpController.text.trim().isEmpty ||
-                          otpController.text.trim().length != 6) {
+                          otpController.text.trim().length != _otpLength) {
                         AppSnackbar.show(
-                          'Please enter a valid 6-digit OTP',
+                          'Please enter a valid $_otpLength-digit OTP',
                           type: AppSnackbarType.error,
                         );
                         return;
@@ -270,7 +266,7 @@ class GoldPaymentSummarySheet extends HookConsumerWidget {
                             try {
                               final repository =
                                   ref.read(digitalGoldRepoProvider);
-                              await repository.buyGold(
+                              final receipt = await repository.buyGold(
                                 refId: otpResponse.value!.refId,
                                 billingAddressId: preview.billingAddressId!,
                                 customerId: preview.customerId!,
@@ -278,8 +274,9 @@ class GoldPaymentSummarySheet extends HookConsumerWidget {
                                 stateResp: otpResponse.value!.stateResp,
                                 otp: otpController.text.trim(),
                               );
+                              if (!context.mounted) return;
                               Navigator.of(context).maybePop();
-                              onBuyNow();
+                              onBuyNow(receipt);
                             } catch (e) {
                               AppSnackbar.show(
                                 e.toString().replaceFirst('Exception: ', ''),
@@ -372,7 +369,7 @@ class _SummaryRow extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
-                ?.copyWith(color: AppColors.textPrimary.withOpacity(0.6)),
+                ?.copyWith(color: AppColors.textPrimary),
           ),
         ),
         Text(

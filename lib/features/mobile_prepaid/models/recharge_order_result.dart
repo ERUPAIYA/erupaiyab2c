@@ -19,9 +19,22 @@ class RechargeOrderResult {
     final statusValue = json['status'];
     final isSuccess =
         statusValue == true || statusValue?.toString().toLowerCase() == 'true';
+    final message = () {
+      final direct = (json['message'] ?? '').toString().trim();
+      if (direct.isNotEmpty) return direct;
+
+      final messages = json['messages'];
+      if (messages is Map) {
+        final nestedError = (messages['error'] ?? '').toString().trim();
+        if (nestedError.isNotEmpty) return nestedError;
+        final nestedMessage = (messages['message'] ?? '').toString().trim();
+        if (nestedMessage.isNotEmpty) return nestedMessage;
+      }
+      return '';
+    }();
     return RechargeOrderResult(
       isSuccess: isSuccess,
-      message: (json['message'] ?? '').toString().trim(),
+      message: message,
       transactionRef: (json['transaction_ref'] ?? '').toString().trim(),
       txnId: int.tryParse((json['txn_id'] ?? '').toString()) ?? 0,
       orderId: (json['order_id'] ?? '').toString().trim(),
@@ -29,4 +42,3 @@ class RechargeOrderResult {
     );
   }
 }
-

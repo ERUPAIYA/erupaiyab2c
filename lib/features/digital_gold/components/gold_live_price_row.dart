@@ -15,7 +15,7 @@ class GoldLivePriceRow extends StatelessWidget {
         Container(
           padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
           decoration: BoxDecoration(
-            color: const Color(0xFF8A1111),
+            color: const Color(0xFFFFF5F5),
             borderRadius: BorderRadius.circular(8.r),
           ),
           child: Row(
@@ -24,7 +24,7 @@ class GoldLivePriceRow extends StatelessWidget {
                 width: 6.w,
                 height: 6.w,
                 decoration: const BoxDecoration(
-                  color: Colors.white,
+                  color: Color(0xffFF0000),
                   shape: BoxShape.circle,
                 ),
               ),
@@ -32,7 +32,7 @@ class GoldLivePriceRow extends StatelessWidget {
               Text(
                 'Live',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.white,
+                      color: const Color(0xffFF0000),
                       fontWeight: FontWeight.w700,
                     ),
               ),

@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../../constants/api_constants.dart';
 import '../../../services/dio_service.dart';
 import '../../../services/logger_service.dart';
+import '../../../services/login_device_context_service.dart';
 import '../../../services/push_notification_service.dart';
 import '../models/auth_flow.dart';
 
@@ -40,7 +41,6 @@ class AuthRepository {
         options: Options(
           contentType: Headers.jsonContentType,
           extra: const {
-            // Auth is not required for check-login; avoid attaching tokens.
             'skipAuth': true,
             'skipAuthRefresh': true,
           },
@@ -159,6 +159,8 @@ class AuthRepository {
           'Unable to fetch device token. Please try again in a moment.',
         );
       }
+
+      final deviceContext = await const LoginDeviceContextService().collect();
       final response = await _dio.post(
         ApiConstants.loginEndpoint,
         options: Options(
@@ -173,6 +175,7 @@ class AuthRepository {
           'mobile': mobile,
           'pin': pin,
           'device_token': deviceToken,
+          ...deviceContext,
         },
       );
 
@@ -296,6 +299,15 @@ class AuthRepository {
       }
       return payload?['message'] as String? ??
           'OTP sent to registered mobile number.';
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.badResponse) {
+        _throwApiMessage(e, fallback: 'Failed to request OTP');
+      }
+      logger.error(
+        'Request forgot PIN OTP failed: ${e.toString()}',
+        error: e,
+      );
+      rethrow;
     } catch (e) {
       logger.error(
         'Request forgot PIN OTP failed: ${e.toString()}',
@@ -327,6 +339,15 @@ class AuthRepository {
         throw Exception(message);
       }
       return payload?['message'] as String? ?? 'PIN reset successfully.';
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.badResponse) {
+        _throwApiMessage(e, fallback: 'Failed to reset PIN');
+      }
+      logger.error(
+        'Forgot PIN failed: ${e.toString()}',
+        error: e,
+      );
+      rethrow;
     } catch (e) {
       logger.error(
         'Forgot PIN failed: ${e.toString()}',

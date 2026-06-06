@@ -1,3 +1,4 @@
+import 'package:e_rupaiya/constants/app_colors.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 import 'package:upgrader/upgrader.dart';
 
 // import 'package:no_screenshot/no_screenshot.dart';
@@ -119,7 +121,8 @@ class MyApp extends HookConsumerWidget {
             child: UpgradeAlert(
               upgrader: upgrader,
               showIgnore: false,
-              showLater: true,
+              // Force update when a newer Play Store/App Store version exists.
+              showLater: false,
               barrierDismissible: false,
               navigatorKey: navigatorKey,
               child: child ?? const SizedBox.shrink(),
@@ -129,11 +132,32 @@ class MyApp extends HookConsumerWidget {
         scaffoldMessengerKey: AppSnackbar.messengerKey,
         title: 'eRupaiya',
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-          textTheme: GoogleFonts.bricolageGrotesqueTextTheme(),
-          fontFamily: GoogleFonts.bricolageGrotesque().fontFamily,
-          useMaterial3: true,
+          colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary),
+          textTheme: GoogleFonts.plusJakartaSansTextTheme(
+            ThemeData.light().textTheme,
+          ),
+          primaryTextTheme: GoogleFonts.plusJakartaSansTextTheme(
+            ThemeData.light().primaryTextTheme,
+          ),
+          fontFamily: GoogleFonts.plusJakartaSans().fontFamily,
+          extensions: const [
+            SkeletonizerConfigData(),
+          ],
         ),
+        darkTheme: ThemeData(
+          brightness: Brightness.dark,
+          textTheme: GoogleFonts.plusJakartaSansTextTheme(
+            ThemeData.dark().textTheme,
+          ),
+          primaryTextTheme: GoogleFonts.plusJakartaSansTextTheme(
+            ThemeData.dark().primaryTextTheme,
+          ),
+          fontFamily: GoogleFonts.plusJakartaSans().fontFamily,
+          extensions: const [
+            SkeletonizerConfigData.dark(),
+          ],
+        ),
+        themeMode: ThemeMode.light,
         routerConfig: router,
       ),
     );

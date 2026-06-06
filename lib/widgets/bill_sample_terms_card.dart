@@ -119,14 +119,6 @@ class BillSampleTermsCard extends StatelessWidget {
                     ),
             ),
             SizedBox(height: 16.h),
-            Text(
-              'Terms conditions',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-            SizedBox(height: 10.h),
             (termsText ?? '').trim().isNotEmpty
                 ? AppHtml(html: _normalizeTermsToHtml(termsText!))
                 : Text(

@@ -5,6 +5,7 @@ class RechargeQuickActionPayload {
     this.desc,
     this.operatorName,
     this.iconUrl,
+    this.autoOpenPaymentSheet = false,
   });
 
   final String phone;
@@ -12,4 +13,5 @@ class RechargeQuickActionPayload {
   final String? desc;
   final String? operatorName;
   final String? iconUrl;
+  final bool autoOpenPaymentSheet;
 }

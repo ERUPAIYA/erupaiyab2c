@@ -39,7 +39,7 @@ _PaymentOutcome _resolvePaymentOutcome(
   if (message.contains('insufficient')) {
     return _PaymentOutcome.insufficient;
   }
-  if (status.contains('PENDING')) {
+  if (status.contains('PENDING') || status.contains('PROCESSING')) {
     return _PaymentOutcome.pending;
   }
   if (response?.isSuccess == true) {
@@ -51,11 +51,11 @@ _PaymentOutcome _resolvePaymentOutcome(
 String _paymentTitle(_PaymentOutcome outcome) {
   switch (outcome) {
     case _PaymentOutcome.success:
-      return 'Thank You!';
+      return 'Recharge Successful';
     case _PaymentOutcome.pending:
-      return 'Payment Pending!';
+      return 'Recharge Pending';
     case _PaymentOutcome.failure:
-      return 'Payment Failed!';
+      return 'Recharge Failed!';
     case _PaymentOutcome.insufficient:
       return 'Insufficient Balance!';
   }
@@ -64,9 +64,7 @@ String _paymentTitle(_PaymentOutcome outcome) {
 String _paymentSubtitle(_PaymentOutcome outcome) {
   switch (outcome) {
     case _PaymentOutcome.success:
-      return 'Thank you for your payment.\n'
-          'Your transaction has been successfully completed.\n'
-          'We truly appreciate your prompt payment and trust in our services.';
+      return '100 eCoins earned from this transaction';
     case _PaymentOutcome.pending:
       return 'Your payment has been received but is currently being processed.\n'
           "Please wait a few moments - we'll notify you once the transaction is confirmed.";
@@ -82,7 +80,7 @@ String _paymentSubtitle(_PaymentOutcome outcome) {
 String _resultSubtitle(_PaymentOutcome outcome) {
   switch (outcome) {
     case _PaymentOutcome.success:
-      return 'Your payment has been processed successfully.';
+      return '100 eCoins earned from this transaction';
     default:
       return _paymentSubtitle(outcome);
   }
@@ -98,6 +96,18 @@ IconData _paymentStatusIcon(_PaymentOutcome outcome) {
       return Icons.close;
     case _PaymentOutcome.insufficient:
       return Icons.error_outline;
+  }
+}
+
+String _paymentStatusIconAsset(_PaymentOutcome outcome) {
+  switch (outcome) {
+    case _PaymentOutcome.success:
+      return FileConstants.successIcon;
+    case _PaymentOutcome.pending:
+      return FileConstants.pendingIcon;
+    case _PaymentOutcome.failure:
+    case _PaymentOutcome.insufficient:
+      return FileConstants.failedIcon;
   }
 }
 
@@ -117,13 +127,194 @@ Color _paymentStatusColor(_PaymentOutcome outcome) {
 List<Color> _paymentHeaderGradient(_PaymentOutcome outcome) {
   switch (outcome) {
     case _PaymentOutcome.success:
-      return const [Color(0xFF0D5C32), Color(0xFF0E7340)];
+      return const [
+        Color(0xFF004C1E),
+        Color(0xFF149248),
+        Color(0xFF136E3C),
+        Color(0xFF007340),
+      ];
     case _PaymentOutcome.pending:
-      return const [Color(0xFFF59E0B), Color(0xFFD97706)];
+      return const [
+        Color(0xFFD3A30E),
+        Color(0xFFD3A30E),
+        Color(0xFF844E07),
+        Color(0xFFD3A30E),
+      ];
     case _PaymentOutcome.failure:
     case _PaymentOutcome.insufficient:
-      return const [Colors.white];
-    // return const [Color(0xFFB91C1C), Color(0xFFDC2626)];
+      return const [
+        Color(0xFFFF5D5D),
+        Color(0xFFC04242),
+        Color(0xFF981919),
+        Color(0xFF8E0303),
+      ];
+  }
+}
+
+Future<void> _maybeShowEcoinsOverlay(
+  BuildContext context, {
+  required _PaymentOutcome outcome,
+  required int ecoins,
+}) async {
+  if (outcome != _PaymentOutcome.success) return;
+  if (ecoins <= 0) return;
+
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!context.mounted) return;
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'E-Coins earned',
+      barrierColor: Colors.black.withOpacity(0.75),
+      transitionDuration: const Duration(milliseconds: 180),
+      pageBuilder: (context, _, __) => _EcoinsRewardOverlay(ecoins: ecoins),
+    );
+  });
+}
+
+class _EcoinsRewardOverlay extends StatelessWidget {
+  const _EcoinsRewardOverlay({required this.ecoins});
+
+  final int ecoins;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final dialogWidth = size.width * 0.86;
+    final dialogHeight = size.height * 0.62;
+
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        child: Stack(
+          children: [
+            Container(
+              width: dialogWidth,
+              height: dialogHeight,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                color: Colors.black.withOpacity(0.6),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Opacity(
+                    opacity: 0.32,
+                    child: Image.asset(
+                      FileConstants.spinRewardGif,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 28, 22, 22),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Congratulations',
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
+                              ?.copyWith(
+                                color: const Color(0xFFE7C35D),
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'You Earned',
+                          style:
+                              Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    color: const Color(0xFFE7C35D),
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          ecoins.toString(),
+                          style: Theme.of(context)
+                              .textTheme
+                              .displayLarge
+                              ?.copyWith(
+                                height: 0.9,
+                                color: const Color(0xFFE7C35D),
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Coins',
+                          style: Theme.of(context)
+                              .textTheme
+                              .displaySmall
+                              ?.copyWith(
+                                color: const Color(0xFFE7C35D),
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          '$ecoins eCoins are successfully added into your wallet',
+                          textAlign: TextAlign.center,
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Colors.white.withOpacity(0.9),
+                                    height: 1.35,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                        ),
+                        const SizedBox(height: 22),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 46,
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.of(context).maybePop(),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFB88500),
+                              foregroundColor: Colors.black,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                            ),
+                            child: const Text(
+                              'Done',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              right: 6,
+              top: 6,
+              child: IconButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                icon: const Icon(Icons.close, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Color? _paymentSubtitleBoxColor(_PaymentOutcome outcome) {
+  switch (outcome) {
+    case _PaymentOutcome.pending:
+      // Match Figma: pending message box is dark brown/black-ish, not green.
+      return const Color(0xFF3B2A00);
+    case _PaymentOutcome.failure:
+    case _PaymentOutcome.insufficient:
+      return const Color(0xFF470601);
+    case _PaymentOutcome.success:
+      return null;
   }
 }
 
@@ -215,6 +406,7 @@ void _openPaymentResultFlow(
       outcome == _PaymentOutcome.insufficient;
   final showSupportShareActions =
       outcome == _PaymentOutcome.success || isFailure;
+  final emphasizeSubtitle = outcome == _PaymentOutcome.pending || isFailure;
   void Function(BuildContext) onContinue = isFailure
       ? (screenContext) {
           Navigator.of(screenContext).pop();
@@ -237,14 +429,13 @@ void _openPaymentResultFlow(
                   subtitle: _resultSubtitle(outcome),
                   details: details,
                   statusIcon: _paymentStatusIcon(outcome),
+                  statusIconAsset: _paymentStatusIconAsset(outcome),
                   statusIconColor: _paymentStatusColor(outcome),
                   statusIconBorderColor: _paymentStatusColor(outcome),
                   headerGradientColors: _paymentHeaderGradient(outcome),
-                  headerImageAsset: outcome == _PaymentOutcome.failure ||
-                          outcome == _PaymentOutcome.insufficient
-                      ? FileConstants.errorBanner
-                      : '',
-                  emphasizeSubtitle: showSupportShareActions,
+                  headerImageAsset: '',
+                  emphasizeSubtitle: emphasizeSubtitle,
+                  subtitleBackgroundColor: _paymentSubtitleBoxColor(outcome),
                   showFailureActions: showSupportShareActions,
                   showBackButton: isFailure,
                   showRatingSheet: outcome == _PaymentOutcome.success,
@@ -279,14 +470,13 @@ void _openPaymentResultFlow(
           subtitle: _resultSubtitle(outcome),
           details: details,
           statusIcon: _paymentStatusIcon(outcome),
+          statusIconAsset: _paymentStatusIconAsset(outcome),
           statusIconColor: _paymentStatusColor(outcome),
           statusIconBorderColor: _paymentStatusColor(outcome),
           headerGradientColors: _paymentHeaderGradient(outcome),
-          headerImageAsset: outcome == _PaymentOutcome.failure ||
-                  outcome == _PaymentOutcome.insufficient
-              ? FileConstants.errorBanner
-              : '',
-          emphasizeSubtitle: showSupportShareActions,
+          headerImageAsset: '',
+          emphasizeSubtitle: emphasizeSubtitle,
+          subtitleBackgroundColor: _paymentSubtitleBoxColor(outcome),
           showFailureActions: showSupportShareActions,
           showBackButton: isFailure,
           showRatingSheet: outcome == _PaymentOutcome.success,
@@ -316,11 +506,13 @@ class PaymentBottomSheet extends ConsumerStatefulWidget {
     required this.amount,
     this.isCreditCardFlow = false,
     this.paymentTypeOverride,
+    this.ecoinsRestrictionsPercent,
   });
 
   final double amount;
   final bool isCreditCardFlow;
   final String? paymentTypeOverride;
+  final double? ecoinsRestrictionsPercent;
 
   @override
   ConsumerState<PaymentBottomSheet> createState() => _PaymentBottomSheetState();
@@ -329,24 +521,35 @@ class PaymentBottomSheet extends ConsumerStatefulWidget {
 class _PaymentBottomSheetState extends ConsumerState<PaymentBottomSheet> {
   bool _useECoins = false;
 
-  double _maxECoinsAllowed() {
-    final max = widget.amount * 0.05;
-    if (max.isNaN || max.isInfinite) return 0;
-    return max.floorToDouble();
-  }
-
   double _availableECoins() {
     final balance =
         ref.watch(profileControllerProvider).profile?.walletBalance ?? 0;
     return balance.toDouble();
   }
 
+  double _maxECoinsAllowed(double availableECoins) {
+    final percent = widget.ecoinsRestrictionsPercent;
+    final ratio = percent == null ? 0.05 : (percent / 100.0);
+    final restrictionBase = widget.amount;
+    final maxAllowed = restrictionBase * ratio;
+    if (maxAllowed.isNaN || maxAllowed.isInfinite) return 0;
+    final capped = maxAllowed > widget.amount ? widget.amount : maxAllowed;
+    return capped.floorToDouble();
+  }
+
   double _eCoinsApplied(double available) {
     if (!_useECoins) return 0.0;
-    final maxAllowed = _maxECoinsAllowed();
+    final maxAllowed = _maxECoinsAllowed(available);
     if (maxAllowed <= 0) return 0.0;
     final allowed = available < maxAllowed ? available : maxAllowed;
     return allowed;
+  }
+
+  double _restrictionPercent() {
+    final raw = widget.ecoinsRestrictionsPercent;
+    if (raw == null || raw.isNaN || raw.isInfinite) return 5;
+    if (raw <= 0) return 0;
+    return raw;
   }
 
   double _remainingAmount(double applied) {
@@ -434,7 +637,9 @@ class _PaymentBottomSheetState extends ConsumerState<PaymentBottomSheet> {
     final normalized = (status?.status ?? '').trim().toUpperCase();
     final outcome = normalized == 'SUCCESS'
         ? _PaymentOutcome.success
-        : (normalized == 'PENDING' ? _PaymentOutcome.pending : _PaymentOutcome.failure);
+        : (normalized == 'PENDING'
+            ? _PaymentOutcome.pending
+            : _PaymentOutcome.failure);
     final txId = (status?.transactionId.trim().isNotEmpty == true)
         ? status!.transactionId.trim()
         : transactionRef;
@@ -455,7 +660,8 @@ class _PaymentBottomSheetState extends ConsumerState<PaymentBottomSheet> {
         backgroundColor: Colors.red,
         textColor: Colors.white,
       );
-    } else if (outcome == _PaymentOutcome.failure && fallbackMessage.isNotEmpty) {
+    } else if (outcome == _PaymentOutcome.failure &&
+        fallbackMessage.isNotEmpty) {
       AppSnackbar.show(
         fallbackMessage,
         backgroundColor: Colors.red,
@@ -500,7 +706,8 @@ class _PaymentBottomSheetState extends ConsumerState<PaymentBottomSheet> {
           transactionRef: transactionRef,
           amount: widget.amount,
           billerName: billerName,
-          fallbackMessage: 'We are verifying your payment. Please wait a moment.',
+          fallbackMessage:
+              'We are verifying your payment. Please wait a moment.',
         );
       },
     );
@@ -512,7 +719,7 @@ class _PaymentBottomSheetState extends ConsumerState<PaymentBottomSheet> {
     final controller = ref.read(billerDetailControllerProvider.notifier);
     final isPaying = detailState.isPayingBill;
     final availableECoins = _availableECoins();
-    final maxAllowedECoins = _maxECoinsAllowed();
+    final maxAllowedECoins = _maxECoinsAllowed(availableECoins);
     final canUseECoins = availableECoins > 0;
     final eCoinsApplied = _eCoinsApplied(availableECoins);
     final remainingAmount = _remainingAmount(eCoinsApplied);
@@ -560,7 +767,8 @@ class _PaymentBottomSheetState extends ConsumerState<PaymentBottomSheet> {
             _PaymentOptionTile(
               icon: Icons.monetization_on_outlined,
               iconColor: AppColors.primary,
-              title: 'E-Coins (${availableECoins.toStringAsFixed(0)}) (Max 5%)',
+              title:
+                  'E-Coins (${availableECoins.toStringAsFixed(0)}) (Max ${_restrictionPercent().round()}%)',
               subtitle: _useECoins
                   ? 'Using \u20B9${eCoinsApplied.toStringAsFixed(0)} (Max \u20B9${maxAllowedECoins.toStringAsFixed(0)})'
                   : 'Use E-Coins for payment',
@@ -611,9 +819,8 @@ class _PaymentBottomSheetState extends ConsumerState<PaymentBottomSheet> {
 
                               final walletAmount =
                                   _useECoins ? eCoinsApplied : 0.0;
-                              final razorpayAmount = remainingAmount > 0
-                                  ? remainingAmount
-                                  : 0.0;
+                              final razorpayAmount =
+                                  remainingAmount > 0 ? remainingAmount : 0.0;
 
                               final order =
                                   await controller.createPayAllServicesOrder(
@@ -681,10 +888,12 @@ class PrepaidPaymentBottomSheet extends ConsumerStatefulWidget {
     super.key,
     required this.plan,
     this.billerName = 'Mobile Prepaid',
+    this.ecoinsRestrictionsPercent,
   });
 
   final PlanItem plan;
   final String billerName;
+  final double? ecoinsRestrictionsPercent;
 
   @override
   ConsumerState<PrepaidPaymentBottomSheet> createState() =>
@@ -695,11 +904,11 @@ class _PrepaidPaymentBottomSheetState
     extends ConsumerState<PrepaidPaymentBottomSheet> {
   bool _useECoins = false;
 
-  double _maxECoinsAllowed() {
-    final max = widget.plan.amount * 0.05;
-    if (max.isNaN || max.isInfinite) return 0;
-    // Keep max as whole rupees.
-    return max.floorToDouble();
+  double _restrictionPercent() {
+    final raw = widget.ecoinsRestrictionsPercent;
+    if (raw == null || raw.isNaN || raw.isInfinite) return 5;
+    if (raw <= 0) return 0;
+    return raw;
   }
 
   Future<void> _runWithVerificationLoader(Future<void> Function() task) async {
@@ -756,9 +965,22 @@ class _PrepaidPaymentBottomSheetState
     return balance.toDouble();
   }
 
+  double _maxECoinsAllowed(double availableECoins) {
+    final percent = widget.ecoinsRestrictionsPercent;
+    final ratio = percent == null ? 0.05 : (percent / 100.0);
+    final restrictionBase = widget.plan.amount.toDouble();
+    final maxAllowed = restrictionBase * ratio;
+    if (maxAllowed.isNaN || maxAllowed.isInfinite) return 0;
+    final capped = maxAllowed > widget.plan.amount
+        ? widget.plan.amount.toDouble()
+        : maxAllowed;
+    // Keep max as whole rupees.
+    return capped.floorToDouble();
+  }
+
   double _eCoinsApplied(double available) {
     if (!_useECoins) return 0.0;
-    final maxAllowed = _maxECoinsAllowed();
+    final maxAllowed = _maxECoinsAllowed(available);
     if (maxAllowed <= 0) return 0.0;
     final allowed = available < maxAllowed ? available : maxAllowed;
     return allowed;
@@ -803,7 +1025,7 @@ class _PrepaidPaymentBottomSheetState
                 : _PaymentOutcome.success)
             : (verified.isSuccess
                 ? _PaymentOutcome.success
-                : (verified.isPending
+                : ((verified.isPending || verified.isProcessing)
                     ? _PaymentOutcome.pending
                     : _PaymentOutcome.failure));
         final resolvedTxId =
@@ -843,7 +1065,7 @@ class _PrepaidPaymentBottomSheetState
             ? _PaymentOutcome.failure
             : (verified.isSuccess
                 ? _PaymentOutcome.success
-                : (verified.isPending
+                : ((verified.isPending || verified.isProcessing)
                     ? _PaymentOutcome.pending
                     : _PaymentOutcome.failure));
         final resolvedTxId =
@@ -884,7 +1106,7 @@ class _PrepaidPaymentBottomSheetState
             ? _PaymentOutcome.pending
             : (verified.isSuccess
                 ? _PaymentOutcome.success
-                : (verified.isPending
+                : ((verified.isPending || verified.isProcessing)
                     ? _PaymentOutcome.pending
                     : _PaymentOutcome.failure));
         final resolvedTxId =
@@ -910,7 +1132,7 @@ class _PrepaidPaymentBottomSheetState
     final state = ref.watch(mobilePrepaidControllerProvider);
     final isPaying = state.isRecharging;
     final availableECoins = _availableECoins();
-    final maxAllowedECoins = _maxECoinsAllowed();
+    final maxAllowedECoins = _maxECoinsAllowed(availableECoins);
     final canUseECoins = availableECoins > 0;
     final eCoinsApplied = _eCoinsApplied(availableECoins);
     final remainingAmount = _remainingAmount(eCoinsApplied);
@@ -961,7 +1183,7 @@ class _PrepaidPaymentBottomSheetState
               icon: Icons.monetization_on_outlined,
               iconColor: AppColors.primary,
               title:
-                  'E-Coins (${availableECoins.toStringAsFixed(0)}) (Max 5%)',
+                  'E-Coins (${availableECoins.toStringAsFixed(0)}) (Max ${_restrictionPercent().round()}%)',
               subtitle: _useECoins
                   ? 'Using \u20B9${eCoinsApplied.toStringAsFixed(0)} (Max \u20B9${maxAllowedECoins.toStringAsFixed(0)})'
                   : 'Use E-Coins for payment',
@@ -1030,6 +1252,7 @@ class _PrepaidPaymentBottomSheetState
                                     transactionRef: order.transactionRef,
                                   );
                                 });
+                                if (!context.mounted) return;
                                 final latestState =
                                     ref.read(mobilePrepaidControllerProvider);
                                 Navigator.of(context).pop();
@@ -1044,7 +1267,8 @@ class _PrepaidPaymentBottomSheetState
                                         : _PaymentOutcome.success)
                                     : (verified.isSuccess
                                         ? _PaymentOutcome.success
-                                        : (verified.isPending
+                                        : ((verified.isPending ||
+                                                verified.isProcessing)
                                             ? _PaymentOutcome.pending
                                             : _PaymentOutcome.failure));
                                 final resolvedTxId =
@@ -1150,7 +1374,7 @@ class _PaymentOptionTile extends StatelessWidget {
     this.enabled = true,
   });
 
-  final IconData icon;
+  final icon;
   final Color iconColor;
   final String title;
   final String? subtitle;

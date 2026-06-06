@@ -251,18 +251,13 @@ class _PopularBankCard extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 44.w,
-              height: 44.w,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-              child: Center(
+            _ProviderIconFrame(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14.r),
                 child: AppNetworkImage(
                   url: bank.logoUrl,
-                  width: 26.w,
-                  height: 26.w,
+                  width: 38.w,
+                  height: 38.w,
                   fit: BoxFit.contain,
                   showShimmer: false,
                 ),
@@ -301,21 +296,14 @@ class _AllBankRow extends StatelessWidget {
         padding: EdgeInsets.symmetric(vertical: 12.h),
         child: Row(
           children: [
-            Container(
-              width: 42.w,
-              height: 42.w,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF3F3F3),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: AppColors.lightBorder.withOpacity(0.8),
-                ),
-              ),
-              child: Center(
+            _ProviderIconFrame(
+              size: 44.w,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14.r),
                 child: AppNetworkImage(
                   url: bank.logoUrl,
-                  width: 24.w,
-                  height: 24.w,
+                  width: 38.w,
+                  height: 38.w,
                   fit: BoxFit.contain,
                   showShimmer: false,
                 ),
@@ -348,4 +336,29 @@ String _formatBankName(BankListItem bank) {
   final lowerName = bank.bankName.toLowerCase();
   if (lowerName.contains(code.toLowerCase())) return bank.bankName;
   return '${bank.bankName} ($code)';
+}
+
+class _ProviderIconFrame extends StatelessWidget {
+  const _ProviderIconFrame({
+    required this.child,
+    this.size,
+  });
+
+  final Widget child;
+  final double? size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size ?? 44.w,
+      height: size ?? 44.w,
+      padding: EdgeInsets.all(3.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18.r),
+        border: Border.all(color: AppColors.lightBorder, width: 1),
+      ),
+      child: child,
+    );
+  }
 }

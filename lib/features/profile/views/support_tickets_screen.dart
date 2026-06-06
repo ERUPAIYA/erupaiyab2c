@@ -6,6 +6,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 import '../../../constants/app_colors.dart';
 import '../../../constants/routes_constant.dart';
@@ -63,15 +64,19 @@ class SupportTicketsScreen extends HookConsumerWidget {
                   ),
                   SizedBox(height: 12.h),
                   if (state.isLoading && state.tickets.isEmpty)
-                    Padding(
-                      padding: EdgeInsets.symmetric(vertical: 20.h),
-                      child: const Center(
-                        child: SizedBox(
-                          height: 26,
-                          width: 26,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.primary,
+                    Skeletonizer(
+                      enabled: true,
+                      child: IgnorePointer(
+                        child: Column(
+                          children: List.generate(
+                            6,
+                            (index) => Padding(
+                              padding: EdgeInsets.only(bottom: 12.h),
+                              child: _TicketCard(
+                                ticket: _SupportTicketSkeletons.ticket,
+                                onTap: () {},
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -178,6 +183,22 @@ class _TicketCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SupportTicketSkeletons {
+  const _SupportTicketSkeletons._();
+
+  static const ticket = SupportTicket(
+    id: '0',
+    transactionId: '',
+    service: 'BBPS',
+    issueType: 'Recharge',
+    isTransactionRelated: true,
+    description: '',
+    status: 'Open',
+    createdAtRaw: '2026-01-01 00:00:00',
+    screenshot: null,
+  );
 }
 
 class _TicketStatusChip extends StatelessWidget {

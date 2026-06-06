@@ -332,8 +332,21 @@ class DioInterceptors extends InterceptorsWrapper {
               path.contains('/api/education/verify-bank');
       if (!suppressSnackbar) {
         final data = err.response?.data;
-        final apiMessage = (data is Map ? data['message'] as String? : null) ??
-            'Something went wrong';
+        String? apiMessage;
+        if (data is Map) {
+          final messages = data['messages'];
+          if (messages is Map) {
+            final msgErr = messages['error']?.toString().trim();
+            if (msgErr != null && msgErr.isNotEmpty) {
+              apiMessage = msgErr;
+            }
+          }
+          apiMessage ??= data['message']?.toString().trim();
+          if (apiMessage != null && apiMessage!.isEmpty) apiMessage = null;
+          apiMessage ??= data['error']?.toString().trim();
+          if (apiMessage != null && apiMessage!.isEmpty) apiMessage = null;
+        }
+        apiMessage ??= 'Something went wrong';
         AppSnackbar.show(
           apiMessage,
           textColor: Colors.white,

@@ -51,38 +51,36 @@ class HomeView extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tabController = ref.watch(homeTabControllerProvider);
     final lastTabIndex = useRef<int>(tabController.index);
+    final lastNonSpinTabIndex = useRef<int>(tabController.index);
     final isExitDialogOpen = useRef<bool>(false);
     final didRequestPermissions = useRef<bool>(false);
     final tabs = [
       const _HomeContent(),
       const OffersView(),
-      const SpinAndWinView(),
+      const SizedBox.shrink(),
       const NotificationsScreen(),
       const TransactionHistoryScreen(),
     ];
 
     final navTextStyle = TextStyle(
-      fontSize: 12.sp,
+      fontSize: 11.sp,
       fontWeight: FontWeight.w600,
       color: Colors.black,
-      height: 0.9,
+      height: 0.4,
     );
     final inactiveNavColor = AppColors.textPrimary.withOpacity(0.45);
-    final spinNavTextStyle = navTextStyle.copyWith(fontSize: 13.sp);
-    final navIconBoxSize = 25.r;
-    final middleNavIconBoxSize = 40.r;
-    final spinCircleSize = middleNavIconBoxSize + 30.r;
+    final navIconBoxSize = 22.r;
     final navItems = [
       PersistentBottomNavBarItem(
         contentPadding: 0,
         icon: _BottomIcon(
           asset: FileConstants.paybillActive,
-          size: 20.r,
+          size: 22.r,
           yOffset: 0,
         ),
         inactiveIcon: _BottomIcon(
           asset: FileConstants.paybillInactive,
-          size: 20.r,
+          size: 22.r,
           yOffset: 0,
         ),
         title: 'Pay Bills',
@@ -95,12 +93,12 @@ class HomeView extends HookConsumerWidget {
         contentPadding: 0,
         icon: _BottomIcon(
           asset: FileConstants.offersActive,
-          size: 20.r,
+          size: 22.r,
           yOffset: 0,
         ),
         inactiveIcon: _BottomIcon(
           asset: FileConstants.offersInactive,
-          size: 20.r,
+          size: 22.r,
           yOffset: 0,
         ),
         title: 'Offers',
@@ -110,40 +108,53 @@ class HomeView extends HookConsumerWidget {
         inactiveColorPrimary: inactiveNavColor,
       ),
       PersistentBottomNavBarItem(
-        icon: _BottomCircleIcon(
-          asset: FileConstants.homeSpin,
-          circleSize: spinCircleSize,
-          iconSize: 64.r,
-          backgroundColor: AppColors.primary,
-          iconColor: Colors.white,
-          yOffset: 2.h,
-          scale: 1.15,
-        ),
-        inactiveIcon: _BottomCircleIcon(
-          asset: FileConstants.homeSpin,
-          circleSize: spinCircleSize,
-          iconSize: 64.r,
-          backgroundColor: AppColors.primary,
-          iconColor: Colors.white,
-          yOffset: 2.h,
-          scale: 1.15,
-        ),
-        title: 'Spin & Win',
-        iconSize: spinCircleSize,
-        textStyle: spinNavTextStyle,
-        activeColorPrimary: Colors.black,
-        inactiveColorPrimary: inactiveNavColor,
-      ),
-      PersistentBottomNavBarItem(
         contentPadding: 0,
         icon: _BottomIcon(
-          asset: FileConstants.alertsActive,
-          size: 20.r,
+          asset: FileConstants.homeSpin,
+          color: AppColors.primary,
+          size: 22.r,
           yOffset: 0,
         ),
         inactiveIcon: _BottomIcon(
+          asset: FileConstants.homeSpin,
+          color: AppColors.primary,
+          size: 22.r,
+          yOffset: 0,
+        ),
+        title: 'Spin & Win',
+        iconSize: navIconBoxSize,
+        textStyle: navTextStyle,
+        activeColorPrimary: Colors.black,
+        inactiveColorPrimary: inactiveNavColor,
+      ),
+      // PersistentBottomNavBarItem(
+      //   contentPadding: 0,
+      //   icon: _BottomIcon(
+      //     asset: FileConstants.homeSpin,
+      //     size: 22.r,
+      //     yOffset: 0,
+      //   ),
+      //   inactiveIcon: _BottomIcon(
+      //     asset: FileConstants.homeSpin,
+      //     size: 22.r,
+      //     yOffset: 0,
+      //   ),
+      //   title: 'Spin & Win',
+      //   iconSize: navIconBoxSize,
+      //   textStyle: navTextStyle,
+      //   activeColorPrimary: Colors.black,
+      //   inactiveColorPrimary: inactiveNavColor,
+      // ),
+      PersistentBottomNavBarItem(
+        contentPadding: 0,
+        icon: _BottomIconWithBadge(
+          asset: FileConstants.alertsActive,
+          size: 22.r,
+          yOffset: 0,
+        ),
+        inactiveIcon: _BottomIconWithBadge(
           asset: FileConstants.alertsInactive,
-          size: 20.r,
+          size: 22.r,
           yOffset: 0,
         ),
         title: 'Alerts',
@@ -156,12 +167,12 @@ class HomeView extends HookConsumerWidget {
         contentPadding: 0,
         icon: _BottomIcon(
           asset: FileConstants.historyActive,
-          size: 18.r,
+          size: 22.r,
           yOffset: 0,
         ),
         inactiveIcon: _BottomIcon(
           asset: FileConstants.historyInactive,
-          size: 18.r,
+          size: 22.r,
           yOffset: 0,
         ),
         title: 'History',
@@ -171,6 +182,30 @@ class HomeView extends HookConsumerWidget {
         inactiveColorPrimary: inactiveNavColor,
       ),
     ];
+
+    useEffect(() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final assets = <String>[
+          FileConstants.paybillActive,
+          FileConstants.paybillInactive,
+          FileConstants.offersActive,
+          FileConstants.offersInactive,
+          FileConstants.homeSpin,
+          FileConstants.alertsActive,
+          FileConstants.alertsInactive,
+          FileConstants.historyActive,
+          FileConstants.historyInactive,
+          FileConstants.referandearn,
+          FileConstants.coin_3d,
+          FileConstants.bharatConnectColor,
+        ];
+        for (final asset in assets) {
+          precacheImage(AssetImage(asset), context);
+        }
+      });
+      return null;
+    }, const []);
+
     useEffect(() {
       NotificationBadgeService.refreshCount();
       Future.microtask(() {
@@ -183,6 +218,9 @@ class HomeView extends HookConsumerWidget {
           ref
               .read(profileControllerProvider.notifier)
               .fetchProfileIfNeeded(ttl: const Duration(seconds: 30));
+        }
+        if (index != 2) {
+          lastNonSpinTabIndex.value = index;
         }
         lastTabIndex.value = index;
       }
@@ -240,11 +278,25 @@ class HomeView extends HookConsumerWidget {
           // color: Colors.white,
           colorBehindNavBar: Colors.white,
         ),
-        navBarHeight: 45.h,
-        padding: const EdgeInsets.only(top: 2, bottom: 6),
+        navBarHeight: 65,
+        padding: const EdgeInsets.only(top: 6, bottom: 10),
         backgroundColor: Colors.white,
         hideNavigationBarWhenKeyboardAppears: true,
         confineToSafeArea: true,
+        onItemSelected: (index) {
+          // Only keep bottom bar for: Home, Offers, Alerts, History.
+          // Spin & Win should open as a full screen (no bottom bar).
+          if (index == 2) {
+            PersistentNavBarNavigator.pushNewScreen(
+              context,
+              screen: const SpinAndWinView(),
+              withNavBar: false,
+            );
+            // Immediately restore the previous tab selection.
+            tabController.jumpToTab(lastNonSpinTabIndex.value);
+            return;
+          }
+        },
       ),
     );
 
@@ -379,13 +431,14 @@ class _HeaderIconButton extends StatelessWidget {
                   ),
                   constraints: const BoxConstraints(minWidth: 16),
                   child: Text(
-                    (badgeCount ?? 0) > 99 ? '99+' : '${badgeCount ?? 0}',
+                    (badgeCount ?? 0) > 9 ? '9+' : '${badgeCount ?? 0}',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 9,
                       fontWeight: FontWeight.w700,
                       height: 1.1,
+                      decoration: TextDecoration.none,
                     ),
                   ),
                 ),
@@ -429,6 +482,8 @@ class _BottomIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final cacheW = (size * dpr).round();
     final icon = SizedBox(
       height: size,
       width: size,
@@ -437,8 +492,10 @@ class _BottomIcon extends StatelessWidget {
           asset,
           height: size,
           width: size,
-          fit: BoxFit.contain,
+          fit: BoxFit.cover,
           color: color,
+          cacheWidth: cacheW,
+          cacheHeight: cacheW,
         ),
       ),
     );
@@ -447,51 +504,85 @@ class _BottomIcon extends StatelessWidget {
   }
 }
 
-class _BottomCircleIcon extends StatelessWidget {
-  const _BottomCircleIcon({
+class _BottomIconWithBadge extends StatelessWidget {
+  const _BottomIconWithBadge({
     required this.asset,
-    required this.circleSize,
-    required this.iconSize,
-    required this.backgroundColor,
-    required this.iconColor,
+    this.size = 20,
+    this.color,
     this.yOffset = 0,
-    this.scale = 1.0,
   });
 
   final String asset;
-  final double circleSize;
-  final double iconSize;
-  final Color backgroundColor;
-  final Color iconColor;
+  final double size;
+  final Color? color;
   final double yOffset;
-  final double scale;
 
   @override
   Widget build(BuildContext context) {
-    return Transform.translate(
-      offset: Offset(0, yOffset),
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Container(
-          height: circleSize,
-          width: circleSize,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: backgroundColor,
-          ),
-          child: Center(
-            child: Transform.scale(
-              scale: scale,
-              child: Image.asset(
-                asset,
-                height: iconSize,
-                width: iconSize,
-                color: iconColor,
+    return ValueListenableBuilder<int>(
+      valueListenable: NotificationBadgeService.unreadCount,
+      builder: (context, unreadCount, _) {
+        final dpr = MediaQuery.devicePixelRatioOf(context);
+        final cacheW = (size * dpr).round();
+        final wrapper = size + 10;
+        return SizedBox(
+          height: wrapper,
+          width: wrapper,
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              Transform.translate(
+                offset: Offset(0, yOffset),
+                child: Image.asset(
+                  asset,
+                  height: size,
+                  width: size,
+                  fit: BoxFit.contain,
+                  color: color,
+                  cacheWidth: cacheW,
+                  cacheHeight: cacheW,
+                ),
               ),
-            ),
+              if (unreadCount > 0)
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 3,
+                      vertical: 0,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 14,
+                      minHeight: 14,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade600,
+                      borderRadius: BorderRadius.circular(7),
+                      border: Border.all(
+                        color: Colors.white,
+                        width: 1,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      unreadCount > 9 ? '9+' : '$unreadCount',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w700,
+                        height: 1,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -550,7 +641,7 @@ class _HomeTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textStyle = GoogleFonts.bricolageGrotesque(
+    final textStyle = GoogleFonts.plusJakartaSans(
       textStyle: Theme.of(context).textTheme.bodySmall,
     );
     final displayBalance = walletBalance == walletBalance.roundToDouble()
@@ -642,7 +733,7 @@ class _ProfileAvatar extends StatelessWidget {
       child: Center(
         child: Text(
           initials,
-          style: GoogleFonts.bricolageGrotesque(
+          style: GoogleFonts.plusJakartaSans(
             textStyle: Theme.of(context).textTheme.bodySmall,
             color: AppColors.primary,
             fontWeight: FontWeight.w700,
@@ -698,7 +789,7 @@ class _SectionHeader extends StatelessWidget {
       children: [
         Text(
           title,
-          style: GoogleFonts.bricolageGrotesque(
+          style: GoogleFonts.plusJakartaSans(
             fontSize: 14.sp,
             fontWeight: FontWeight.w700,
             color: AppColors.textPrimary,
@@ -712,7 +803,7 @@ class _SectionHeader extends StatelessWidget {
               children: [
                 Text(
                   actionLabel!,
-                  style: GoogleFonts.bricolageGrotesque(
+                  style: GoogleFonts.plusJakartaSans(
                     textStyle: Theme.of(context).textTheme.bodyMedium,
                     color: AppColors.primary,
                     fontWeight: FontWeight.w600,
@@ -1162,7 +1253,7 @@ class _ExploreUtilitiesRow extends StatelessWidget {
           children: [
             Text(
               'Explore All Services',
-              style: GoogleFonts.bricolageGrotesque(
+              style: GoogleFonts.plusJakartaSans(
                 textStyle: Theme.of(context).textTheme.bodyMedium,
                 color: AppColors.primary,
                 fontWeight: FontWeight.w600,
@@ -1233,7 +1324,7 @@ class _ReferStrip extends StatelessWidget {
               child: Text(
                 'Refer Your First Friend And Grab 1000 E-Coins',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.bricolageGrotesque(
+                style: GoogleFonts.plusJakartaSans(
                   textStyle: Theme.of(context).textTheme.bodySmall,
                   color: Colors.white,
                   letterSpacing: -0.25,
@@ -1291,7 +1382,7 @@ class _InvestmentTile extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: GoogleFonts.bricolageGrotesque(
+              style: GoogleFonts.plusJakartaSans(
                 textStyle: Theme.of(context).textTheme.bodySmall,
                 fontSize: 10.sp,
                 fontWeight: FontWeight.w600,
@@ -1466,7 +1557,7 @@ class _InsuranceBannerItem extends StatelessWidget {
               children: [
                 Text(
                   'Secure Your Future',
-                  style: GoogleFonts.bricolageGrotesque(
+                  style: GoogleFonts.plusJakartaSans(
                     fontSize: 14.sp,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
@@ -1475,7 +1566,7 @@ class _InsuranceBannerItem extends StatelessWidget {
                 SizedBox(height: 4.h),
                 Text(
                   'Health, Motor & Life Insurance In\nMinutes',
-                  style: GoogleFonts.bricolageGrotesque(
+                  style: GoogleFonts.plusJakartaSans(
                     fontSize: 10.sp,
                     fontWeight: FontWeight.w500,
                     color: Colors.white.withOpacity(0.9),
@@ -1504,7 +1595,7 @@ class _InsuranceBannerItem extends StatelessWidget {
                       children: [
                         Text(
                           'Apply Now',
-                          style: GoogleFonts.bricolageGrotesque(
+                          style: GoogleFonts.plusJakartaSans(
                             fontSize: 10.sp,
                             fontWeight: FontWeight.w600,
                             color: Colors.white,
@@ -1586,7 +1677,7 @@ class _InsuranceBanner extends StatelessWidget {
               children: [
                 Text(
                   'Secure Your Future',
-                  style: GoogleFonts.bricolageGrotesque(
+                  style: GoogleFonts.plusJakartaSans(
                     textStyle: Theme.of(context).textTheme.bodyLarge,
                     fontSize: 14.sp,
                     fontWeight: FontWeight.w700,
@@ -1596,7 +1687,7 @@ class _InsuranceBanner extends StatelessWidget {
                 SizedBox(height: 4.h),
                 Text(
                   'Health, Motor & Life Insurance In\nMinutes',
-                  style: GoogleFonts.bricolageGrotesque(
+                  style: GoogleFonts.plusJakartaSans(
                     textStyle: Theme.of(context).textTheme.bodySmall,
                     fontSize: 10.sp,
                     fontWeight: FontWeight.w500,
@@ -1626,7 +1717,7 @@ class _InsuranceBanner extends StatelessWidget {
                       children: [
                         Text(
                           'Apply Now',
-                          style: GoogleFonts.bricolageGrotesque(
+                          style: GoogleFonts.plusJakartaSans(
                             textStyle: Theme.of(context).textTheme.bodySmall,
                             fontSize: 10.sp,
                             fontWeight: FontWeight.w600,
@@ -1693,7 +1784,7 @@ class _InsuranceBanner extends StatelessWidget {
 //             Expanded(
 //               child: Text(
 //                 title,
-//                 style: GoogleFonts.bricolageGrotesque(
+//                 style: GoogleFonts.plusJakartaSans(
 //                   textStyle: Theme.of(context).textTheme.bodySmall,
 //                   color: AppColors.textPrimary,
 //                   fontWeight: FontWeight.w600,
@@ -1782,7 +1873,7 @@ class _MiniActionCard extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: GoogleFonts.bricolageGrotesque(
+                      style: GoogleFonts.plusJakartaSans(
                         textStyle: Theme.of(context).textTheme.bodySmall,
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.w700,
@@ -1793,7 +1884,7 @@ class _MiniActionCard extends StatelessWidget {
                       subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.bricolageGrotesque(
+                      style: GoogleFonts.plusJakartaSans(
                         textStyle: Theme.of(context).textTheme.bodySmall,
                         color: AppColors.textPrimary.withOpacity(0.6),
                         fontSize: 9.sp,
@@ -1842,7 +1933,7 @@ class _SupportTile extends StatelessWidget {
             Expanded(
               child: Text(
                 title,
-                style: GoogleFonts.bricolageGrotesque(
+                style: GoogleFonts.plusJakartaSans(
                   textStyle: Theme.of(context).textTheme.bodySmall,
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.w600,
@@ -2070,7 +2161,7 @@ class _HomeContent extends HookConsumerWidget {
 
     final initials = profileState.profile?.initials.isNotEmpty == true
         ? profileState.profile!.initials
-        : 'IP';
+        : '';
     final walletBalance = profileState.profile?.walletBalance ?? 0.0;
     final payBillsCategory = quickActions == null
         ? null
@@ -2232,24 +2323,24 @@ class _HomeContent extends HookConsumerWidget {
                           walletBalance: walletBalance,
                           compact: true,
                           onSearchTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const HomeSearchView(),
-                              ),
+                            PersistentNavBarNavigator.pushNewScreen(
+                              context,
+                              screen: const HomeSearchView(),
+                              withNavBar: false,
                             );
                           },
                           onReferTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const ReferAndEarnView(),
-                              ),
+                            PersistentNavBarNavigator.pushNewScreen(
+                              context,
+                              screen: const ReferAndEarnView(),
+                              withNavBar: false,
                             );
                           },
                           onProfileTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const ProfileView(),
-                              ),
+                            PersistentNavBarNavigator.pushNewScreen(
+                              context,
+                              screen: const ProfileView(),
+                              withNavBar: false,
                             );
                           },
                         ),

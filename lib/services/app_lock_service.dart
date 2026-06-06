@@ -5,12 +5,26 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../features/auth/controllers/auth_controller.dart';
+import '../features/auth/models/auth_state.dart';
 import '../features/auth/views/app_lock_view.dart';
+import '../features/profile/controllers/profile_controller.dart';
 import '../services/logger_service.dart';
 import '../widgets/k_dialog.dart';
 
 final appLockServiceProvider = Provider<AppLockService>((ref) {
   final service = AppLockService(ref);
+  ref.listen<AuthState>(authControllerProvider, (_, __) {
+    service.onAuthStateChanged();
+  });
+  ref.listen<AuthState>(authControllerProvider, (prev, next) {
+    final wasAuthed = prev?.isAuthenticated == true;
+    final isAuthed = next.isAuthenticated == true;
+    if (!wasAuthed && isAuthed) {
+      ref.read(profileControllerProvider.notifier).fetchProfileIfNeeded(
+            force: true,
+          );
+    }
+  });
   return service;
 });
 
@@ -26,12 +40,16 @@ class AppLockService with WidgetsBindingObserver {
   Timer? _timer;
   bool _shouldLock = false;
   bool _isShowing = false;
-  DateTime _lastActivity = DateTime.now();
+  bool _initialized = false;
 
   void init() {
+    if (_initialized) return;
+    _initialized = true;
     WidgetsBinding.instance.addObserver(this);
     _resetTimer();
-    _restoreLockState();
+    unawaited(_restoreLockState(forColdStart: true).then((_) {
+      _scheduleShowLock();
+    }));
   }
 
   void dispose() {
@@ -45,16 +63,20 @@ class AppLockService with WidgetsBindingObserver {
     logger.debug('AppLock: user activity, reset timer');
   }
 
+  void onAuthStateChanged() {
+    if (!_initialized) return;
+    _scheduleShowLock();
+  }
+
   void _resetTimer() {
     _timer?.cancel();
-    _lastActivity = DateTime.now();
     _timer = Timer(inactivityTimeout, () {
       _shouldLock = true;
       logger.debug('AppLock: inactivity timeout reached, shouldLock=true');
     });
   }
 
-  Future<void> _restoreLockState() async {
+  Future<void> _restoreLockState({required bool forColdStart}) async {
     try {
       final lockOnNextOpen =
           (await _storage.read(key: _lockOnNextOpenKey)) == 'true';
@@ -65,6 +87,13 @@ class AppLockService with WidgetsBindingObserver {
         return;
       }
       if (lastActiveRaw != null && lastActiveRaw.isNotEmpty) {
+        if (forColdStart) {
+          _shouldLock = true;
+          logger.debug(
+            'AppLock: cold start with lastActive present, shouldLock=true',
+          );
+          return;
+        }
         final lastActive = DateTime.tryParse(lastActiveRaw);
         if (lastActive != null) {
           final idleFor = DateTime.now().difference(lastActive);
@@ -121,9 +150,15 @@ class AppLockService with WidgetsBindingObserver {
   }
 
   Future<void> _handleResume() async {
-    await _restoreLockState();
+    await _restoreLockState(forColdStart: false);
     await _showLockIfNeeded();
     _resetTimer();
+  }
+
+  void _scheduleShowLock() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_showLockIfNeeded());
+    });
   }
 
   Future<void> _showLockIfNeeded() async {

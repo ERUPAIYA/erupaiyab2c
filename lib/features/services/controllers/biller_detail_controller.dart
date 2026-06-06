@@ -24,6 +24,22 @@ class BillerDetailController extends StateNotifier<BillerDetailState> {
         super(const BillerDetailState());
 
   final BillerRepository _repository;
+  static const Duration _processingPollInterval = Duration(seconds: 2);
+
+  Future<RechargeStatusResult> _fetchStatusWithProcessingPoll({
+    required String transactionRef,
+  }) async {
+    RechargeStatusResult status =
+        await _repository.fetchRechargeStatus(transactionId: transactionRef);
+    if (!status.isProcessing) return status;
+
+    while (status.isProcessing) {
+      await Future.delayed(_processingPollInterval);
+      status =
+          await _repository.fetchRechargeStatus(transactionId: transactionRef);
+    }
+    return status;
+  }
 
   bool _isGasCylinderBillerName(String value) {
     final name = value.trim().toLowerCase();
@@ -127,7 +143,7 @@ class BillerDetailController extends StateNotifier<BillerDetailState> {
       );
       state = state.copyWith(
         isFetchingBill: false,
-        errorMessage: 'Failed to fetch bill. Please try again.',
+        errorMessage: 'Something went wrong.Please try again.',
         billFetchNote: null,
       );
     }
@@ -204,7 +220,7 @@ class BillerDetailController extends StateNotifier<BillerDetailState> {
     state = state.copyWith(isPayingBill: true, payErrorMessage: null);
     try {
       final status =
-          await _repository.fetchRechargeStatus(transactionId: transactionRef);
+          await _fetchStatusWithProcessingPoll(transactionRef: transactionRef);
       state = state.copyWith(isPayingBill: false);
       return status;
     } catch (e, stackTrace) {

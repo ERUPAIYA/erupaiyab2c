@@ -75,24 +75,25 @@ class _HomeIconTileState extends State<HomeIconTile>
     final labelWords = widget.label.trim().split(RegExp(r'\s+'));
     final isTwoWordLabel = labelWords.length == 2;
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(12.r),
-      onTap: widget.onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.max,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.center,
-            children: [
-              if (widget.showHalfRing)
-                AnimatedBuilder(
-                  animation: _ringController,
-                  builder: (context, child) {
-                    final ringSize = 62.r;
-                    return Transform.rotate(
-                      angle: _ringController.value * 2 * math.pi,
+    final ringSize = 62.r;
+    final iconSize = widget.iconSize.r;
+
+    return RepaintBoundary(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12.r),
+        onTap: widget.onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.max,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                if (widget.showHalfRing)
+                  RepaintBoundary(
+                    child: AnimatedBuilder(
+                      animation: _ringController,
                       child: SizedBox(
                         height: ringSize,
                         width: ringSize,
@@ -100,98 +101,95 @@ class _HomeIconTileState extends State<HomeIconTile>
                           painter: _HalfRingPainter(progress: 1),
                         ),
                       ),
-                    );
-                  },
-                ),
-              Container(
-                height: 54.r,
-                width: 54.r,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  // border: Border.all(
-                  //   color: AppColors.primary.withOpacity(0.4),
-                  //   width: 1.4,
-                  // ),
-                  gradient: RadialGradient(
-                    center: Alignment.center,
-                    radius: 0.5,
-                    colors: [
-                      Color(0xFFF9F9F9),
-                      Color(0xFFF6F6F6),
-                    ],
+                      builder: (context, child) {
+                        return Transform.rotate(
+                          angle: _ringController.value * 2 * math.pi,
+                          child: child,
+                        );
+                      },
+                    ),
                   ),
-                  // boxShadow: [
-                  //   BoxShadow(
-                  //     color: AppColors.cardShadow,
-                  //     blurRadius: 10,
-                  //     offset: Offset(0, 6),
-                  //   ),
-                  // ],
-                ),
-                child: Center(
-                  child: AppNetworkImage(
-                    url: widget.iconUrl,
-                    width: widget.iconSize.r,
-                    height: widget.iconSize.r,
-                    fit: BoxFit.contain,
-                    showShimmer: false,
-                    errorWidget: Image.asset(
-                      FileConstants.appLogo,
-                      height: widget.iconSize.r,
-                      width: widget.iconSize.r,
+                Container(
+                  height: 54.r,
+                  width: 54.r,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      center: Alignment.center,
+                      radius: 0.5,
+                      colors: [
+                        Color(0xFFF9F9F9),
+                        Color(0xFFF6F6F6),
+                      ],
+                    ),
+                  ),
+                  child: Center(
+                    child: AppNetworkImage(
+                      url: widget.iconUrl,
+                      width: iconSize,
+                      height: iconSize,
                       fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-              ),
-              if (widget.offer != null)
-                Positioned(
-                  top: -10,
-                  right: 13.5,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '₹${widget.offer}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
+                      showShimmer: false,
+                      errorWidget: Image.asset(
+                        FileConstants.appLogo,
+                        height: iconSize,
+                        width: iconSize,
+                        fit: BoxFit.contain,
                       ),
                     ),
                   ),
                 ),
-            ],
-          ),
-          SizedBox(height: widget.labelSpacing ?? 6.h),
-          SizedBox(
-            width: double.infinity,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final displayLabel = isTwoWordLabel
-                    ? '${labelWords.first}\n${labelWords.last}'
-                    : _truncateSingleWordLabel(
-                        widget.label,
-                        constraints.maxWidth,
-                        labelTextStyle,
-                      );
-
-                return Text(
-                  displayLabel,
-                  maxLines: isTwoWordLabel ? 2 : 1,
-                  softWrap: isTwoWordLabel,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: labelTextStyle,
-                );
-              },
+                if (widget.offer != null)
+                  Positioned(
+                    top: -10,
+                    right: 13.5,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '₹${widget.offer}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-          ),
-        ],
+            SizedBox(height: widget.labelSpacing ?? 6.h),
+            SizedBox(
+              width: double.infinity,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final displayLabel = isTwoWordLabel
+                      ? '${labelWords.first}\n${labelWords.last}'
+                      : _truncateSingleWordLabel(
+                          widget.label,
+                          constraints.maxWidth,
+                          labelTextStyle,
+                        );
+
+                  return Text(
+                    displayLabel,
+                    maxLines: isTwoWordLabel ? 2 : 1,
+                    softWrap: isTwoWordLabel,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: labelTextStyle,
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

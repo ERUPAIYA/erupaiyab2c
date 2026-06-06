@@ -1,15 +1,15 @@
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../services/logger_service.dart';
+import '../../home/models/banner_model.dart';
 import '../models/latest_transaction.dart';
-import '../models/my_number_info.dart';
 import '../models/mobile_prepaid_state.dart';
-import '../models/plan_item.dart';
+import '../models/my_number_info.dart';
 import '../models/operator_info.dart';
+import '../models/plan_item.dart';
 import '../models/prepaid_transaction_status.dart';
 import '../models/recharge_order_result.dart';
 import '../repositories/mobile_prepaid_repository.dart';
-import '../../home/models/banner_model.dart';
 
 final mobilePrepaidRepositoryProvider = Provider<MobilePrepaidRepository>(
   (ref) => MobilePrepaidRepository(),
@@ -52,6 +52,22 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
         super(const MobilePrepaidState());
 
   final MobilePrepaidRepository _repository;
+  static const Duration _processingPollInterval = Duration(seconds: 2);
+
+  Future<PrepaidTransactionStatus> _fetchRechargeStatusWithProcessingPoll({
+    required String transactionId,
+  }) async {
+    PrepaidTransactionStatus verified =
+        await _repository.fetchRechargeStatus(transactionId: transactionId);
+    if (!verified.isProcessing) return verified;
+
+    while (verified.isProcessing) {
+      await Future.delayed(_processingPollInterval);
+      verified =
+          await _repository.fetchRechargeStatus(transactionId: transactionId);
+    }
+    return verified;
+  }
 
   void reset() {
     state = const MobilePrepaidState();
@@ -59,6 +75,11 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
 
   void updatePlanSearch(String query) {
     state = state.copyWith(planSearchQuery: query);
+  }
+
+  void clearError() {
+    if (state.errorMessage == null) return;
+    state = state.copyWith(errorMessage: null);
   }
 
   void selectCategory(String category) {
@@ -77,8 +98,13 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
       mobile: state.mobile,
       operatorInfo: state.operatorInfo,
       plansByCategory: state.plansByCategory,
+      validityFilters: state.validityFilters,
+      dataFilters: state.dataFilters,
+      filterTags: state.filterTags,
+      appliedFilters: state.appliedFilters,
       selectedCategory: state.selectedCategory,
       planSearchQuery: state.planSearchQuery,
+      ecoinsRestrictionsPercent: state.ecoinsRestrictionsPercent,
     );
   }
 
@@ -111,6 +137,7 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
       selectedCategory: '',
       selectedPlan: null,
       planSearchQuery: '',
+      ecoinsRestrictionsPercent: null,
     );
     try {
       final operatorInfo = await _repository.checkOperator(mobile: mobile);
@@ -128,6 +155,7 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
         validityFilters: result.validityFilters,
         dataFilters: result.dataFilters,
         filterTags: result.filterTags,
+        ecoinsRestrictionsPercent: result.ecoinsRestrictionsPercent,
         appliedFilters: filters.isNotEmpty ? filters : const ['All'],
         selectedCategory: categories.isNotEmpty ? categories.first : '',
       );
@@ -178,6 +206,7 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
       selectedCategory: '',
       selectedPlan: null,
       planSearchQuery: '',
+      ecoinsRestrictionsPercent: null,
     );
     try {
       final result = await _repository.fetchPlans(
@@ -193,6 +222,7 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
         validityFilters: result.validityFilters,
         dataFilters: result.dataFilters,
         filterTags: result.filterTags,
+        ecoinsRestrictionsPercent: result.ecoinsRestrictionsPercent,
         appliedFilters: filters.isNotEmpty ? filters : const ['All'],
         selectedCategory: categories.isNotEmpty ? categories.first : '',
       );
@@ -242,13 +272,14 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
         referenceId: referenceId ?? '',
         useWallet: useWallet ? 1 : 0,
         walletAmount: useWallet ? walletAmount : 0,
-        razorpayAmount: useWallet ? razorpayAmount : state.selectedPlan!.amount.toDouble(),
+        razorpayAmount:
+            useWallet ? razorpayAmount : state.selectedPlan!.amount.toDouble(),
       );
       final txId = result.transactionId.trim();
       PrepaidTransactionStatus? verified;
       if (txId.isNotEmpty) {
         try {
-          verified = await _repository.fetchRechargeStatus(
+          verified = await _fetchRechargeStatusWithProcessingPoll(
             transactionId: txId,
           );
         } catch (_) {
@@ -256,7 +287,11 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
         }
       }
 
-      final effectiveSuccess = verified?.isSuccess ?? result.isSuccess;
+      final isProcessing = verified?.isProcessing ?? false;
+      final isPending = verified?.isPending ?? false;
+      final effectiveSuccess = (!isProcessing && !isPending)
+          ? (verified?.isSuccess ?? result.isSuccess)
+          : false;
       final effectiveMessage = (verified?.message.trim().isNotEmpty == true)
           ? verified!.message
           : result.message;
@@ -274,9 +309,11 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
             : result.dateTime,
         verifiedTransaction: verified,
         rechargeMessage: effectiveSuccess ? effectiveMessage : null,
-        errorMessage: effectiveSuccess
+        errorMessage: (isProcessing || isPending)
             ? null
-            : (effectiveMessage.isEmpty ? null : effectiveMessage),
+            : (effectiveSuccess
+                ? null
+                : (effectiveMessage.isEmpty ? null : effectiveMessage)),
       );
     } catch (e, stackTrace) {
       logger.error(
@@ -324,14 +361,13 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
         referenceId: referenceId ?? '',
         useWallet: useWallet ? 1 : 0,
         walletAmount: useWallet ? walletAmount : 0,
-        razorpayAmount:
-            useWallet ? razorpayAmount : plan.amount.toDouble(),
+        razorpayAmount: useWallet ? razorpayAmount : plan.amount.toDouble(),
       );
       final txId = result.transactionId.trim();
       PrepaidTransactionStatus? verified;
       if (txId.isNotEmpty) {
         try {
-          verified = await _repository.fetchRechargeStatus(
+          verified = await _fetchRechargeStatusWithProcessingPoll(
             transactionId: txId,
           );
         } catch (_) {
@@ -339,7 +375,11 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
         }
       }
 
-      final effectiveSuccess = verified?.isSuccess ?? result.isSuccess;
+      final isProcessing = verified?.isProcessing ?? false;
+      final isPending = verified?.isPending ?? false;
+      final effectiveSuccess = (!isProcessing && !isPending)
+          ? (verified?.isSuccess ?? result.isSuccess)
+          : false;
       final effectiveMessage = (verified?.message.trim().isNotEmpty == true)
           ? verified!.message
           : result.message;
@@ -357,9 +397,11 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
             : result.dateTime,
         verifiedTransaction: verified,
         rechargeMessage: effectiveSuccess ? effectiveMessage : null,
-        errorMessage: effectiveSuccess
+        errorMessage: (isProcessing || isPending)
             ? null
-            : (effectiveMessage.isEmpty ? null : effectiveMessage),
+            : (effectiveSuccess
+                ? null
+                : (effectiveMessage.isEmpty ? null : effectiveMessage)),
       );
     } catch (e, stackTrace) {
       logger.error(
@@ -441,9 +483,11 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
       verifiedTransaction: null,
     );
     try {
-      final verified =
-          await _repository.fetchRechargeStatus(transactionId: transactionRef);
+      final verified = await _fetchRechargeStatusWithProcessingPoll(
+        transactionId: transactionRef,
+      );
       final effectiveSuccess = verified.isSuccess;
+      final isPendingOrProcessing = verified.isPending || verified.isProcessing;
       final effectiveMessage = verified.message.trim();
       state = state.copyWith(
         isRecharging: false,
@@ -454,9 +498,11 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
         rechargeDateTime: verified.updatedAt,
         verifiedTransaction: verified,
         rechargeMessage: effectiveSuccess ? effectiveMessage : null,
-        errorMessage: effectiveSuccess
+        errorMessage: isPendingOrProcessing
             ? null
-            : (effectiveMessage.isEmpty ? null : effectiveMessage),
+            : (effectiveSuccess
+                ? null
+                : (effectiveMessage.isEmpty ? null : effectiveMessage)),
       );
     } catch (e, stackTrace) {
       logger.error(
@@ -472,7 +518,16 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
   }
 
   String _sanitizeMobile(String input) {
-    return input.replaceAll(RegExp(r'\D'), '');
+    var digits = input.replaceAll(RegExp(r'\D'), '');
+    if (digits.length > 10) {
+      // Common case: "+91" numbers coming from UI/contacts.
+      if (digits.startsWith('91') && digits.length >= 12) {
+        digits = digits.substring(digits.length - 10);
+      } else {
+        digits = digits.substring(digits.length - 10);
+      }
+    }
+    return digits;
   }
 
   String _errorMessageFromException(Object error) {
