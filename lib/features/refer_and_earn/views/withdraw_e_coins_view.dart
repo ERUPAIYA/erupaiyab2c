@@ -11,6 +11,7 @@ import '../../../constants/app_colors.dart';
 import '../../../constants/file_constants.dart';
 import '../../../widgets/app_snackbar.dart';
 import '../../../widgets/k_dialog.dart';
+import '../../kyc/views/kyc_verification_view.dart';
 import '../../profile/controllers/profile_controller.dart';
 import '../../profile/repositories/bank_accounts_repository.dart';
 import '../components/refer_and_earn_app_bar.dart';
@@ -25,6 +26,7 @@ class WithdrawECoinsView extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final profileState = ref.watch(profileControllerProvider);
     final totalBalanceDouble = _parseAmount(walletBalance);
     final totalBalance = totalBalanceDouble.floor();
     final controller = useTextEditingController();
@@ -55,6 +57,13 @@ class WithdrawECoinsView extends HookConsumerWidget {
 
     useEffect(() {
       Future.microtask(loadBanks);
+      return null;
+    }, const []);
+
+    useEffect(() {
+      Future.microtask(() {
+        ref.read(profileControllerProvider.notifier).fetchProfileIfNeeded();
+      });
       return null;
     }, const []);
 
@@ -94,14 +103,33 @@ class WithdrawECoinsView extends HookConsumerWidget {
             onTap: !canWithdraw
                 ? null
                 : () async {
+                    final isKycVerified =
+                        profileState.profile?.isKycVerified == true;
+                    if (!isKycVerified) {
+                      AppSnackbar.show(
+                        'Complete your KYC before withdrawing E-Coins.',
+                      );
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const KycVerificationView(),
+                        ),
+                      );
+                      if (!context.mounted) return;
+                      await ref
+                          .read(profileControllerProvider.notifier)
+                          .fetchProfileIfNeeded(force: true);
+                      return;
+                    }
                     if (isFetchingBanks.value) return;
                     await loadBanks();
                     if (bankAccounts.value.isEmpty) {
+                      if (!context.mounted) return;
                       await Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => const AddBankAccountView(),
                         ),
                       );
+                      if (!context.mounted) return;
                       await loadBanks();
                       return;
                     }

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:developer';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -11,14 +10,21 @@ import 'package:lottie/lottie.dart';
 
 import '../../../constants/file_constants.dart';
 import '../../../constants/routes_constant.dart';
+import '../../../config/app_env.dart';
 import '../../home/controllers/home_controller.dart';
 import '../../profile/controllers/profile_controller.dart';
 import '../controllers/auth_controller.dart';
+import '../../../services/logger_service.dart';
 
 class SplashView extends HookConsumerWidget {
   const SplashView({super.key, this.duration = const Duration(seconds: 3)});
 
   final Duration duration;
+
+  static void _debugLog(String message) {
+    if (!AppEnv.enableLogs) return;
+    debugPrint(message);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -56,7 +62,8 @@ class SplashView extends HookConsumerWidget {
             AssetImage(FileConstants.bharatConnectColor),
             context,
           );
-        } catch (_) {
+        } catch (e, stackTrace) {
+          logger.error('Failed to preload splash assets', error: e, stackTrace: stackTrace);
           // Ignore preload errors; show immediately.
         }
         if (isActive) {
@@ -75,9 +82,8 @@ class SplashView extends HookConsumerWidget {
       final canNavigate = timerDone.value && !authState.isLoading;
       if (!canNavigate && !hardTimeoutDone.value) return;
       if (authState.isLoading && hardTimeoutDone.value) {
-        log(
+        _debugLog(
           'Splash hard timeout hit; auth still loading. Navigating to Login as fallback.',
-          name: 'SplashView',
         );
       }
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -138,17 +144,17 @@ class SplashView extends HookConsumerWidget {
                       animate: true,
                       frameRate: FrameRate.max,
                       errorBuilder: (context, error, stackTrace) {
-                        log(
+                        _debugLog(
                           'Splash lottie failed: ${FileConstants.splashLottie} error=$error',
                         );
                         if (kDebugMode || kReleaseMode) {
-                          log(stackTrace.toString());
+                          _debugLog(stackTrace.toString());
                         }
                         return Center(
                           child: Icon(
                             Icons.car_crash,
                             size: 28.sp,
-                            color: Colors.black.withOpacity(0.45),
+                            color: Colors.black.withValues(alpha: 0.45),
                           ),
                         );
                       },

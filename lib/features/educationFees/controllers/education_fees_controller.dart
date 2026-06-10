@@ -1,9 +1,9 @@
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
+import '../../../services/push_notification_service.dart';
 import '../models/education_account_type.dart';
 import '../models/education_fees_state.dart';
 import '../repositories/education_fees_repository.dart';
-import '../../../services/push_notification_service.dart';
 
 final educationFeesRepositoryProvider = Provider<EducationFeesRepository>(
   (ref) => EducationFeesRepository(),
@@ -102,8 +102,8 @@ class EducationFeesController extends StateNotifier<EducationFeesState> {
   }
 
   Future<void> checkMobile() async {
-    final digits = _normalizeMobile(state.mobileInput)
-        .replaceAll(RegExp(r'\D'), '');
+    final digits =
+        _normalizeMobile(state.mobileInput).replaceAll(RegExp(r'\D'), '');
     if (digits.length != 10) return;
     state = state.copyWith(
       isCheckingMobile: true,
@@ -113,15 +113,32 @@ class EducationFeesController extends StateNotifier<EducationFeesState> {
       final response = await _repository.checkMobile(digits);
       if (response.status) {
         state = state.copyWith(
-        isCheckingMobile: false,
-        showRecipientFields: true,
-        mobileErrorMessage: null,
-      );
-    } else {
+          isCheckingMobile: false,
+          showRecipientFields: true,
+          mobileErrorMessage: null,
+        );
+      } else {
+        state = state.copyWith(
+          isCheckingMobile: false,
+          showRecipientFields: false,
+          mobileErrorMessage: response.message ?? 'Mobile verification failed.',
+          recipientName: '',
+          pan: '',
+          isVerifyingPan: false,
+          panVerified: false,
+          panErrorMessage: null,
+          accountType: EducationAccountType.none,
+          accountNumber: '',
+          ifsc: '',
+          bankVerified: false,
+          bankErrorMessage: null,
+        );
+      }
+    } catch (e) {
       state = state.copyWith(
         isCheckingMobile: false,
         showRecipientFields: false,
-        mobileErrorMessage: response.message ?? 'Mobile verification failed.',
+        mobileErrorMessage: 'Failed to verify mobile. Please try again.',
         recipientName: '',
         pan: '',
         isVerifyingPan: false,
@@ -134,23 +151,6 @@ class EducationFeesController extends StateNotifier<EducationFeesState> {
         bankErrorMessage: null,
       );
     }
-  } catch (e) {
-    state = state.copyWith(
-      isCheckingMobile: false,
-      showRecipientFields: false,
-      mobileErrorMessage: 'Failed to verify mobile. Please try again.',
-      recipientName: '',
-      pan: '',
-      isVerifyingPan: false,
-      panVerified: false,
-      panErrorMessage: null,
-      accountType: EducationAccountType.none,
-      accountNumber: '',
-      ifsc: '',
-      bankVerified: false,
-      bankErrorMessage: null,
-    );
-  }
   }
 
   void updateRecipientName(String value) {
@@ -197,8 +197,7 @@ class EducationFeesController extends StateNotifier<EducationFeesState> {
       final response = await _repository.verifyPan(
         name: name,
         pan: pan,
-        deviceId:
-            (deviceId == null || deviceId.isEmpty) ? 'ANDROID123' : deviceId,
+        deviceId: (deviceId == null || deviceId.isEmpty) ? '' : deviceId,
       );
       if (response.status) {
         state = state.copyWith(
@@ -307,7 +306,7 @@ class EducationFeesController extends StateNotifier<EducationFeesState> {
     final name = state.recipientName.trim();
     final mobile = _normalizeMobile(state.mobileInput);
     final pan = state.pan.trim().toUpperCase();
-    final accountType = 'bank';
+    const accountType = 'bank';
     final accountNo = state.accountNumber.trim();
     final ifsc = state.ifsc.trim().toUpperCase();
     if (name.isEmpty ||

@@ -33,19 +33,38 @@ class BillerListResponse {
   const BillerListResponse({
     required this.categoryName,
     required this.billers,
+    this.currentPage = 1,
+    this.totalPages = 1,
+    this.limit = 20,
+    this.totalRecords = 0,
   });
 
   factory BillerListResponse.fromJson(Map<String, dynamic> json) {
     final data = json['data'] as Map<String, dynamic>? ?? {};
     final billersList = data['billers'] as List<dynamic>? ?? [];
+    final pagination = json['pagination'] as Map<String, dynamic>? ?? {};
     return BillerListResponse(
       categoryName: data['category_name'] as String? ?? '',
       billers: billersList
           .map((e) => Biller.fromJson(e as Map<String, dynamic>))
           .toList(),
+      currentPage: _parseInt(pagination['current_page']) ?? 1,
+      totalPages: _parseInt(pagination['total_pages']) ?? 1,
+      limit: _parseInt(pagination['limit']) ?? 20,
+      totalRecords: _parseInt(pagination['total_records']) ?? 0,
     );
   }
 
   final String categoryName;
   final List<Biller> billers;
+  final int currentPage;
+  final int totalPages;
+  final int limit;
+  final int totalRecords;
+}
+
+int? _parseInt(dynamic raw) {
+  if (raw == null) return null;
+  if (raw is num) return raw.toInt();
+  return int.tryParse(raw.toString());
 }

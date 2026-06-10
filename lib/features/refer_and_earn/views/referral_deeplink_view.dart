@@ -72,8 +72,8 @@ class ReferralDeepLinkView extends HookConsumerWidget {
             AppSnackbar.show(response.message);
           }
         } catch (_) {
-          logger.debug('ReferralDeepLink: register failed');
-          AppSnackbar.show('Failed to register referral.');
+          logger.error('ReferralDeepLink: register failed');
+          AppSnackbar.show('Something went wrong. Please try again.');
         }
 
         if (context.mounted) {

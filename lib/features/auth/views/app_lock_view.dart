@@ -1,7 +1,6 @@
 // ignore_for_file: deprecated_member_use
 
 import 'dart:async';
-import 'dart:developer';
 import 'dart:ui';
 
 import 'package:e_rupaiya/widgets/custom_elevated_button.dart';
@@ -19,11 +18,20 @@ import 'package:pinput/pinput.dart';
 import '../../../constants/app_colors.dart';
 import '../../../constants/file_constants.dart';
 import '../../../constants/routes_constant.dart';
+import '../../../config/app_env.dart';
+import '../../../services/logger_service.dart';
 import '../../../widgets/app_snackbar.dart';
 import '../controllers/auth_controller.dart';
 
+void _debugLog(String message) {
+  if (!AppEnv.enableLogs) return;
+  debugPrint(message);
+}
+
 class AppLockView extends HookConsumerWidget {
   const AppLockView({super.key});
+  static const String _genericErrorMessage =
+      'Something went wrong. Please try again.';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -63,7 +71,7 @@ class AppLockView extends HookConsumerWidget {
         final enrolled = await localAuth.getAvailableBiometrics();
         biometricAvailable.value =
             canCheck && isDeviceSupported && enrolled.isNotEmpty;
-        log(
+        _debugLog(
           'Biometric checks: canCheck=$canCheck supported=$isDeviceSupported enrolled=${enrolled.length}',
         );
         if (storedMobile == null || storedMobile.isEmpty) {
@@ -92,8 +100,9 @@ class AppLockView extends HookConsumerWidget {
         if (didAuth && context.mounted) {
           Navigator.of(context).pop();
         }
-      } catch (_) {
-        AppSnackbar.show('Biometric authentication failed');
+      } catch (e, stackTrace) {
+        logger.error('Biometric authentication failed', error: e, stackTrace: stackTrace);
+        AppSnackbar.show(_genericErrorMessage);
       }
     }
 

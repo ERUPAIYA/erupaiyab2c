@@ -23,21 +23,23 @@ import '../utils/banner_redirect_mapper.dart';
 class HomeSearchView extends HookConsumerWidget {
   const HomeSearchView({super.key});
 
-  static const double _bannerHeight = 120;
+  static const double _bannerHeight = 100;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final searchController = useTextEditingController();
     final query = useState('');
     final isLoading = useState(false);
+    final hasFetched = useState(false);
     final error = useState<String?>(null);
     final results = useState<List<QuickActionCategory>>([]);
     final banners = useState<List<BannerModel>>([]);
     final bannerError = useState<String?>(null);
     final bannerPage = useState(0);
+    final requestId = useRef(0);
+    final debounceRef = useRef<Timer?>(null);
     final bannerController =
         useMemoized(() => PageController(viewportFraction: 1), const []);
-    Timer? debounce;
 
     useEffect(() {
       Future<void> fetchBanners() async {
@@ -70,6 +72,8 @@ class HomeSearchView extends HookConsumerWidget {
     }, [banners.value.length]);
 
     useEffect(() {
+      final currentRequestId = ++requestId.value;
+
       void fetch() async {
         isLoading.value = true;
         error.value = null;
@@ -77,19 +81,25 @@ class HomeSearchView extends HookConsumerWidget {
           final data = await ref
               .read(homeRepositoryProvider)
               .fetchQuickActions(search: query.value.trim());
+          if (currentRequestId != requestId.value) return;
           results.value = data.categories;
+          hasFetched.value = true;
         } catch (_) {
+          if (currentRequestId != requestId.value) return;
           error.value = 'Failed to fetch services. Please try again.';
+          hasFetched.value = true;
         } finally {
-          isLoading.value = false;
+          if (currentRequestId == requestId.value) {
+            isLoading.value = false;
+          }
         }
       }
 
-      debounce?.cancel();
-      debounce = Timer(const Duration(milliseconds: 300), fetch);
+      debounceRef.value?.cancel();
+      debounceRef.value = Timer(const Duration(milliseconds: 300), fetch);
 
       return () {
-        debounce?.cancel();
+        debounceRef.value?.cancel();
       };
     }, [query.value]);
 
@@ -161,7 +171,7 @@ class HomeSearchView extends HookConsumerWidget {
                       ),
                 ),
               )
-            else if (results.value.isEmpty)
+            else if (hasFetched.value && results.value.isEmpty)
               Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -172,7 +182,7 @@ class HomeSearchView extends HookConsumerWidget {
                       ),
                 ),
               )
-            else
+            else if (results.value.isNotEmpty)
               SafeArea(
                 top: false,
                 child: ListView.builder(
@@ -213,7 +223,9 @@ class HomeSearchView extends HookConsumerWidget {
                     );
                   },
                 ),
-              ),
+              )
+            else
+              const SizedBox.shrink(),
           ],
         ),
       ),

@@ -1,3 +1,4 @@
+import '../config/app_env.dart';
 import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
 
@@ -23,6 +24,7 @@ class LoggerService {
     Object? error,
     StackTrace? stackTrace,
   }) {
+    if (!AppEnv.enableLogs) return;
     _logger.d(message, time: time, error: error, stackTrace: stackTrace);
   }
 
@@ -32,6 +34,7 @@ class LoggerService {
     Object? error,
     StackTrace? stackTrace,
   }) {
+    if (!AppEnv.enableLogs) return;
     _logger.e(message, time: time, error: error, stackTrace: stackTrace);
   }
 
@@ -41,6 +44,7 @@ class LoggerService {
     Object? error,
     StackTrace? stackTrace,
   }) {
+    if (!AppEnv.enableLogs) return;
     _logger.i(message, time: time, error: error, stackTrace: stackTrace);
   }
 
@@ -50,6 +54,7 @@ class LoggerService {
     Object? error,
     StackTrace? stackTrace,
   }) {
+    if (!AppEnv.enableLogs) return;
     _logger.w(message, time: time, error: error, stackTrace: stackTrace);
   }
 }

@@ -48,14 +48,14 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
       // the foreground or in the background.
       _sub = uriLinkStream.listen((Uri? uri) {
         if (!mounted) return;
-        print('got uri: $uri');
+        debugPrint('got uri: $uri');
         setState(() {
           _latestUri = uri;
           _err = null;
         });
       }, onError: (Object err) {
         if (!mounted) return;
-        print('got err: $err');
+        debugPrint('got err: $err');
         setState(() {
           _latestUri = null;
           if (err is FormatException) {
@@ -85,18 +85,18 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
       try {
         final uri = await getInitialUri();
         if (uri == null) {
-          print('no initial uri');
+          debugPrint('no initial uri');
         } else {
-          print('got initial uri: $uri');
+          debugPrint('got initial uri: $uri');
         }
         if (!mounted) return;
         setState(() => _initialUri = uri);
       } on PlatformException {
         // Platform messages may fail but we ignore the exception
-        print('falied to get initial uri');
+        debugPrint('falied to get initial uri');
       } on FormatException catch (err) {
         if (!mounted) return;
-        print('malformed initial uri');
+        debugPrint('malformed initial uri');
         setState(() => _err = err);
       }
     }
@@ -213,7 +213,7 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
   }
 
   Future<void> _printAndCopy(String cmd) async {
-    print(cmd);
+    debugPrint(cmd);
 
     await Clipboard.setData(ClipboardData(text: cmd));
     ScaffoldMessenger.of(context).showSnackBar(

@@ -5,6 +5,7 @@ import 'prepaid_transaction_status.dart';
 class MobilePrepaidState {
   const MobilePrepaidState({
     this.isFetching = false,
+    this.isRefreshingPlans = false,
     this.isRecharging = false,
     this.mobile = '',
     this.operatorInfo,
@@ -26,6 +27,7 @@ class MobilePrepaidState {
   });
 
   final bool isFetching;
+  final bool isRefreshingPlans;
   final bool isRecharging;
   final String mobile;
   final OperatorInfo? operatorInfo;
@@ -60,10 +62,18 @@ class MobilePrepaidState {
     }).toList();
   }
 
+  List<PlanItem> get visiblePlans {
+    if (isRefreshingPlans && currentPlans.isNotEmpty) {
+      return currentPlans;
+    }
+    return filteredPlans;
+  }
+
   static const _sentinel = Object();
 
   MobilePrepaidState copyWith({
     bool? isFetching,
+    bool? isRefreshingPlans,
     bool? isRecharging,
     String? mobile,
     OperatorInfo? operatorInfo,
@@ -85,6 +95,7 @@ class MobilePrepaidState {
   }) {
     return MobilePrepaidState(
       isFetching: isFetching ?? this.isFetching,
+      isRefreshingPlans: isRefreshingPlans ?? this.isRefreshingPlans,
       isRecharging: isRecharging ?? this.isRecharging,
       mobile: mobile ?? this.mobile,
       operatorInfo: operatorInfo ?? this.operatorInfo,

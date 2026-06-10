@@ -47,6 +47,7 @@ import 'features/profile/views/help_support_screen.dart';
 import 'features/profile/views/my_qr_screen.dart';
 import 'features/profile/views/offers_view.dart';
 import 'features/profile/views/policies_screen.dart';
+import 'features/profile/views/preferences_security_views.dart';
 import 'features/profile/views/policy_page_screen.dart';
 import 'features/profile/views/settings_view.dart';
 import 'features/profile/views/support_ticket_detail_screen.dart';
@@ -360,6 +361,26 @@ final routerProvider = Provider<GoRouter>(
         GoRoute(
           path: RouteConstants.settings,
           builder: (context, state) => const SettingsView(),
+        ),
+        GoRoute(
+          path: RouteConstants.preferences,
+          builder: (context, state) => const PreferencesView(),
+        ),
+        GoRoute(
+          path: RouteConstants.security,
+          builder: (context, state) => const SecurityView(),
+        ),
+        GoRoute(
+          path: RouteConstants.profilePermissions,
+          builder: (context, state) => const PermissionsView(),
+        ),
+        GoRoute(
+          path: RouteConstants.locationAccess,
+          builder: (context, state) => const LocationAccessView(),
+        ),
+        GoRoute(
+          path: RouteConstants.biometricScreenLock,
+          builder: (context, state) => const BiometricScreenLockView(),
         ),
         GoRoute(
           path: RouteConstants.referAndEarn,

@@ -10,7 +10,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../../../constants/app_colors.dart';
 import '../../../constants/file_constants.dart';
 import '../../../helpers/kyc_helpers.dart';
-import '../../../services/push_notification_service.dart';
+import '../../../services/device_id_service.dart';
 import '../../../utils/utils.dart';
 import '../../../widgets/app_snackbar.dart';
 import '../../../widgets/custom_elevated_button.dart';
@@ -26,6 +26,7 @@ class KycVerificationView extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repository = useMemoized(() => KycRepository());
+    final deviceIdService = useMemoized(() => const DeviceIdService());
     final step = useState(_KycStep.pan);
     final panDone = useState(false);
     final aadhaarDone = useState(false);
@@ -78,17 +79,21 @@ class KycVerificationView extends HookConsumerWidget {
 
     Future<void> verifyPan() async {
       final pan = panController.text.trim().toUpperCase();
-      if (pan.isEmpty) {
-        AppSnackbar.show('Please enter PAN number.');
+      final panRegExp = RegExp(r'^[A-Z]{5}[0-9]{4}[A-Z]{1}$');
+      if (!panRegExp.hasMatch(pan)) {
+        AppSnackbar.show('Please enter a valid PAN number.');
         return;
       }
-      final deviceId = PushNotificationService.latestToken;
+      final deviceId = await deviceIdService.getDeviceId();
+      if (deviceId == null || deviceId.isEmpty) {
+        AppSnackbar.show('Unable to identify this device. Please try again.');
+        return;
+      }
       try {
         isVerifyingPan.value = true;
         final response = await repository.verifyPan(
           panNumber: pan,
-          deviceId:
-              (deviceId == null || deviceId.isEmpty) ? 'ANDROID123' : deviceId,
+          deviceId: deviceId,
         );
         if (!response.valid) {
           AppSnackbar.show(
@@ -113,15 +118,22 @@ class KycVerificationView extends HookConsumerWidget {
         AppSnackbar.show('Please enter a valid 12 digit Aadhaar number.');
         return;
       }
-      final deviceId = PushNotificationService.latestToken;
+      final userId = await Utils.getUserId();
+      if (userId == null || userId.isEmpty) {
+        AppSnackbar.show('Missing user session. Please login again.');
+        return;
+      }
+      final deviceId = await deviceIdService.getDeviceId();
+      if (deviceId == null || deviceId.isEmpty) {
+        AppSnackbar.show('Unable to identify this device. Please try again.');
+        return;
+      }
       try {
         isSendingOtp.value = true;
-        final userId = await Utils.getUserId();
         final response = await repository.sendAadhaarOtp(
-          userId: (userId == null || userId.isEmpty) ? '1' : userId,
+          userId: userId,
           aadhaar: aadhaar,
-          deviceId:
-              (deviceId == null || deviceId.isEmpty) ? 'ANDROID123' : deviceId,
+          deviceId: deviceId,
         );
         if (!response.success || response.referenceId.isEmpty) {
           AppSnackbar.show(
@@ -151,8 +163,12 @@ class KycVerificationView extends HookConsumerWidget {
       try {
         isVerifyingOtp.value = true;
         final userId = await Utils.getUserId();
+        if (userId == null || userId.isEmpty) {
+          AppSnackbar.show('Missing user session. Please login again.');
+          return;
+        }
         final response = await repository.verifyAadhaarOtp(
-          userId: (userId == null || userId.isEmpty) ? '1' : userId,
+          userId: userId,
           referenceId: referenceId.value,
           otp: otp,
         );
@@ -939,26 +955,42 @@ class _AadhaarLogoRow extends HookWidget {
 class _ConsentRow extends HookWidget {
   @override
   Widget build(BuildContext context) {
+    final isChecked = useState(false);
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 16.w,
-          height: 16.w,
-          margin: EdgeInsets.only(top: 2.h),
-          decoration: BoxDecoration(
-            color: const Color(0xFFE85A2C),
-            borderRadius: BorderRadius.circular(4.r),
+        InkWell(
+          onTap: () => isChecked.value = !isChecked.value,
+          borderRadius: BorderRadius.circular(4.r),
+          child: Container(
+            width: 16.w,
+            height: 16.w,
+            margin: EdgeInsets.only(top: 2.h),
+            decoration: BoxDecoration(
+              color: isChecked.value ? const Color(0xFFE85A2C) : Colors.white,
+              borderRadius: BorderRadius.circular(4.r),
+              border: Border.all(
+                color: isChecked.value
+                    ? const Color(0xFFE85A2C)
+                    : AppColors.lightBorder,
+              ),
+            ),
+            child: isChecked.value
+                ? const Icon(Icons.check, size: 12, color: Colors.white)
+                : null,
           ),
-          child: const Icon(Icons.check, size: 12, color: Colors.white),
         ),
         SizedBox(width: 8.w),
         Expanded(
-          child: Text(
-            'By entering the details, you allow e-Rupaiya to verify your Aadhaar on your behalf.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.textPrimary.withOpacity(0.6),
-                ),
+          child: InkWell(
+            onTap: () => isChecked.value = !isChecked.value,
+            child: Text(
+              'By entering the details, you allow e-Rupaiya to verify your Aadhaar on your behalf.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textPrimary.withOpacity(0.6),
+                  ),
+            ),
           ),
         ),
       ],

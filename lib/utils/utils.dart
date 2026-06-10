@@ -1,7 +1,6 @@
+import 'package:e_rupaiya/core/barrel_file.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-
-import '../services/logger_service.dart';
 
 class Utils {
   static Future<String> getAppVersion() async {
@@ -48,26 +47,25 @@ class Utils {
     final tokenExpiry = await secureStorage.read(key: 'tokenExpiresAt');
 
     logger.info('Checking authentication');
-    logger.info('accessToken: $accessToken');
     logger.info('tokenExpiresAt: $tokenExpiry');
 
     if (accessToken == null || tokenExpiry == null) {
-      logger.info('User is not logged in');
+      debugPrint('User is not logged in');
       return false;
     }
 
     final expiryDateTime = DateTime.tryParse(tokenExpiry);
     if (expiryDateTime == null) {
-      logger.info('User is not logged in');
+      debugPrint('User is not logged in');
       return false;
     }
 
     if (expiryDateTime.isAfter(DateTime.now())) {
-      logger.info('User is logged in');
+      debugPrint('User is logged in');
       return true;
     }
 
-    logger.info('User is not logged in');
+    debugPrint('User is not logged in');
     return false; // User is not logged in
   }
 }

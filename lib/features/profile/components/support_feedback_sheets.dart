@@ -5,6 +5,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../../constants/app_colors.dart';
+import '../../../constants/file_constants.dart';
 
 class SupportExperienceSheet extends HookWidget {
   const SupportExperienceSheet({
@@ -63,7 +64,8 @@ class SupportExperienceSheet extends HookWidget {
               _faces.length,
               (index) => _FaceOption(
                 label: _faces[index].label,
-                icon: _faces[index].icon,
+                inactiveAsset: _faces[index].inactiveAsset,
+                activeAsset: _faces[index].activeAsset,
                 selected: selected.value == index,
                 onTap: () => selected.value = index,
               ),
@@ -223,19 +225,21 @@ class SupportThankYouSheet extends StatelessWidget {
 class _FaceOption extends StatelessWidget {
   const _FaceOption({
     required this.label,
-    required this.icon,
+    required this.inactiveAsset,
+    required this.activeAsset,
     required this.selected,
     required this.onTap,
   });
 
   final String label;
-  final IconData icon;
+  final String inactiveAsset;
+  final String? activeAsset;
   final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final border = selected ? AppColors.primary : Colors.transparent;
+    final assetPath = selected ? (activeAsset ?? inactiveAsset) : inactiveAsset;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12.r),
@@ -243,19 +247,11 @@ class _FaceOption extends StatelessWidget {
         padding: EdgeInsets.symmetric(horizontal: 2.w, vertical: 6.h),
         child: Column(
           children: [
-            Container(
-              height: 36.w,
-              width: 36.w,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF4F4F4),
-                shape: BoxShape.circle,
-                border: Border.all(color: border, width: 1.6),
-              ),
-              child: Icon(
-                icon,
-                color: selected ? AppColors.primary : Colors.grey.shade600,
-                size: 20.sp,
-              ),
+            Image.asset(
+              assetPath,
+              height: 44.w,
+              width: 44.w,
+              fit: BoxFit.contain,
             ),
             SizedBox(height: 6.h),
             Text(
@@ -274,15 +270,41 @@ class _FaceOption extends StatelessWidget {
 }
 
 class _Face {
-  const _Face(this.label, this.icon);
+  const _Face({
+    required this.label,
+    required this.inactiveAsset,
+    this.activeAsset,
+  });
+
   final String label;
-  final IconData icon;
+  final String inactiveAsset;
+  final String? activeAsset;
 }
 
-const List<_Face> _faces = [
-  _Face('Worst', Icons.sentiment_very_dissatisfied),
-  _Face('Not Good', Icons.sentiment_dissatisfied),
-  _Face('Neutral', Icons.sentiment_neutral),
-  _Face('Good', Icons.sentiment_satisfied),
-  _Face('Excellent', Icons.sentiment_very_satisfied),
+final List<_Face> _faces = [
+  _Face(
+    label: 'Worst',
+    inactiveAsset: FileConstants.worstIcon,
+    activeAsset: FileConstants.worstGif,
+  ),
+  _Face(
+    label: 'Not Good',
+    inactiveAsset: FileConstants.fineIcon,
+    activeAsset: FileConstants.notGoodGif,
+  ),
+  _Face(
+    label: 'Neutral',
+    inactiveAsset: FileConstants.neutralIcon,
+    activeAsset: FileConstants.neutralGif,
+  ),
+  _Face(
+    label: 'Good',
+    inactiveAsset: FileConstants.goodIcon,
+    activeAsset: FileConstants.goodGif,
+  ),
+  _Face(
+    label: 'Excellent',
+    inactiveAsset: FileConstants.loveIcon,
+    activeAsset: FileConstants.loveGif,
+  ),
 ];

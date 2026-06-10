@@ -128,7 +128,7 @@ class AddBankAccountView extends HookWidget {
               )
             : await repository.addBank(
                 userId: (await Utils.getUserId() ?? '').isEmpty
-                    ? '1'
+                    ? ''
                     : (await Utils.getUserId() ?? ''),
                 accountNo: accountNo,
                 ifsc: ifsc,

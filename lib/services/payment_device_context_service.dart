@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:geolocator/geolocator.dart';
 
+import 'logger_service.dart';
+
 class PaymentDeviceContextService {
   const PaymentDeviceContextService();
 
@@ -40,7 +42,9 @@ class PaymentDeviceContextService {
         final ios = await deviceInfo.iosInfo;
         return (ios.identifierForVendor ?? ios.name).toString();
       }
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      logger.error('Failed to resolve payment device ID', error: e, stackTrace: stackTrace);
+    }
     return '';
   }
 
@@ -60,7 +64,9 @@ class PaymentDeviceContextService {
           return true;
         }
       }
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      logger.error('Failed to inspect VPN state for payment context', error: e, stackTrace: stackTrace);
+    }
     return false;
   }
 
@@ -94,7 +100,9 @@ class PaymentDeviceContextService {
           if (File(path).existsSync()) return true;
         }
       }
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      logger.error('Failed to inspect root/jailbreak state for payment context', error: e, stackTrace: stackTrace);
+    }
     return false;
   }
 
@@ -131,7 +139,8 @@ class PaymentDeviceContextService {
         longitude: position.longitude.toString(),
         isMocked: position.isMocked,
       );
-    } catch (_) {
+    } catch (e, stackTrace) {
+      logger.error('Failed to collect payment location context', error: e, stackTrace: stackTrace);
       return const _LocationSnapshot.empty();
     }
   }

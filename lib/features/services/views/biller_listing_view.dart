@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
@@ -15,6 +16,7 @@ import '../../../services/permission_service.dart';
 import '../../../widgets/app_network_image.dart';
 import '../../../widgets/app_snackbar.dart';
 import '../../../widgets/contacts_permission_card.dart';
+import '../../../widgets/infinite_scroll_listener.dart';
 import '../../../widgets/my_app_bar.dart';
 import '../../../widgets/screen_wrapper.dart';
 import '../../../widgets/search_textfield.dart';
@@ -184,21 +186,42 @@ class BillerListingView extends HookConsumerWidget {
                           ),
                         ]
                       : null,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: billers.length,
-                    itemBuilder: (context, index) => _BillerTile(
-                      biller: billers[index],
-                      onTap: () {
-                        ref
-                            .read(billerDetailControllerProvider.notifier)
-                            .selectBiller(billers[index]);
-                        context.push(
-                          RouteConstants.billerDetail,
-                          extra: BillerDetailArgs(
-                            biller: billers[index],
-                            paymentType: categoryName,
-                          ),
+                  child: InfiniteScrollListener(
+                    isLoading: listingState.isFetchingMore,
+                    hasMore: listingState.hasMore,
+                    onEndReached: () => ref
+                        .read(billerListingControllerProvider.notifier)
+                        .fetchNextPage(),
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount:
+                          billers.length + (listingState.isFetchingMore ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index >= billers.length) {
+                          return Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16.h),
+                            child: const Center(
+                              child: SpinKitCircle(
+                                color: AppColors.primary,
+                                size: 48,
+                              ),
+                            ),
+                          );
+                        }
+                        return _BillerTile(
+                          biller: billers[index],
+                          onTap: () {
+                            ref
+                                .read(billerDetailControllerProvider.notifier)
+                                .selectBiller(billers[index]);
+                            context.push(
+                              RouteConstants.billerDetail,
+                              extra: BillerDetailArgs(
+                                biller: billers[index],
+                                paymentType: categoryName,
+                              ),
+                            );
+                          },
                         );
                       },
                     ),
@@ -216,9 +239,14 @@ class BillerListingView extends HookConsumerWidget {
             errorMessage: listingState.errorMessage,
             isEmpty: billers.isEmpty,
             billers: billers,
+            isFetchingMore: listingState.isFetchingMore,
+            hasMore: listingState.hasMore,
             onRetry: () => ref
                 .read(billerListingControllerProvider.notifier)
                 .fetchBillers(categoryName: categoryName),
+            onEndReached: () => ref
+                .read(billerListingControllerProvider.notifier)
+                .fetchNextPage(),
             onTapBiller: (biller) {
               ref
                   .read(billerDetailControllerProvider.notifier)
@@ -373,16 +401,35 @@ class _ElectricityFlow extends HookConsumerWidget {
                     ),
                   ]
                 : null,
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: billers.length,
-              itemBuilder: (context, index) {
-                final biller = billers[index];
-                return _BillerTile(
-                  biller: biller,
-                  onTap: () => openBiller(biller),
-                );
-              },
+            child: InfiniteScrollListener(
+              isLoading: listingState.isFetchingMore,
+              hasMore: listingState.hasMore,
+              onEndReached: () => ref
+                  .read(billerListingControllerProvider.notifier)
+                  .fetchNextPage(),
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount:
+                    billers.length + (listingState.isFetchingMore ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index >= billers.length) {
+                    return Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16.h),
+                      child: const Center(
+                        child: SpinKitCircle(
+                          color: AppColors.primary,
+                          size: 48,
+                        ),
+                      ),
+                    );
+                  }
+                  final biller = billers[index];
+                  return _BillerTile(
+                    biller: biller,
+                    onTap: () => openBiller(biller),
+                  );
+                },
+              ),
             ),
           ),
         ),
@@ -1799,7 +1846,10 @@ class _BillerListingFigmaLayout extends StatelessWidget {
     required this.isEmpty,
     required this.errorMessage,
     required this.billers,
+    required this.isFetchingMore,
+    required this.hasMore,
     required this.onRetry,
+    required this.onEndReached,
     required this.onTapBiller,
     required this.onPayNowRecent,
   });
@@ -1810,87 +1860,106 @@ class _BillerListingFigmaLayout extends StatelessWidget {
   final bool isEmpty;
   final String? errorMessage;
   final List<Biller> billers;
+  final bool isFetchingMore;
+  final bool hasMore;
   final VoidCallback onRetry;
+  final VoidCallback onEndReached;
   final ValueChanged<Biller> onTapBiller;
   final ValueChanged<LatestTransaction> onPayNowRecent;
 
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if ((bannerAsset ?? '').trim().isNotEmpty) ...[
-                  _StaticBanner(asset: bannerAsset!),
-                  SizedBox(height: 14.h),
-                ],
-                if (recentTransactions == null) ...[
-                  const _FigmaSectionHeader(
-                    title: 'Recents',
-                    actionText: 'View all',
-                  ),
-                  SizedBox(height: 10.h),
-                  const _StaticRecentRow(),
-                  SizedBox(height: 18.h),
-                ] else ...[
-                  _ServiceRecentRow(
-                    recentTransactions: recentTransactions!,
-                    onPayNow: onPayNowRecent,
-                  ),
-                ],
-                const _FigmaSectionHeader(title: 'All Billers'),
-                SizedBox(height: 6.h),
-              ],
-            ),
-          ),
-        ),
-        if (isFetching || errorMessage != null || isEmpty)
-          SliverFillRemaining(
-            hasScrollBody: false,
+    return InfiniteScrollListener(
+      isLoading: isFetchingMore,
+      hasMore: hasMore,
+      onEndReached: onEndReached,
+      child: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
             child: Padding(
-              padding: EdgeInsets.fromLTRB(16.w, 10.h, 16.w, 16.h),
-              child: ScreenWrapper(
-                isFetching: isFetching,
-                isEmpty: isEmpty && (errorMessage == null),
-                emptyMessage: 'No providers found',
-                errorMessage: errorMessage,
-                actions: errorMessage != null
-                    ? [
-                        TextButton(
-                          onPressed: onRetry,
-                          child: const Text('Retry'),
-                        ),
-                      ]
-                    : null,
-                child: const SizedBox.shrink(),
-              ),
-            ),
-          )
-        else
-          SliverPadding(
-            padding: EdgeInsets.fromLTRB(16.w, 6.h, 16.w, 16.h),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final item = billers[index];
-                  return Column(
-                    children: [
-                      _BillerTile(
-                        biller: item,
-                        onTap: () => onTapBiller(item),
-                      ),
-                    ],
-                  );
-                },
-                childCount: billers.length,
+              padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if ((bannerAsset ?? '').trim().isNotEmpty) ...[
+                    _StaticBanner(asset: bannerAsset!),
+                    SizedBox(height: 14.h),
+                  ],
+                  if (recentTransactions == null) ...[
+                    const _FigmaSectionHeader(
+                      title: 'Recents',
+                      actionText: 'View all',
+                    ),
+                    SizedBox(height: 10.h),
+                    const _StaticRecentRow(),
+                    SizedBox(height: 18.h),
+                  ] else ...[
+                    _ServiceRecentRow(
+                      recentTransactions: recentTransactions!,
+                      onPayNow: onPayNowRecent,
+                    ),
+                  ],
+                  const _FigmaSectionHeader(title: 'All Billers'),
+                  SizedBox(height: 6.h),
+                ],
               ),
             ),
           ),
-      ],
+          if (isFetching || errorMessage != null || isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(16.w, 10.h, 16.w, 16.h),
+                child: ScreenWrapper(
+                  isFetching: isFetching,
+                  isEmpty: isEmpty && (errorMessage == null),
+                  emptyMessage: 'No providers found',
+                  errorMessage: errorMessage,
+                  actions: errorMessage != null
+                      ? [
+                          TextButton(
+                            onPressed: onRetry,
+                            child: const Text('Retry'),
+                          ),
+                        ]
+                      : null,
+                  child: const SizedBox.shrink(),
+                ),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(16.w, 6.h, 16.w, 16.h),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    if (index >= billers.length) {
+                      return Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16.h),
+                        child: const Center(
+                          child: SpinKitCircle(
+                            color: AppColors.primary,
+                            size: 48,
+                          ),
+                        ),
+                      );
+                    }
+                    final item = billers[index];
+                    return Column(
+                      children: [
+                        _BillerTile(
+                          biller: item,
+                          onTap: () => onTapBiller(item),
+                        ),
+                      ],
+                    );
+                  },
+                  childCount: billers.length + (isFetchingMore ? 1 : 0),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

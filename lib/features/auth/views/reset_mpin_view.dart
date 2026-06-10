@@ -13,15 +13,22 @@ import 'package:sms_autofill/sms_autofill.dart';
 
 import '../../../constants/app_colors.dart';
 import '../../../constants/file_constants.dart';
+import '../../../services/logger_service.dart';
 import '../../../widgets/app_snackbar.dart';
 import '../../../widgets/blocking_loading_overlay.dart';
 import '../../../widgets/custom_elevated_button.dart';
 import '../controllers/auth_controller.dart';
 
 class ResetMpinView extends HookConsumerWidget {
-  const ResetMpinView({super.key});
+  const ResetMpinView({
+    super.key,
+    this.mobile,
+  });
 
   static const int _otpLength = 4;
+  static const String _genericErrorMessage =
+      'Something went wrong. Please try again.';
+  final String? mobile;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -69,7 +76,13 @@ class ResetMpinView extends HookConsumerWidget {
           await autoFill.listenForCode(
             smsCodeRegexPattern: '\\d{$_otpLength}',
           );
-        } catch (_) {}
+        } catch (e, stackTrace) {
+          logger.error(
+            'Failed to start OTP autofill listener in reset MPIN view',
+            error: e,
+            stackTrace: stackTrace,
+          );
+        }
       }();
 
       return () {
@@ -96,8 +109,9 @@ class ResetMpinView extends HookConsumerWidget {
       if (isRequestingOtp.value) return;
       isRequestingOtp.value = true;
       loadingMessage.value = 'Sending OTP...';
-      final message =
-          await ref.read(authControllerProvider.notifier).requestForgotPinOtp();
+      final message = await ref
+          .read(authControllerProvider.notifier)
+          .requestForgotPinOtp(mobile: mobile);
       isRequestingOtp.value = false;
       if (!context.mounted) return;
 
@@ -108,10 +122,7 @@ class ResetMpinView extends HookConsumerWidget {
         return;
       }
 
-      AppSnackbar.show(
-        ref.read(authControllerProvider).errorMessage ??
-            'Failed to request OTP. Please try again.',
-      );
+      AppSnackbar.show(_genericErrorMessage);
     }
 
     Future<void> handleResendOtp() async {
@@ -155,10 +166,7 @@ class ResetMpinView extends HookConsumerWidget {
         AppSnackbar.show(message);
         context.pop();
       } else {
-        AppSnackbar.show(
-          ref.read(authControllerProvider).errorMessage ??
-              'Failed to reset MPIN. Please try again.',
-        );
+        AppSnackbar.show(_genericErrorMessage);
       }
     }
 
