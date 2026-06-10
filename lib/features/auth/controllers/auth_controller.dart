@@ -65,9 +65,6 @@ class AuthController extends StateNotifier<AuthState> {
       final isAuthenticated = await Utils.checkAuthentication().timeout(
         const Duration(seconds: 3),
         onTimeout: () {
-          logger.error(
-            'checkAuthentication timed out (secure storage may be blocked)',
-          );
           return false;
         },
       );
@@ -116,7 +113,10 @@ class AuthController extends StateNotifier<AuthState> {
             .getAppSignature
             .timeout(const Duration(seconds: 2), onTimeout: () => '');
         if (signature.trim().isNotEmpty) appHash = signature.trim();
-      } catch (_) {}
+      } catch (e, stackTrace) {
+        logger.error('Failed to generate app hash for check-login',
+            error: e, stackTrace: stackTrace);
+      }
       final flow = await _repository.checkLogin(
         mobile: mobile,
         appHash: appHash,
@@ -192,14 +192,14 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<bool> verifyOtp({
     required String otp,
-    String? userId,
+    String? mobile,
   }) async {
-    final storedUserId = await _repository.secureStorage.read(key: 'userId');
-    final resolvedUserId = storedUserId ?? '';
-    if (resolvedUserId.isEmpty) {
+    final storedMobile = await _repository.secureStorage.read(key: 'mobile');
+    final resolvedMobile = mobile ?? state.pendingMobile ?? storedMobile ?? '';
+    if (resolvedMobile.isEmpty) {
       state = state.copyWith(
         isSubmitting: false,
-        errorMessage: 'Missing user ID. Please try again.',
+        errorMessage: 'Missing mobile number. Please try again.',
       );
       return false;
     }
@@ -207,12 +207,12 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(isSubmitting: true, errorMessage: null);
     try {
       await _repository.verifyOtp(
-        userId: resolvedUserId,
+        mobile: resolvedMobile,
         otp: otp,
       );
       state = state.copyWith(
         isSubmitting: false,
-        pendingMobile: resolvedUserId,
+        pendingMobile: resolvedMobile,
         errorMessage: null,
       );
       return true;
@@ -233,7 +233,7 @@ class AuthController extends StateNotifier<AuthState> {
     String? userId,
   }) async {
     final storedUserId = await _repository.secureStorage.read(key: 'userId');
-    final resolvedUserId = userId ?? storedUserId ?? state.pendingMobile;
+    final resolvedUserId = userId ?? storedUserId;
     if (resolvedUserId == null || resolvedUserId.isEmpty) {
       state = state.copyWith(
         isSubmitting: false,
@@ -276,31 +276,39 @@ class AuthController extends StateNotifier<AuthState> {
     );
   }
 
+  Future<String?> _getAppHash() async {
+    try {
+      final signature = await SmsAutoFill()
+          .getAppSignature
+          .timeout(const Duration(seconds: 2), onTimeout: () => '');
+      final trimmed = signature.trim();
+      if (trimmed.isNotEmpty) return trimmed;
+    } catch (e, stackTrace) {
+      logger.error('Failed to generate app hash for forgot PIN OTP',
+          error: e, stackTrace: stackTrace);
+    }
+    return null;
+  }
+
   Future<String?> requestForgotPinOtp({
-    String? userId,
+    String? mobile,
   }) async {
-    final storedUserId = await _repository.secureStorage.read(key: 'userId');
-    final resolvedUserId = userId ?? storedUserId;
-    if (resolvedUserId == null || resolvedUserId.isEmpty) {
+    final storedMobile = await _repository.secureStorage.read(key: 'mobile');
+    final resolvedMobile = mobile ?? state.pendingMobile ?? storedMobile ?? '';
+    if (resolvedMobile.isEmpty) {
       state = state.copyWith(
         isSubmitting: false,
-        errorMessage: 'Missing user ID. Please try again.',
+        errorMessage: 'Missing mobile number. Please try again.',
       );
       return null;
     }
 
     state = state.copyWith(isSubmitting: true, errorMessage: null);
     try {
-      String? appHash;
-      try {
-        final signature = await SmsAutoFill()
-            .getAppSignature
-            .timeout(const Duration(seconds: 2), onTimeout: () => '');
-        if (signature.trim().isNotEmpty) appHash = signature.trim();
-      } catch (_) {}
+      final appHash = await _getAppHash();
       final message = await _repository.requestForgotPinOtp(
-        userId: resolvedUserId,
-        appHash: appHash,
+        mobile: resolvedMobile,
+        appHash: appHash ?? '',
       );
       state = state.copyWith(isSubmitting: false, errorMessage: null);
       return message;
@@ -379,6 +387,9 @@ class AuthController extends StateNotifier<AuthState> {
         );
         logger.debug('Referral: cleared pending code');
       }
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      logger.error('Failed to register pending referral',
+          error: e, stackTrace: stackTrace);
+    }
   }
 }

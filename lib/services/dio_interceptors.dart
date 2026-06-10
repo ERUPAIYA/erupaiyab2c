@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:developer';
 
 import 'package:dio/dio.dart';
 import 'package:e_rupaiya/constants/api_constants.dart';
@@ -10,13 +9,34 @@ import 'package:e_rupaiya/widgets/k_dialog.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 
+import '../config/app_env.dart';
 import '../widgets/app_snackbar.dart';
+
+void _debugLog(String message) {
+  if (!AppEnv.enableLogs) return;
+  debugPrint(message);
+}
 
 class DioInterceptors extends InterceptorsWrapper {
   final FlutterSecureStorage secureStorage = const FlutterSecureStorage();
   static Completer<bool>? _refreshCompleter;
 
   static const int _maxLogBodyChars = 6000;
+  static const Set<String> _sensitiveKeys = {
+    'pin',
+    'mpin',
+    'otp',
+    'access_token',
+    'refresh_token',
+    'token',
+    'authorization',
+    'pan',
+    'pan_number',
+    'aadhaar',
+    'aadhaar_number',
+    'aadhar',
+    'aadhar_number',
+  };
 
   Map<String, dynamic> _redactHeaders(Map<String, dynamic> headers) {
     final redacted = <String, dynamic>{};
@@ -45,6 +65,25 @@ class DioInterceptors extends InterceptorsWrapper {
     } catch (_) {
       return value.toString();
     }
+  }
+
+  Object? _redactBody(Object? value) {
+    if (value is Map) {
+      final redacted = <String, dynamic>{};
+      value.forEach((key, dynamic nestedValue) {
+        final keyText = key.toString();
+        if (_sensitiveKeys.contains(keyText.toLowerCase())) {
+          redacted[keyText] = '<redacted>';
+        } else {
+          redacted[keyText] = _redactBody(nestedValue);
+        }
+      });
+      return redacted;
+    }
+    if (value is List) {
+      return value.map(_redactBody).toList(growable: false);
+    }
+    return value;
   }
 
   String _truncate(String value) {
@@ -182,22 +221,22 @@ class DioInterceptors extends InterceptorsWrapper {
 
     final url = options.uri.toString();
     final safeHeaders = _redactHeaders(options.headers);
-    final payload = _truncate(_stringify(options.data));
+    final payload = _truncate(_stringify(_redactBody(options.data)));
     final query = options.queryParameters.isNotEmpty
-        ? _truncate(_stringify(options.queryParameters))
+        ? _truncate(_stringify(_redactBody(options.queryParameters)))
         : '';
 
-    log(
-      '${options.method} $url\nheaders=${_truncate(_stringify(safeHeaders))}'
-      '${query.isNotEmpty ? '\nquery=$query' : ''}'
-      '${payload.isNotEmpty ? '\nbody=$payload' : ''}',
-      name: 'Dio',
-    );
-
     logger.info('Request: ${options.method} $url');
-    logger.info('Request headers: $safeHeaders');
-    if (payload.isNotEmpty) logger.info('Request payload: $payload');
-    if (query.isNotEmpty) logger.info('Request query: $query');
+    if (AppEnv.enableNetworkPayloadLogs) {
+      _debugLog(
+        '${options.method} $url\nheaders=${_truncate(_stringify(safeHeaders))}'
+        '${query.isNotEmpty ? '\nquery=$query' : ''}'
+        '${payload.isNotEmpty ? '\nbody=$payload' : ''}',
+      );
+      logger.info('Request headers: $safeHeaders');
+      if (payload.isNotEmpty) logger.info('Request payload: $payload');
+      if (query.isNotEmpty) logger.info('Request query: $query');
+    }
     super.onRequest(options, handler);
   }
 
@@ -207,13 +246,14 @@ class DioInterceptors extends InterceptorsWrapper {
     ResponseInterceptorHandler handler,
   ) {
     final url = response.requestOptions.uri.toString();
-    final dataText = _truncate(_stringify(response.data));
-    log(
-      'RESPONSE ${response.statusCode} $url\n$dataText',
-      name: 'Dio',
-    );
+    final dataText = _truncate(_stringify(_redactBody(response.data)));
     logger.info('Response: ${response.statusCode} $url');
-    logger.info('Response payload: $dataText');
+    if (AppEnv.enableNetworkPayloadLogs) {
+      _debugLog(
+        'RESPONSE ${response.statusCode} $url\n$dataText',
+      );
+      logger.info('Response payload: $dataText');
+    }
     super.onResponse(response, handler);
   }
 
@@ -224,14 +264,13 @@ class DioInterceptors extends InterceptorsWrapper {
   ) async {
     final url = err.requestOptions.uri.toString();
     final status = err.response?.statusCode;
-    final dataText = _truncate(_stringify(err.response?.data));
-    log(
-      'ERROR ${status ?? '-'} $url\n${err.message ?? ''}'
-      '${dataText.isNotEmpty ? '\n$dataText' : ''}',
-      name: 'Dio',
-      error: err,
-      stackTrace: err.stackTrace,
-    );
+    final dataText = _truncate(_stringify(_redactBody(err.response?.data)));
+    if (AppEnv.enableNetworkPayloadLogs) {
+      _debugLog(
+        'ERROR ${status ?? '-'} $url\n${err.message ?? ''}'
+        '${dataText.isNotEmpty ? '\n$dataText' : ''}',
+      );
+    }
     logger.error(
       'Error: ${err.message}',
       error: err,

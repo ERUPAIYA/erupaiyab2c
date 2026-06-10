@@ -1,7 +1,6 @@
 // ignore_for_file: deprecated_member_use
 
 import 'dart:async';
-import 'dart:developer';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -22,6 +21,8 @@ import '../controllers/auth_controller.dart';
 
 class OtpVerificationView extends HookConsumerWidget {
   const OtpVerificationView({super.key, this.phoneNumber});
+
+  static const int _otpLength = 4;
 
   final String? phoneNumber;
 
@@ -62,15 +63,15 @@ class OtpVerificationView extends HookConsumerWidget {
 
     Future<void> handleVerify() async {
       final otp = otpController.text.trim();
-      if (otp.length < 6) {
-        errorText.value = 'Please enter the 6-digit OTP.';
+      if (otp.length < _otpLength) {
+        errorText.value = 'Please enter the $_otpLength-digit OTP.';
         return;
       }
 
       errorText.value = null;
       final success = await ref
           .read(authControllerProvider.notifier)
-          .verifyOtp(otp: otp, userId: phoneNumber);
+          .verifyOtp(otp: otp, mobile: phoneNumber);
       if (success) {
         if (context.mounted) {
           context.go(RouteConstants.otpSuccess);
@@ -108,7 +109,8 @@ class OtpVerificationView extends HookConsumerWidget {
     void applyOtpCode(String code) {
       final digits = code.replaceAll(RegExp(r'\D'), '');
       if (digits.isEmpty) return;
-      final trimmed = digits.length > 6 ? digits.substring(0, 6) : digits;
+      final trimmed =
+          digits.length > _otpLength ? digits.substring(0, _otpLength) : digits;
       debugPrint('OTP autofill received: $trimmed');
       otpController.text = trimmed;
       otpFocusNode.unfocus();
@@ -119,28 +121,26 @@ class OtpVerificationView extends HookConsumerWidget {
     useEffect(() {
       var isDisposed = false;
       final autoFill = SmsAutoFill();
-      log('init SMS autofill', name: 'OtpVerificationView');
+      debugPrint('init SMS autofill');
       final sub = autoFill.code.listen((code) {
         if (isDisposed) return;
-        log('OTP SMS code stream: $code', name: 'OtpVerificationView');
+        debugPrint('OTP SMS code stream: $code');
         applyOtpCode(code);
       });
 
       () async {
         try {
           final signature = await autoFill.getAppSignature;
-          log(
+          debugPrint(
             'SMS Retriever app signature: ${signature.isEmpty ? "<empty>" : signature}',
-            name: 'OtpVerificationView',
           );
-          await autoFill.listenForCode(smsCodeRegexPattern: r'\d{6}');
-          log('listenForCode started', name: 'OtpVerificationView');
+          await autoFill.listenForCode(
+            smsCodeRegexPattern: '\\d{$_otpLength}',
+          );
+          debugPrint('listenForCode started');
         } catch (e, st) {
-          log(
+          debugPrint(
             'OTP autofill init failed',
-            name: 'OtpVerificationView',
-            error: e,
-            stackTrace: st,
           );
         }
       }();
@@ -149,7 +149,7 @@ class OtpVerificationView extends HookConsumerWidget {
         isDisposed = true;
         sub.cancel();
         autoFill.unregisterListener();
-        log('dispose SMS autofill', name: 'OtpVerificationView');
+        debugPrint('dispose SMS autofill');
       };
     }, const []);
 
@@ -225,7 +225,7 @@ class OtpVerificationView extends HookConsumerWidget {
                   ),
                   SizedBox(height: 18.h),
                   Pinput(
-                    length: 6,
+                    length: _otpLength,
                     controller: otpController,
                     focusNode: otpFocusNode,
                     keyboardType: TextInputType.number,

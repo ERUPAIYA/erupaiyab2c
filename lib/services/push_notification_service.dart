@@ -1,16 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 
 import '../constants/routes_constant.dart';
 import '../constants/storage_keys.dart';
+import '../config/app_env.dart';
 import '../features/profile/repositories/profile_repository.dart';
 import '../firebase/explicit_firebase_options.dart';
 import '../utils/utils.dart';
@@ -24,6 +25,11 @@ const String _defaultChannelDescription = 'General app notifications.';
 
 final FlutterLocalNotificationsPlugin _localNotifications =
     FlutterLocalNotificationsPlugin();
+
+void _debugLog(String message) {
+  if (!AppEnv.enableLogs) return;
+  debugPrint(message);
+}
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -57,7 +63,9 @@ class PushNotificationService {
   static Future<void> _persistToken(String token) async {
     try {
       await _storage.write(key: StorageKeys.deviceToken, value: token);
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      logger.error('Failed to persist device token', error: e, stackTrace: stackTrace);
+    }
   }
 
   static bool _isValidToken(String? token) {
@@ -84,7 +92,9 @@ class PushNotificationService {
         unawaited(initialize(requestPermissions: false));
         return _latestToken;
       }
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      logger.error('Failed to read cached device token', error: e, stackTrace: stackTrace);
+    }
 
     try {
       await initialize(requestPermissions: false);
@@ -104,7 +114,9 @@ class PushNotificationService {
         await _persistToken(_latestToken!);
         return _latestToken;
       }
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      logger.error('Failed to fetch FCM token directly', error: e, stackTrace: stackTrace);
+    }
 
     final startedAt = DateTime.now();
     while (DateTime.now().difference(startedAt) < timeout) {
@@ -173,7 +185,7 @@ class PushNotificationService {
       );
     }
     final tokenMessage = 'FCM token: $token';
-    developer.log(tokenMessage, name: 'PushNotificationService');
+    _debugLog(tokenMessage);
     logger.info(tokenMessage);
     if (_isValidToken(token)) {
       _latestToken = token!.trim();
@@ -321,19 +333,14 @@ class PushNotificationService {
           'Device token update: ${response.success} - ${response.message}';
       _lastSyncedToken = trimmed;
       logger.info(message);
-      developer.log(message, name: 'PushNotificationService');
+      _debugLog(message);
     } catch (e, stackTrace) {
       logger.error(
         'Failed to update device token: $e',
         error: e,
         stackTrace: stackTrace,
       );
-      developer.log(
-        'Failed to update device token: $e',
-        name: 'PushNotificationService',
-        error: e,
-        stackTrace: stackTrace,
-      );
+      _debugLog('Failed to update device token: $e');
     }
   }
 

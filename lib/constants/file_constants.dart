@@ -31,6 +31,11 @@ class FileConstants {
   static String splashGif = 'assets/gif/splash_gif.gif';
   static String splashLottie = 'assets/lottie/logo-verticle.json';
   static String giftGif = 'assets/gif/gift.gif';
+  static String goodGif = 'assets/gif/good.gif';
+  static String notGoodGif = 'assets/gif/notGood.gif';
+  static String loveGif = 'assets/gif/love.gif';
+  static String worstGif = 'assets/gif/worst.gif';
+  static String neutralGif = 'assets/gif/neutral.gif';
 
   //home icons
   static String mobile = 'assets/images/png/home_icon/mobile_new.png';
@@ -160,6 +165,11 @@ class FileConstants {
   static String silverArrow = 'assets/images/png/home_icon/silver_arrow.png';
   static String suggestedCardImage = 'assets/images/png/suggestedCardImage.png';
   static String tiltArrow = 'assets/images/png/arrow-right.png';
+  static String loveIcon = 'assets/images/png/love.png';
+  static String goodIcon = 'assets/images/png/Good.png';
+  static String neutralIcon = 'assets/images/png/Neutral.png';
+  static String fineIcon = 'assets/images/png/fine.png';
+  static String worstIcon = 'assets/images/png/Worst.png';
 
   //profile
   static String qr = 'assets/images/png/qr.png';

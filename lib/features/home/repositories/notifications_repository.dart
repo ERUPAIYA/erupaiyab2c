@@ -12,11 +12,25 @@ class NotificationsRepository {
 
   final Dio _dio;
 
-  Future<NotificationsFeed> fetchNotifications() async {
+  Future<NotificationsFeed> fetchNotifications({
+    int page = 1,
+    int limit = 20,
+  }) async {
     try {
-      final response = await _dio.get(ApiConstants.notificationsEndpoint);
+      final response = await _dio.get(
+        ApiConstants.notificationsEndpoint,
+        queryParameters: {
+          'page': page,
+          'limit': limit,
+        },
+      );
       final payload = response.data as Map<String, dynamic>? ?? {};
       final unread = _parseCount(payload['unread_count']) ?? 0;
+      final pagination = payload['pagination'] as Map<String, dynamic>? ?? {};
+      final currentPage = _parseCount(pagination['current_page']) ?? page;
+      final resolvedLimit = _parseCount(pagination['limit']) ?? limit;
+      final totalRecords = _parseCount(pagination['total_records']) ?? 0;
+      final totalPages = _parseCount(pagination['total_pages']) ?? 1;
 
       final updatesRaw = payload['updates'];
       final notificationsRaw = payload['notifications'];
@@ -33,6 +47,10 @@ class NotificationsRepository {
           unreadCount: unread,
           updates: updates,
           notifications: notifications,
+          currentPage: currentPage,
+          totalPages: totalPages,
+          limit: resolvedLimit,
+          totalRecords: totalRecords,
         );
       }
 
@@ -49,13 +67,21 @@ class NotificationsRepository {
           unreadCount: computedUnread,
           updates: const [],
           notifications: items,
+          currentPage: currentPage,
+          totalPages: totalPages,
+          limit: resolvedLimit,
+          totalRecords: totalRecords,
         );
       }
 
-      return const NotificationsFeed(
+      return NotificationsFeed(
         unreadCount: 0,
-        updates: [],
-        notifications: [],
+        updates: const [],
+        notifications: const [],
+        currentPage: currentPage,
+        totalPages: totalPages,
+        limit: resolvedLimit,
+        totalRecords: totalRecords,
       );
     } catch (e, stackTrace) {
       logger.error(

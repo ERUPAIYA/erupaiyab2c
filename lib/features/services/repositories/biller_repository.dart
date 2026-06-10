@@ -15,15 +15,22 @@ class BillerRepository {
 
   final Dio _dio;
 
-  Future<List<Biller>> fetchBillers({required String categoryName}) async {
+  Future<BillerListResponse> fetchBillers({
+    required String categoryName,
+    int page = 1,
+    int limit = 20,
+  }) async {
     try {
       final response = await _dio.get(
         ApiConstants.billersEndpoint,
-        queryParameters: {'category_name': categoryName},
+        queryParameters: {
+          'category_name': categoryName,
+          'page': page,
+          'limit': limit,
+        },
       );
       final payload = response.data as Map<String, dynamic>? ?? {};
-      final parsed = BillerListResponse.fromJson(payload);
-      return parsed.billers;
+      return BillerListResponse.fromJson(payload);
     } catch (e) {
       logger.error('Failed to fetch billers: $e', error: e);
       rethrow;

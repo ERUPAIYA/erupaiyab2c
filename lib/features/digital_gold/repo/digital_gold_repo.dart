@@ -1,10 +1,9 @@
 // ignore_for_file: avoid_print
 
 import 'package:dio/dio.dart';
-import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:e_rupaiya/core/barrel_file.dart';
 
 import '../../../constants/api_constants.dart';
-import '../../../services/dio_service.dart';
 import '../models/digital_gold_dashboard.dart';
 import '../models/digital_gold_otp_response.dart';
 import '../models/digital_gold_preview.dart';
@@ -301,12 +300,12 @@ class DigitalGoldRepo {
   }
 
   Future<RecentPurchasesResponse> fetchRecentPurchases() async {
-    print('Fetching recent purchases...');
+    debugPrint('Fetching recent purchases...');
     try {
       final response = await _dio.get(
         ApiConstants.digitalGoldRecentPurchasesEndpoint,
       );
-      print('Response received: ${response.data}');
+      debugPrint('Response received: ${response.data}');
       final data = response.data as Map<String, dynamic>? ?? {};
       if (data['status'] == true && data['data'] is List) {
         return RecentPurchasesResponse.fromJson(data);
@@ -317,7 +316,7 @@ class DigitalGoldRepo {
       }
       throw Exception(data['message'] ?? 'Unable to fetch recent purchases');
     } on DioException catch (e) {
-      print('DioException: ${e.message}');
+      debugPrint('DioException: ${e.message}');
       final message = e.response?.data is Map<String, dynamic>
           ? (e.response?.data['message']?.toString())
           : null;

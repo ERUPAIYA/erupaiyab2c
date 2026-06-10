@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:geolocator/geolocator.dart';
 
+import 'logger_service.dart';
+
 class LoginDeviceContextService {
   const LoginDeviceContextService();
 
@@ -42,7 +44,9 @@ class LoginDeviceContextService {
         final ios = await deviceInfo.iosInfo;
         return (ios.identifierForVendor ?? ios.name).toString();
       }
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      logger.error('Failed to resolve login device ID', error: e, stackTrace: stackTrace);
+    }
     return '';
   }
 
@@ -62,7 +66,9 @@ class LoginDeviceContextService {
           return true;
         }
       }
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      logger.error('Failed to inspect VPN state for login context', error: e, stackTrace: stackTrace);
+    }
     return false;
   }
 
@@ -96,7 +102,9 @@ class LoginDeviceContextService {
           if (File(path).existsSync()) return true;
         }
       }
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      logger.error('Failed to inspect root/jailbreak state for login context', error: e, stackTrace: stackTrace);
+    }
     return false;
   }
 
@@ -123,7 +131,8 @@ class LoginDeviceContextService {
         longitude: position.longitude.toString(),
         isMocked: position.isMocked,
       );
-    } catch (_) {
+    } catch (e, stackTrace) {
+      logger.error('Failed to collect login location context', error: e, stackTrace: stackTrace);
       return const _LocationSnapshot.empty();
     }
   }

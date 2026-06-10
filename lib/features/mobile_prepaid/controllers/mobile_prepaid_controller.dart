@@ -114,6 +114,7 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
 
   Future<void> fetchOperatorAndPlansWithFilters(
     String mobileInput, {
+    String search = '',
     List<String> filters = const [],
   }) async {
     final mobile = _sanitizeMobile(mobileInput);
@@ -125,6 +126,7 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
     }
     state = state.copyWith(
       isFetching: true,
+      isRefreshingPlans: false,
       errorMessage: null,
       rechargeMessage: null,
       mobile: mobile,
@@ -136,7 +138,7 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
       appliedFilters: filters,
       selectedCategory: '',
       selectedPlan: null,
-      planSearchQuery: '',
+      planSearchQuery: search,
       ecoinsRestrictionsPercent: null,
     );
     try {
@@ -145,11 +147,13 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
         mobile: mobile,
         operatorName: operatorInfo.operatorName,
         circleCode: operatorInfo.circleCode,
+        search: search,
         filters: filters,
       );
       final categories = result.plansByCategory.keys.toList();
       state = state.copyWith(
         isFetching: false,
+        isRefreshingPlans: false,
         operatorInfo: operatorInfo,
         plansByCategory: result.plansByCategory,
         validityFilters: result.validityFilters,
@@ -167,6 +171,7 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
       );
       state = state.copyWith(
         isFetching: false,
+        isRefreshingPlans: false,
         errorMessage: 'Failed to fetch plans. Please try again.',
       );
     }
@@ -178,6 +183,7 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
     required String circleName,
     required String circleCode,
     String? iconUrl,
+    String search = '',
     List<String> filters = const [],
   }) async {
     final mobile = _sanitizeMobile(mobileInput);
@@ -187,8 +193,11 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
       );
       return;
     }
+    final hasExistingPlans =
+        state.operatorInfo != null && state.plansByCategory.isNotEmpty;
     state = state.copyWith(
-      isFetching: true,
+      isFetching: !hasExistingPlans,
+      isRefreshingPlans: hasExistingPlans,
       errorMessage: null,
       rechargeMessage: null,
       mobile: mobile,
@@ -198,26 +207,29 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
         circleCode: circleCode,
         iconUrl: iconUrl,
       ),
-      plansByCategory: const {},
-      validityFilters: const [],
-      dataFilters: const [],
-      filterTags: const [],
+      plansByCategory: hasExistingPlans ? null : const {},
+      validityFilters: hasExistingPlans ? null : const [],
+      dataFilters: hasExistingPlans ? null : const [],
+      filterTags: hasExistingPlans ? null : const [],
       appliedFilters: filters,
-      selectedCategory: '',
+      selectedCategory: hasExistingPlans ? state.selectedCategory : '',
       selectedPlan: null,
-      planSearchQuery: '',
-      ecoinsRestrictionsPercent: null,
+      planSearchQuery: search,
+      ecoinsRestrictionsPercent:
+          hasExistingPlans ? state.ecoinsRestrictionsPercent : null,
     );
     try {
       final result = await _repository.fetchPlans(
         mobile: mobile,
         operatorName: operatorName,
         circleCode: circleCode,
+        search: search,
         filters: filters,
       );
       final categories = result.plansByCategory.keys.toList();
       state = state.copyWith(
         isFetching: false,
+        isRefreshingPlans: false,
         plansByCategory: result.plansByCategory,
         validityFilters: result.validityFilters,
         dataFilters: result.dataFilters,
@@ -234,6 +246,7 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
       );
       state = state.copyWith(
         isFetching: false,
+        isRefreshingPlans: false,
         errorMessage: 'Failed to fetch plans. Please try again.',
       );
     }

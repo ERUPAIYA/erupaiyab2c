@@ -17,8 +17,8 @@ class KycOverviewView extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    void navigate(String route) {
-      context.go(route);
+    void navigateToRealKyc() {
+      context.go(RouteConstants.kycVerification);
     }
 
     return Scaffold(
@@ -44,13 +44,7 @@ class KycOverviewView extends HookConsumerWidget {
                                 fontWeight: FontWeight.w700,
                               ),
                     ),
-                    TextButton(
-                      onPressed: () => navigate(RouteConstants.panVerification),
-                      child: const Text(
-                        'Skip',
-                        style: TextStyle(color: AppColors.primary),
-                      ),
-                    ),
+                    const SizedBox.shrink(),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -76,20 +70,19 @@ class KycOverviewView extends HookConsumerWidget {
                       KycActionTile(
                         title: 'PAN Card Verification',
                         iconAsset: FileConstants.pan,
-                        onTap: () => navigate(RouteConstants.panVerification),
+                        onTap: navigateToRealKyc,
                       ),
                       const SizedBox(height: 14),
                       KycActionTile(
                         title: 'Aadhaar Verification',
                         iconAsset: FileConstants.aadhaar,
-                        onTap: () =>
-                            navigate(RouteConstants.aadhaarVerification),
+                        onTap: navigateToRealKyc,
                       ),
                     ],
                   ),
                 ),
                 CustomElevatedButton(
-                  onPressed: () => navigate(RouteConstants.panVerification),
+                  onPressed: navigateToRealKyc,
                   label: 'Continue',
                   showArrow: false,
                   uppercaseLabel: false,

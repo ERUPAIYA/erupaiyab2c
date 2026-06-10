@@ -129,7 +129,7 @@ class ProfileView extends HookConsumerWidget {
                                   title: 'Preferences',
                                   subtitle: 'Languages, Permissions, Reminders',
                                   onTap: () =>
-                                      context.push(RouteConstants.settings),
+                                      context.push(RouteConstants.preferences),
                                 ),
                                 const Divider(
                                     height: 1, color: AppColors.lightBorder),
@@ -138,7 +138,7 @@ class ProfileView extends HookConsumerWidget {
                                   title: 'Security',
                                   subtitle: 'Screen Lock, Passcode',
                                   onTap: () =>
-                                      context.push(RouteConstants.settings),
+                                      context.push(RouteConstants.security),
                                 ),
                               ],
                             ),

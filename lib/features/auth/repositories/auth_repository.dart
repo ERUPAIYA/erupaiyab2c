@@ -36,6 +36,17 @@ class AuthRepository {
     String? appHash,
   }) async {
     try {
+      final deviceToken =
+          (await PushNotificationService.ensureTokenReady())?.trim();
+      if (deviceToken == null ||
+          deviceToken.isEmpty ||
+          deviceToken.toLowerCase() == 'null') {
+        throw Exception(
+          'Unable to fetch device token. Please try again in a moment.',
+        );
+      }
+
+      final deviceContext = await const LoginDeviceContextService().collect();
       final response = await _dio.post(
         ApiConstants.checkLoginEndpoint,
         options: Options(
@@ -49,6 +60,8 @@ class AuthRepository {
           'mobile': mobile,
           if (appHash != null && appHash.trim().isNotEmpty)
             'appHash': appHash.trim(),
+          'device_token': deviceToken,
+          ...deviceContext,
         },
       );
 
@@ -87,14 +100,14 @@ class AuthRepository {
   }
 
   Future<void> verifyOtp({
-    required String userId,
+    required String mobile,
     required String otp,
   }) async {
     try {
       final response = await _dio.post(
         ApiConstants.verifyOtpEndpoint,
         data: {
-          'user_id': userId,
+          'mobile': mobile,
           'otp': otp,
         },
       );
@@ -160,7 +173,6 @@ class AuthRepository {
         );
       }
 
-      final deviceContext = await const LoginDeviceContextService().collect();
       final response = await _dio.post(
         ApiConstants.loginEndpoint,
         options: Options(
@@ -175,7 +187,6 @@ class AuthRepository {
           'mobile': mobile,
           'pin': pin,
           'device_token': deviceToken,
-          ...deviceContext,
         },
       );
 
@@ -277,16 +288,15 @@ class AuthRepository {
   }
 
   Future<String> requestForgotPinOtp({
-    required String userId,
-    String? appHash,
+    required String mobile,
+    required String appHash,
   }) async {
     try {
       final response = await _dio.post(
         ApiConstants.requestForgotPinOtpEndpoint,
         data: {
-          'user_id': userId,
-          if (appHash != null && appHash.trim().isNotEmpty)
-            'appHash': appHash.trim(),
+          'mobile': mobile,
+          'appHash': appHash.trim(),
         },
       );
 

@@ -103,7 +103,9 @@ class AppLockService with WidgetsBindingObserver {
           );
         }
       }
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      logger.error('Failed to restore app lock state', error: e, stackTrace: stackTrace);
+    }
   }
 
   Future<void> _persistBackgroundTimestamp() async {
@@ -113,21 +115,27 @@ class AppLockService with WidgetsBindingObserver {
         value: DateTime.now().toIso8601String(),
       );
       logger.debug('AppLock: persisted background timestamp');
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      logger.error('Failed to persist app lock background timestamp', error: e, stackTrace: stackTrace);
+    }
   }
 
   Future<void> _markLockOnNextOpen() async {
     try {
       await _storage.write(key: _lockOnNextOpenKey, value: 'true');
       logger.debug('AppLock: mark lock on next open');
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      logger.error('Failed to mark app lock on next open', error: e, stackTrace: stackTrace);
+    }
   }
 
   Future<void> _clearNextOpenLock() async {
     try {
       await _storage.write(key: _lockOnNextOpenKey, value: 'false');
       logger.debug('AppLock: clear lock on next open');
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      logger.error('Failed to clear app lock next-open flag', error: e, stackTrace: stackTrace);
+    }
   }
 
   @override

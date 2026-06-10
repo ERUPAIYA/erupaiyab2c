@@ -212,7 +212,7 @@ class SwiftExampleViewController: UIViewController {
                         if let codes = codes {
                             for code in codes {
                                 let stringValue = code.stringValue!
-                                print("Found code: \(stringValue)")
+                                debugPrint("Found code: \(stringValue)")
                             }
                         }
                     })
@@ -242,7 +242,7 @@ try self.scanner?.startScanning(with: .front,
         if let codes = codes {
             for code in codes {
                 let stringValue = code.stringValue!
-                print("Found code: \(stringValue)")
+                debugPrint("Found code: \(stringValue)")
             }
         }
 ```
@@ -270,7 +270,7 @@ class ViewController: UIViewController {
 
         scanner?.startScanningWithResultBlock({ (codes) in
 	            for code in codes {
-	                print(code)
+	                debugPrint(code)
 	            }
             }, error: nil)
     }

@@ -132,17 +132,20 @@ class MobilePrepaidRepository {
     required String mobile,
     required String operatorName,
     required String circleCode,
+    String search = '',
     List<String> filters = const [],
   }) async {
     try {
       final normalizedFilters =
           filters.map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+      final trimmedSearch = search.trim();
       final response = await _dio.post(
         ApiConstants.prepaidFetchPlansEndpoint,
         data: {
           'mobile': mobile,
           'operator': operatorName,
           'circlecode': circleCode,
+          if (trimmedSearch.isNotEmpty) 'search': trimmedSearch,
           if (normalizedFilters.isNotEmpty)
             'filter': normalizedFilters.length == 1
                 ? normalizedFilters.first

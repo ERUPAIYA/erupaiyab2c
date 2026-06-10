@@ -4,8 +4,8 @@ import 'dart:async';
 
 import 'package:e_rupaiya/features/refer_and_earn/views/refer_and_earn_wallet_view.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -18,58 +18,50 @@ import '../../../constants/routes_constant.dart';
 import '../../../services/notification_badge_service.dart';
 import '../../../widgets/app_network_image.dart';
 import '../../../widgets/app_snackbar.dart';
+import '../../../widgets/infinite_scroll_listener.dart';
 import '../../../widgets/my_app_bar.dart';
+import '../controllers/notifications_controller.dart';
 import '../controllers/home_tab_controller.dart';
 import '../models/notification_item.dart';
-import '../models/notifications_feed.dart';
-import '../repositories/notifications_repository.dart';
-
-final notificationsRepositoryProvider =
-    Provider<NotificationsRepository>((ref) => NotificationsRepository());
-
-final notificationsProvider =
-    FutureProvider.autoDispose<NotificationsFeed>((ref) async {
-  final repository = ref.read(notificationsRepositoryProvider);
-  return repository.fetchNotifications();
-});
 
 final notificationReadIdsProvider =
     StateProvider.autoDispose<Set<String>>((ref) => <String>{});
 
-class NotificationsScreen extends HookConsumerWidget {
+class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final notificationsAsync = ref.watch(notificationsProvider);
-    final dismissedIds = useState<Set<String>>(<String>{});
-    final remindingIds = useState<Set<String>>(<String>{});
-    final localReadIds = ref.watch(notificationReadIdsProvider);
+  ConsumerState<NotificationsScreen> createState() => _NotificationsScreenState();
+}
 
-    final feedData = notificationsAsync.asData?.value;
-    final unreadCountToSync = useMemoized(() {
-      if (feedData == null) return null;
-      final visibleNotifications = feedData.notifications
-          .where((n) => !dismissedIds.value.contains(n.id))
-          .toList(growable: false);
-      if (feedData.unreadCount > 0) return feedData.unreadCount;
-      return visibleNotifications
+class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
+  final Set<String> _dismissedIds = <String>{};
+  final Set<String> _remindingIds = <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(
+      () => ref.read(notificationsControllerProvider.notifier).fetchNotifications(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final notificationsState = ref.watch(notificationsControllerProvider);
+    final localReadIds = ref.watch(notificationReadIdsProvider);
+    final items = notificationsState.notifications
+        .where((n) => !_dismissedIds.contains(n.id))
+        .toList(growable: false);
+    final unreadCountToSync = notificationsState.unreadCount > 0
+        ? notificationsState.unreadCount
+        : items
           .where((n) => !n.isRead && !localReadIds.contains(n.id))
           .length;
-    }, [
-      feedData,
-      dismissedIds.value,
-      localReadIds,
-    ]);
 
-    useEffect(() {
-      final count = unreadCountToSync;
-      if (count == null) return null;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        NotificationBadgeService.syncFromList(count);
-      });
-      return null;
-    }, [unreadCountToSync]);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationBadgeService.syncFromList(unreadCountToSync);
+    });
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -91,154 +83,162 @@ class NotificationsScreen extends HookConsumerWidget {
           ),
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () => ref.refresh(notificationsProvider.future),
-              child: notificationsAsync.when(
-                loading: () => const _NotificationsLoadingSkeleton(),
-                error: (_, __) => ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: const [
-                    SizedBox(height: 40),
-                    _NotificationsEmptyState(),
-                  ],
-                ),
-                data: (feed) {
-                  final updates = feed.updates
-                      .where((n) => !dismissedIds.value.contains(n.id))
-                      .toList(growable: false);
-                  final notifications = feed.notifications
-                      .where((n) => !dismissedIds.value.contains(n.id))
-                      .toList(growable: false);
-                  if (updates.isEmpty && notifications.isEmpty) {
-                    return ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      children: const [
-                        SizedBox(height: 40),
-                        _NotificationsEmptyState(),
-                      ],
-                    );
-                  }
+              onRefresh: () => ref
+                  .read(notificationsControllerProvider.notifier)
+                  .fetchNotifications(force: true),
+              child: notificationsState.isLoading
+                  ? const _NotificationsLoadingSkeleton()
+                  : notificationsState.errorMessage != null
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: const [
+                            SizedBox(height: 40),
+                            _NotificationsEmptyState(),
+                          ],
+                        )
+                      : items.isEmpty
+                          ? ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              children: const [
+                                SizedBox(height: 40),
+                                _NotificationsEmptyState(),
+                              ],
+                            )
+                          : InfiniteScrollListener(
+                              isLoading: notificationsState.isFetchingMore,
+                              hasMore: notificationsState.hasMore,
+                              onEndReached: () => ref
+                                  .read(notificationsControllerProvider.notifier)
+                                  .fetchNextPage(),
+                              child: Builder(
+                                builder: (context) {
+                                  final unreadNotifications = items
+                                      .where((n) => !n.isRead && !localReadIds.contains(n.id))
+                                      .toList(growable: false);
+                                  final updates = items
+                                      .where((n) => n.isRead || localReadIds.contains(n.id))
+                                      .toList(growable: false);
 
-                  final unreadNotifications = notifications
-                      .where((n) => !n.isRead && !localReadIds.contains(n.id))
-                      .toList(growable: false);
+                                  final entries = <_NotificationsListEntry>[
+                                    if (unreadNotifications.isNotEmpty) ...[
+                                      const _NotificationsListEntry.header('Unread'),
+                                      ...unreadNotifications.map(_NotificationsListEntry.unread),
+                                    ],
+                                    if (updates.isNotEmpty) ...[
+                                      const _NotificationsListEntry.header('Updates'),
+                                      ...updates.map(_NotificationsListEntry.update),
+                                    ],
+                                    const _NotificationsListEntry.bottomSpacer(),
+                                  ];
 
-                  final entries = <_NotificationsListEntry>[
-                    if (unreadNotifications.isNotEmpty) ...[
-                      const _NotificationsListEntry.header('Unread'),
-                      ...unreadNotifications
-                          .map(_NotificationsListEntry.unread),
-                    ],
-                    if (updates.isNotEmpty) ...[
-                      const _NotificationsListEntry.header('Updates'),
-                      ...updates.map(_NotificationsListEntry.update),
-                    ],
-                    const _NotificationsListEntry.bottomSpacer(),
-                  ];
-
-                  return CustomScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    slivers: [
-                      SliverPadding(
-                        padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 0),
-                        sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final entry = entries[index];
-                              if (entry.kind ==
-                                  _NotificationsListEntryKind.header) {
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _SectionTitle(entry.headerText ?? ''),
-                                    SizedBox(height: 10.h),
-                                  ],
-                                );
-                              }
-                              if (entry.kind ==
-                                  _NotificationsListEntryKind.bottomSpacer) {
-                                return SizedBox(height: 24.h);
-                              }
-
-                              final item = entry.item!;
-                              return Padding(
-                                padding: EdgeInsets.only(bottom: 12.h),
-                                child: RepaintBoundary(
-                                  child: _NotificationCard(
-                                    item: item,
-                                    onClose: () {
-                                      _handleNotificationClose(ref, item);
-                                      dismissedIds.value = {
-                                        ...dismissedIds.value,
-                                        item.id,
-                                      };
-                                    },
-                                    onPrimary: () => _handleNotificationTap(
-                                      context,
-                                      ref,
-                                      item,
-                                    ),
-                                    onSecondary: entry.kind ==
-                                            _NotificationsListEntryKind.unread
-                                        ? item.showRemindButton
-                                            ? () async {
-                                                if (remindingIds.value
-                                                    .contains(item.id)) {
-                                                  return;
-                                                }
-                                                remindingIds.value = {
-                                                  ...remindingIds.value,
-                                                  item.id,
-                                                };
-                                                final ok = await ref
-                                                    .read(
-                                                      notificationsRepositoryProvider,
-                                                    )
-                                                    .remindMeLater(item.id);
-                                                final updated =
-                                                    Set<String>.from(
-                                                  remindingIds.value,
-                                                )..remove(item.id);
-                                                remindingIds.value = updated;
-                                                if (ok) {
-                                                  AppSnackbar.show(
-                                                    'We will remind you later',
-                                                  );
-                                                  ref.invalidate(
-                                                    notificationsProvider,
-                                                  );
-                                                } else {
-                                                  AppSnackbar.show(
-                                                    'Failed to set reminder. Please try again.',
-                                                  );
-                                                }
+                                  return CustomScrollView(
+                                    physics: const AlwaysScrollableScrollPhysics(),
+                                    slivers: [
+                                      SliverPadding(
+                                        padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 0),
+                                        sliver: SliverList(
+                                          delegate: SliverChildBuilderDelegate(
+                                            (context, index) {
+                                              final entry = entries[index];
+                                              if (entry.kind == _NotificationsListEntryKind.header) {
+                                                return Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    _SectionTitle(entry.headerText ?? ''),
+                                                    SizedBox(height: 10.h),
+                                                  ],
+                                                );
                                               }
-                                            : null
-                                        : null,
-                                    secondaryLoading:
-                                        remindingIds.value.contains(item.id),
-                                    primaryLabel: _primaryLabelFor(item),
-                                    secondaryLabel: entry.kind ==
-                                                _NotificationsListEntryKind
-                                                    .unread &&
-                                            item.showRemindButton
-                                        ? 'Remind me Later'
-                                        : null,
-                                    isPrimaryFullWidth: entry.kind ==
-                                            _NotificationsListEntryKind.update
-                                        ? true
-                                        : !item.showRemindButton,
-                                  ),
-                                ),
-                              );
-                            },
-                            childCount: entries.length,
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
+                                              if (entry.kind ==
+                                                  _NotificationsListEntryKind.bottomSpacer) {
+                                                return SizedBox(height: 24.h);
+                                              }
+
+                                              final item = entry.item!;
+                                              return Padding(
+                                                padding: EdgeInsets.only(bottom: 12.h),
+                                                child: RepaintBoundary(
+                                                  child: _NotificationCard(
+                                                    item: item,
+                                                    onClose: () {
+                                                      _handleNotificationClose(ref, item);
+                                                      setState(() => _dismissedIds.add(item.id));
+                                                    },
+                                                    onPrimary: () => _handleNotificationTap(
+                                                      context,
+                                                      ref,
+                                                      item,
+                                                    ),
+                                                    onSecondary: entry.kind ==
+                                                            _NotificationsListEntryKind.unread
+                                                        ? item.showRemindButton
+                                                            ? () async {
+                                                                if (_remindingIds.contains(item.id)) {
+                                                                  return;
+                                                                }
+                                                                setState(() => _remindingIds.add(item.id));
+                                                                final ok = await ref
+                                                                    .read(notificationsRepositoryProvider)
+                                                                    .remindMeLater(item.id);
+                                                                if (mounted) {
+                                                                  setState(() => _remindingIds.remove(item.id));
+                                                                }
+                                                                if (ok) {
+                                                                  AppSnackbar.show(
+                                                                    'We will remind you later',
+                                                                  );
+                                                                  ref
+                                                                      .read(notificationsControllerProvider.notifier)
+                                                                      .fetchNotifications(force: true);
+                                                                } else {
+                                                                  AppSnackbar.show(
+                                                                    'Failed to set reminder. Please try again.',
+                                                                  );
+                                                                }
+                                                              }
+                                                            : null
+                                                        : null,
+                                                    secondaryLoading:
+                                                        _remindingIds.contains(item.id),
+                                                    primaryLabel: _primaryLabelFor(item),
+                                                    secondaryLabel: entry.kind ==
+                                                                    _NotificationsListEntryKind.unread &&
+                                                                item.showRemindButton
+                                                        ? 'Remind me Later'
+                                                        : null,
+                                                    isPrimaryFullWidth:
+                                                        entry.kind == _NotificationsListEntryKind.update
+                                                            ? true
+                                                            : !item.showRemindButton,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                            childCount: entries.length,
+                                          ),
+                                        ),
+                                      ),
+                                      SliverToBoxAdapter(
+                                        child: AnimatedSwitcher(
+                                          duration: const Duration(milliseconds: 200),
+                                          child: notificationsState.isFetchingMore
+                                              ? Padding(
+                                                  padding: EdgeInsets.only(bottom: 24.h),
+                                                  child: const Center(
+                                                    child: SpinKitCircle(
+                                                      color: AppColors.primary,
+                                                      size: 48,
+                                                    ),
+                                                  ),
+                                                )
+                                              : SizedBox(height: 24.h),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ),
             ),
           ),
         ],
@@ -610,31 +610,6 @@ class _NotificationCard extends StatelessWidget {
               ],
             ),
         ],
-      ),
-    );
-  }
-}
-
-class _CountBadge extends StatelessWidget {
-  const _CountBadge({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final display = count > 99 ? '99+' : '$count';
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-      decoration: BoxDecoration(
-        color: Colors.red.shade600,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        display,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-            ),
       ),
     );
   }

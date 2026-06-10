@@ -1,7 +1,6 @@
 // ignore_for_file: deprecated_member_use
 
 import 'dart:async';
-import 'dart:developer';
 import 'dart:ui';
 
 import 'package:app_links/app_links.dart';
@@ -15,10 +14,12 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:pinput/pinput.dart';
 import 'package:sms_autofill/sms_autofill.dart';
 
+import '../../../config/app_env.dart';
 import '../../../constants/app_colors.dart';
 import '../../../constants/file_constants.dart';
 import '../../../constants/routes_constant.dart';
 import '../../../constants/storage_keys.dart';
+import '../../../services/logger_service.dart';
 import '../../../services/phone_hint_service.dart';
 import '../../../widgets/app_snackbar.dart';
 import '../../../widgets/grey_text_form_field.dart';
@@ -28,9 +29,6 @@ import '../components/phone_number_input_card.dart';
 import '../controllers/auth_controller.dart';
 import '../models/auth_flow.dart';
 import 'reset_mpin_view.dart';
-import '../../home/controllers/home_controller.dart';
-import '../../profile/controllers/profile_controller.dart';
-import '../../spinandear/controllers/spin_options_controller.dart';
 
 enum _LoginStep {
   mobile,
@@ -38,8 +36,17 @@ enum _LoginStep {
   otp,
 }
 
+void _debugLog(String message) {
+  if (!AppEnv.enableLogs) return;
+  debugPrint(message);
+}
+
 class LoginView extends HookConsumerWidget {
   const LoginView({super.key});
+
+  static const int _otpLength = 4;
+  static const String _genericErrorMessage =
+      'Something went wrong. Please try again.';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -54,11 +61,11 @@ class LoginView extends HookConsumerWidget {
     final pinFocusNode = useFocusNode();
 
     final otpControllers = useMemoized(
-      () => List.generate(6, (_) => TextEditingController()),
+      () => List.generate(_otpLength, (_) => TextEditingController()),
       const [],
     );
-    final otpFocusNodes =
-        useMemoized(() => List.generate(6, (_) => FocusNode()), const []);
+    final otpFocusNodes = useMemoized(
+        () => List.generate(_otpLength, (_) => FocusNode()), const []);
     final otpErrorText = useState<String?>(null);
     final remainingSeconds = useState(0);
     final timerRef = useRef<Timer?>(null);
@@ -91,7 +98,9 @@ class LoginView extends HookConsumerWidget {
         try {
           final initialUri = await AppLinks().getInitialLink();
           await handleIncomingUri(initialUri);
-        } catch (_) {}
+        } catch (e, stackTrace) {
+          logger.error('Failed to resolve initial referral deep link', error: e, stackTrace: stackTrace);
+        }
       });
 
       final sub = AppLinks().uriLinkStream.listen(
@@ -186,10 +195,7 @@ class LoginView extends HookConsumerWidget {
           .read(authControllerProvider.notifier)
           .checkLogin(mobile: phone);
       if (flow == null) {
-        final latestState = ref.read(authControllerProvider);
-        AppSnackbar.show(
-          latestState.errorMessage ?? 'Failed to continue. Please try again.',
-        );
+        AppSnackbar.show(_genericErrorMessage);
         return;
       }
       if (flow == AuthFlow.login) {
@@ -217,26 +223,10 @@ class LoginView extends HookConsumerWidget {
           .login(mobile: phone, pin: pin);
       if (success) {
         if (context.mounted) {
-          // Prefetch so Home renders even if it stays mounted behind login.
-          Future.microtask(() {
-            ref
-                .read(homeControllerProvider.notifier)
-                .fetchQuickActionsIfNeeded(force: true);
-            ref
-                .read(homeControllerProvider.notifier)
-                .fetchAllQuickActionsIfNeeded(force: true);
-            ref
-                .read(profileControllerProvider.notifier)
-                .fetchProfileIfNeeded(force: true);
-            ref.read(spinOptionsControllerProvider.notifier).fetchSpinOptions();
-          });
           context.go(RouteConstants.home);
         }
       } else {
-        final latestState = ref.read(authControllerProvider);
-        AppSnackbar.show(
-          latestState.errorMessage ?? 'Login failed. Please try again.',
-        );
+        AppSnackbar.show(_genericErrorMessage);
         pinController.clear();
         pinFocusNode.requestFocus();
       }
@@ -245,7 +235,7 @@ class LoginView extends HookConsumerWidget {
     Future<void> handleOtpVerify() async {
       final otp = otpControllers.map((c) => c.text).join();
       if (otp.length < otpControllers.length) {
-        otpErrorText.value = 'Please enter the 6-digit OTP.';
+        otpErrorText.value = 'Please enter the $_otpLength-digit OTP.';
         return;
       }
       otpErrorText.value = null;
@@ -270,7 +260,9 @@ class LoginView extends HookConsumerWidget {
         if (isDisposed) return;
         final digits = code.replaceAll(RegExp(r'\D'), '');
         if (digits.isEmpty) return;
-        final trimmed = digits.length > 6 ? digits.substring(0, 6) : digits;
+        final trimmed = digits.length > _otpLength
+            ? digits.substring(0, _otpLength)
+            : digits;
         for (var i = 0; i < otpControllers.length; i++) {
           otpControllers[i].text = i < trimmed.length ? trimmed[i] : '';
         }
@@ -284,13 +276,16 @@ class LoginView extends HookConsumerWidget {
       () async {
         try {
           final signature = await autoFill.getAppSignature;
-          log(
+          _debugLog(
             'SMS Retriever app signature: ${signature.isEmpty ? "<empty>" : signature}',
-            name: 'LoginView',
           );
-          await autoFill.listenForCode(smsCodeRegexPattern: r'\d{6}');
-          log('listenForCode started', name: 'LoginView');
-        } catch (_) {}
+          await autoFill.listenForCode(
+            smsCodeRegexPattern: '\\d{$_otpLength}',
+          );
+          _debugLog('listenForCode started');
+        } catch (e, stackTrace) {
+          logger.error('Failed to start OTP autofill listener in login view', error: e, stackTrace: stackTrace);
+        }
       }();
 
       return () {
@@ -315,10 +310,7 @@ class LoginView extends HookConsumerWidget {
         startOtpTimer();
         AppSnackbar.show('OTP resent to $mobile');
       } else {
-        final latestState = ref.read(authControllerProvider);
-        AppSnackbar.show(
-          latestState.errorMessage ?? 'Failed to resend OTP. Please try again.',
-        );
+        AppSnackbar.show(_genericErrorMessage);
       }
     }
 
@@ -457,9 +449,10 @@ class LoginView extends HookConsumerWidget {
                 onPressed: authState.isSubmitting
                     ? null
                     : () {
+                        final mobile = phoneController.text.trim();
                         Navigator.of(context).push(
                           MaterialPageRoute<void>(
-                            builder: (_) => const ResetMpinView(),
+                            builder: (_) => ResetMpinView(mobile: mobile),
                           ),
                         );
                       },

@@ -46,6 +46,11 @@ class RouteConstants {
   static const String quickActions = '/quick-actions';
   static const String offers = '/offers';
   static const String settings = '/settings';
+  static const String preferences = '/preferences';
+  static const String security = '/security';
+  static const String profilePermissions = '/profile-permissions';
+  static const String locationAccess = '/location-access';
+  static const String biometricScreenLock = '/biometric-screen-lock';
   static const String referral = '/referral';
   static const String referAndEarn = '/refer-and-earn';
   static const String referAndEarnWallet = '/refer-and-earn/wallet';

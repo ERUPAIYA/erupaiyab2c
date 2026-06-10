@@ -1,9 +1,14 @@
-import 'dart:developer' as developer;
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../constants/storage_keys.dart';
+import '../config/app_env.dart';
+
+void _debugLog(String message) {
+  if (!AppEnv.enableLogs) return;
+  debugPrint(message);
+}
 
 class LocationAccessService {
   LocationAccessService._();
@@ -44,18 +49,12 @@ class LocationAccessService {
     if (status.isGranted) return true;
 
     if (status.isPermanentlyDenied || status.isRestricted) {
-      developer.log(
-        'Location permission is permanently denied/restricted',
-        name: 'LocationAccessService',
-      );
+      _debugLog('Location permission is permanently denied/restricted');
       return false;
     }
 
     final result = await Permission.locationWhenInUse.request();
-    developer.log(
-      'Location permission request result: $result',
-      name: 'LocationAccessService',
-    );
+    _debugLog('Location permission request result: $result');
     return result.isGranted;
   }
 
@@ -64,4 +63,3 @@ class LocationAccessService {
     await setEnabledPreference(false);
   }
 }
-

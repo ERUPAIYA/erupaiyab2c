@@ -112,6 +112,7 @@ class MobilePrepaidView extends HookConsumerWidget {
     );
     final planSearchController =
         useTextEditingController(text: state.planSearchQuery);
+    final planSearchDebounceRef = useRef<Timer?>(null);
 
     final showPlans = state.mobile.isNotEmpty || state.operatorInfo != null;
     final quickActionHandled = useRef(false);
@@ -147,6 +148,7 @@ class MobilePrepaidView extends HookConsumerWidget {
 
     useEffect(() {
       return () {
+        planSearchDebounceRef.value?.cancel();
         controller.reset();
       };
     }, const []);
@@ -326,6 +328,9 @@ class MobilePrepaidView extends HookConsumerWidget {
     useEffect(() {
       if (planSearchController.text != state.planSearchQuery) {
         planSearchController.text = state.planSearchQuery;
+        planSearchController.selection = TextSelection.collapsed(
+          offset: planSearchController.text.length,
+        );
       }
       return null;
     }, [state.planSearchQuery]);
@@ -520,6 +525,32 @@ class MobilePrepaidView extends HookConsumerWidget {
                             state: state,
                             controller: controller,
                             planSearchController: planSearchController,
+                            onPlanSearchChanged: (value) {
+                              controller.updatePlanSearch(value);
+                              planSearchDebounceRef.value?.cancel();
+                              final info = state.operatorInfo;
+                              if (info == null || state.mobile.isEmpty) return;
+                              planSearchDebounceRef.value = Timer(
+                                const Duration(milliseconds: 350),
+                                () async {
+                                  await controller.fetchPlansForSelection(
+                                    mobileInput: state.mobile,
+                                    operatorName: info.operatorName,
+                                    circleName: info.circle,
+                                    circleCode: info.circleCode,
+                                    iconUrl: info.iconUrl,
+                                    search: value,
+                                    filters: state.appliedFilters
+                                        .where(
+                                          (e) =>
+                                              e.trim().isNotEmpty &&
+                                              e.trim() != 'All',
+                                        )
+                                        .toList(),
+                                  );
+                                },
+                              );
+                            },
                           )
                         : _ContactsSection(
                             hasContactsPermission: hasPermission.value,
@@ -826,45 +857,6 @@ class _BannerShimmer extends StatelessWidget {
         height: double.infinity,
         color: Colors.white,
       ),
-    );
-  }
-}
-
-class _MobilePrepaidSearchRow extends StatelessWidget {
-  const _MobilePrepaidSearchRow({
-    required this.controller,
-    required this.onQueryChange,
-    required this.onContactsTap,
-  });
-
-  final TextEditingController controller;
-  final ValueChanged<String> onQueryChange;
-  final VoidCallback onContactsTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: SearchTextfield(
-            hintText: 'Search by number or name',
-            controller: controller,
-            onChange: onQueryChange,
-          ),
-        ),
-        const SizedBox(width: 12),
-        InkWell(
-          onTap: onContactsTap,
-          borderRadius: BorderRadius.circular(14),
-          child: Center(
-            child: Image.asset(
-              FileConstants.contactLogo,
-              width: 30,
-              height: 30,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1539,11 +1531,13 @@ class _PlanSection extends StatelessWidget {
     required this.state,
     required this.controller,
     required this.planSearchController,
+    required this.onPlanSearchChanged,
   });
 
   final MobilePrepaidState state;
   final MobilePrepaidController controller;
   final TextEditingController planSearchController;
+  final ValueChanged<String> onPlanSearchChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1606,7 +1600,7 @@ class _PlanSection extends StatelessWidget {
           child: SearchTextfield(
             hintText: 'Search a plan, eg 299, 5g, etc.',
             controller: planSearchController,
-            onChange: controller.updatePlanSearch,
+            onChange: onPlanSearchChanged,
           ),
         ),
 
@@ -1648,6 +1642,7 @@ class _PlanSection extends StatelessWidget {
                             circleName: info.circle,
                             circleCode: info.circleCode,
                             iconUrl: info.iconUrl,
+                            search: state.planSearchQuery,
                             filters: selected,
                           );
                         },
@@ -1689,6 +1684,7 @@ class _PlanSection extends StatelessWidget {
                         circleName: info.circle,
                         circleCode: info.circleCode,
                         iconUrl: info.iconUrl,
+                        search: state.planSearchQuery,
                         filters: const [],
                       );
                     },
@@ -1739,6 +1735,7 @@ class _PlanSection extends StatelessWidget {
                       circleName: info.circle,
                       circleCode: info.circleCode,
                       iconUrl: info.iconUrl,
+                      search: state.planSearchQuery,
                       filters: [label],
                     );
                   },
@@ -1792,7 +1789,7 @@ class _PlanSection extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           child: Builder(
             builder: (context) {
-              if (state.isFetching) {
+              if (state.isFetching && state.currentPlans.isEmpty) {
                 return const Center(
                   child: SpinKitCircle(
                     color: AppColors.primary,
@@ -1800,11 +1797,11 @@ class _PlanSection extends StatelessWidget {
                   ),
                 );
               }
-              if (state.filteredPlans.isEmpty) {
+              if (state.visiblePlans.isEmpty) {
                 return _EmptyPlansState(query: state.planSearchQuery);
               }
               return _PlanList(
-                plans: state.filteredPlans,
+                plans: state.visiblePlans,
                 selectedPlan: state.selectedPlan,
                 onSelect: controller.selectPlan,
                 onPayNow: (plan) => KDialog.instance.openSheet(
