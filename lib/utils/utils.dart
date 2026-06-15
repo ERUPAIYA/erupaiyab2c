@@ -13,6 +13,11 @@ class Utils {
     return secureStorage.read(key: 'accessToken');
   }
 
+  static Future<String?> getTemporaryAccessToken() {
+    const FlutterSecureStorage secureStorage = FlutterSecureStorage();
+    return secureStorage.read(key: 'tempAccessToken');
+  }
+
   static Future<String?> getTokenType() {
     const FlutterSecureStorage secureStorage = FlutterSecureStorage();
     return secureStorage.read(key: 'tokenType');

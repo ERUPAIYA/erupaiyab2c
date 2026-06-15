@@ -53,6 +53,26 @@ class EducationFeesRepository {
     return _service.fetchCardList();
   }
 
+  Future<EducationCreateOrderResponse> createOrder({
+    required String recipientName,
+    required String accountNo,
+    required String ifsc,
+    required double amount,
+  }) {
+    return _service.createOrder(
+      recipientName: recipientName,
+      accountNo: accountNo,
+      ifsc: ifsc,
+      amount: amount,
+    );
+  }
+
+  Future<EducationPaymentStatusResponse> fetchPaymentStatus({
+    required String transactionRefId,
+  }) {
+    return _service.fetchPaymentStatus(transactionRefId: transactionRefId);
+  }
+
   Future<EducationBeneficiariesResponse> fetchBeneficiaries() {
     return _service.fetchBeneficiaries();
   }

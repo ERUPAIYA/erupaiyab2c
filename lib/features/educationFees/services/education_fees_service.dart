@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../../../constants/api_constants.dart';
 import '../../../services/dio_service.dart';
 import '../../../services/logger_service.dart';
+import '../../../services/payment_device_context_service.dart';
 import '../models/education_fees_responses.dart';
 
 class EducationFeesService {
@@ -146,6 +147,59 @@ class EducationFeesService {
         }
       }
       logger.error('Failed to fetch card list: $e', error: e);
+      rethrow;
+    }
+  }
+
+  Future<EducationCreateOrderResponse> createOrder({
+    required String recipientName,
+    required String accountNo,
+    required String ifsc,
+    required double amount,
+  }) async {
+    try {
+      final deviceContext = await const PaymentDeviceContextService().collect();
+      final response = await _dio.post(
+        ApiConstants.educationCreateOrderEndpoint,
+        data: {
+          'recipient_name': recipientName,
+          'account_no': accountNo,
+          'ifsc': ifsc,
+          'amount': double.parse(amount.toStringAsFixed(2)),
+          ...deviceContext,
+        },
+      );
+      final payload = response.data as Map<String, dynamic>? ?? {};
+      return EducationCreateOrderResponse.fromJson(payload);
+    } catch (e) {
+      if (e is DioException) {
+        final data = e.response?.data;
+        if (data is Map<String, dynamic>) {
+          return EducationCreateOrderResponse.fromJson(data);
+        }
+      }
+      logger.error('Failed to create education order: $e', error: e);
+      rethrow;
+    }
+  }
+
+  Future<EducationPaymentStatusResponse> fetchPaymentStatus({
+    required String transactionRefId,
+  }) async {
+    try {
+      final response = await _dio.get(
+        ApiConstants.educationStatusEndpoint(transactionRefId),
+      );
+      final payload = response.data as Map<String, dynamic>? ?? {};
+      return EducationPaymentStatusResponse.fromJson(payload);
+    } catch (e) {
+      if (e is DioException) {
+        final data = e.response?.data;
+        if (data is Map<String, dynamic>) {
+          return EducationPaymentStatusResponse.fromJson(data);
+        }
+      }
+      logger.error('Failed to fetch education payment status: $e', error: e);
       rethrow;
     }
   }

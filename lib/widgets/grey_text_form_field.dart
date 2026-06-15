@@ -19,6 +19,8 @@ class GreyTextFormField extends StatelessWidget {
     this.contentPadding,
     this.prefixIcon,
     this.centerText = true,
+    this.maxLength,
+    this.inputFormatters,
   });
 
   final TextEditingController controller;
@@ -31,6 +33,8 @@ class GreyTextFormField extends StatelessWidget {
   final EdgeInsets? contentPadding;
   final Widget? prefixIcon;
   final bool centerText;
+  final int? maxLength;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -68,13 +72,14 @@ class GreyTextFormField extends StatelessWidget {
         enabled: enabled,
         controller: controller,
         keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-        maxLength: isNumber ? 10 : null,
-        inputFormatters: isNumber
-            ? [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(10),
-              ]
-            : null,
+        maxLength: maxLength ?? (isNumber ? 10 : null),
+        inputFormatters: inputFormatters ??
+            (isNumber
+                ? [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(maxLength ?? 10),
+                  ]
+                : null),
         textAlign: shouldCenter ? TextAlign.center : TextAlign.left,
         textAlignVertical: TextAlignVertical.center,
         cursorHeight: fontSize + 2,

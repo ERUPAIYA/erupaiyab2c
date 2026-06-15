@@ -15,6 +15,11 @@ class ProfileModel {
     this.normalSpinRemaining = 0,
     this.isPushNotification = true,
     this.isRazorpayDisabled = false,
+    this.accountStatus = ProfileAccountStatus.active,
+    this.blockedReason,
+    this.blockedAt,
+    this.kycStatus = ProfileKycStatus.pending,
+    this.isKycStep1Completed = false,
     this.aadhaarMasked,
     this.panMasked,
     this.panNo,
@@ -66,6 +71,8 @@ class ProfileModel {
       addresses: parsedAddresses,
       isVerified: json['is_verified'] == '1',
       isKycVerified: _parseBool(json['is_kyc_verified']),
+      kycStatus: _parseKycStatus(json['kyc_status']),
+      isKycStep1Completed: _parseBool(json['is_kyc_step1_completed']),
       isEmailVerified: json['is_email_verified'] == 'VERIFIED',
       walletBalance:
           double.tryParse(json['wallet_balance']?.toString() ?? '') ?? 0.0,
@@ -75,6 +82,9 @@ class ProfileModel {
           int.tryParse(json['normal_spin_remaining']?.toString() ?? '') ?? 0,
       isPushNotification: _parseBool(json['is_push_notification']),
       isRazorpayDisabled: _parseBool(json['is_razorpay_disable']),
+      accountStatus: _parseAccountStatus(json['account_status']),
+      blockedReason: json['blocked_reason'] as String?,
+      blockedAt: json['blocked_at'] as String?,
       aadhaarMasked: json['aadhaar_masked'] as String?,
       panMasked: json['pan_masked'] as String?,
       panNo: json['pan_no'] as String?,
@@ -102,6 +112,11 @@ class ProfileModel {
   final int normalSpinRemaining;
   final bool isPushNotification;
   final bool isRazorpayDisabled;
+  final ProfileAccountStatus accountStatus;
+  final String? blockedReason;
+  final String? blockedAt;
+  final ProfileKycStatus kycStatus;
+  final bool isKycStep1Completed;
   final String? aadhaarMasked;
   final String? panMasked;
   final String? panNo;
@@ -147,7 +162,39 @@ class ProfileModel {
     final text = value?.toString().trim().toLowerCase();
     return text == '1' || text == 'true' || text == 'verified' || text == 'yes';
   }
+
+  static ProfileKycStatus _parseKycStatus(dynamic value) {
+    final text = value?.toString().trim().toUpperCase() ?? '';
+    switch (text) {
+      case 'VERIFIED':
+        return ProfileKycStatus.verified;
+      case 'REJECTED':
+        return ProfileKycStatus.rejected;
+      case 'IN_PROGRESS':
+        return ProfileKycStatus.inProgress;
+      case 'PENDING':
+      default:
+        return ProfileKycStatus.pending;
+    }
+  }
+
+  static ProfileAccountStatus _parseAccountStatus(dynamic value) {
+    final text = value?.toString().trim().toUpperCase() ?? '';
+    switch (text) {
+      case 'BLOCKED':
+      case 'TEMP_BLOCKED':
+      case 'TEMPORARY_BLOCKED':
+        return ProfileAccountStatus.blocked;
+      case 'ACTIVE':
+      default:
+        return ProfileAccountStatus.active;
+    }
+  }
 }
+
+enum ProfileKycStatus { pending, verified, rejected, inProgress }
+
+enum ProfileAccountStatus { active, blocked }
 
 class BillingAddress {
   const BillingAddress({

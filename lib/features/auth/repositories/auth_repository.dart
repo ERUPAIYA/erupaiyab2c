@@ -2,10 +2,12 @@ import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../../constants/api_constants.dart';
+import '../../../constants/storage_keys.dart';
 import '../../../services/dio_service.dart';
 import '../../../services/logger_service.dart';
 import '../../../services/login_device_context_service.dart';
 import '../../../services/push_notification_service.dart';
+import '../models/auth_login_result.dart';
 import '../models/auth_flow.dart';
 
 class AuthRepository {
@@ -73,14 +75,18 @@ class AuthRepository {
       }
 
       final data = payload?['data'] as Map<String, dynamic>? ?? {};
-      final userId = data['user_id'] ?? data['id'];
-      if (userId == null) {
+      final flowValue = payload?['flow'] ?? data['flow'];
+      final flow = authFlowFromApi(flowValue);
+      if (flow == null) {
         throw Exception('Invalid response');
       }
 
-      await _secureStorage.write(key: 'userId', value: userId.toString());
-      final flowValue = payload?['flow'] ?? data['flow'];
-      return authFlowFromApi(flowValue) ?? AuthFlow.register;
+      final userId = data['user_id'] ?? data['id'];
+      if (userId != null) {
+        await _secureStorage.write(key: 'userId', value: userId.toString());
+      }
+
+      return flow;
     } on DioException catch (e) {
       if (e.type == DioExceptionType.badResponse) {
         _throwApiMessage(e, fallback: 'Unable to continue');
@@ -119,6 +125,11 @@ class AuthRepository {
             payload?['message'] as String? ?? 'OTP verification failed';
         throw Exception(message);
       }
+      final data = payload?['data'] as Map<String, dynamic>? ?? {};
+      final userId = data['user_id'] ?? data['id'];
+      if (userId != null) {
+        await _secureStorage.write(key: 'userId', value: userId.toString());
+      }
     } catch (e) {
       logger.error(
         'OTP verification failed: ${e.toString()}',
@@ -129,14 +140,14 @@ class AuthRepository {
   }
 
   Future<String> setPin({
-    required String userId,
+    required String mobile,
     required String pin,
   }) async {
     try {
       final response = await _dio.post(
         ApiConstants.setPinEndpoint,
         data: {
-          'user_id': userId,
+          'mobile': mobile,
           'pin': pin,
         },
       );
@@ -158,7 +169,7 @@ class AuthRepository {
     }
   }
 
-  Future<void> login({
+  Future<AuthLoginResult> login({
     required String mobile,
     required String pin,
   }) async {
@@ -194,6 +205,27 @@ class AuthRepository {
       final success = payload?['success'] == true;
       if (!success) {
         final message = payload?['message'] as String? ?? 'Login failed';
+        final tempAccessToken =
+            (payload?['temp_access_token'] ?? '').toString().trim();
+        if (tempAccessToken.isNotEmpty &&
+            message.trim().toLowerCase() == 'account is suspected.') {
+          final rawKycStatus = payload?['kyc_status'];
+          final isKycVerified = rawKycStatus == 1 ||
+              rawKycStatus == true ||
+              rawKycStatus?.toString().trim() == '1' ||
+              rawKycStatus?.toString().trim().toLowerCase() == 'true';
+          await _clearPrimarySession();
+          await _secureStorage.write(
+            key: StorageKeys.tempAccessToken,
+            value: tempAccessToken,
+          );
+          await _secureStorage.write(key: 'mobile', value: mobile);
+          return AuthLoginResult.suspected(
+            tempAccessToken: tempAccessToken,
+            isKycVerified: isKycVerified,
+            message: message,
+          );
+        }
         throw Exception(message);
       }
 
@@ -229,6 +261,8 @@ class AuthRepository {
         await _secureStorage.write(key: 'userId', value: userId);
       }
       await _secureStorage.write(key: 'mobile', value: mobile);
+      await _secureStorage.delete(key: StorageKeys.tempAccessToken);
+      return const AuthLoginResult.success();
     } on DioException catch (e) {
       if (e.type == DioExceptionType.badResponse) {
         _throwApiMessage(e, fallback: 'Login failed');
@@ -245,6 +279,15 @@ class AuthRepository {
       );
       rethrow;
     }
+  }
+
+  Future<void> _clearPrimarySession() async {
+    await _secureStorage.delete(key: 'accessToken');
+    await _secureStorage.delete(key: 'refreshToken');
+    await _secureStorage.delete(key: 'tokenType');
+    await _secureStorage.delete(key: 'tokenExpiresAt');
+    await _secureStorage.delete(key: 'refreshTokenExpiresAt');
+    await _secureStorage.delete(key: 'userId');
   }
 
   Future<String> pinLock({
@@ -328,7 +371,7 @@ class AuthRepository {
   }
 
   Future<String> forgotPin({
-    required String userId,
+    required String mobile,
     required String otp,
     required String pin,
   }) async {
@@ -336,7 +379,7 @@ class AuthRepository {
       final response = await _dio.post(
         ApiConstants.forgotPinEndpoint,
         data: {
-          'user_id': userId,
+          'mobile': mobile,
           'otp': otp,
           'pin': pin,
         },
@@ -367,6 +410,114 @@ class AuthRepository {
     }
   }
 
+  Future<String> sendAccountRecoveryOtp() async {
+    try {
+      final response = await _dio.post(ApiConstants.accountRecoverySendOtpEndpoint);
+
+      final payload = response.data as Map<String, dynamic>?;
+      final success = payload?['success'] == true;
+      if (!success) {
+        final message =
+            payload?['message'] as String? ?? 'Failed to send OTP';
+        throw Exception(message);
+      }
+      return payload?['message'] as String? ?? 'OTP sent successfully';
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.badResponse) {
+        _throwApiMessage(e, fallback: 'Failed to send OTP');
+      }
+      logger.error(
+        'Account recovery send OTP failed: ${e.toString()}',
+        error: e,
+      );
+      rethrow;
+    } catch (e) {
+      logger.error(
+        'Account recovery send OTP failed: ${e.toString()}',
+        error: e,
+      );
+      rethrow;
+    }
+  }
+
+  Future<void> verifyAccountRecoveryOtp({
+    required String mobileOtp,
+    required String emailOtp,
+  }) async {
+    try {
+      final response = await _dio.post(
+        ApiConstants.accountRecoveryVerifyOtpEndpoint,
+        data: {
+          'mobile_otp': mobileOtp,
+          'email_otp': emailOtp,
+        },
+      );
+
+      final payload = response.data as Map<String, dynamic>?;
+      final success = payload?['success'] == true;
+      if (!success) {
+        final message =
+            payload?['message'] as String? ?? 'OTP verification failed';
+        throw Exception(message);
+      }
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.badResponse) {
+        _throwApiMessage(e, fallback: 'OTP verification failed');
+      }
+      logger.error(
+        'Account recovery verify OTP failed: ${e.toString()}',
+        error: e,
+      );
+      rethrow;
+    } catch (e) {
+      logger.error(
+        'Account recovery verify OTP failed: ${e.toString()}',
+        error: e,
+      );
+      rethrow;
+    }
+  }
+
+  Future<String> verifyAccountRecoveryKyc({
+    required String panNo,
+    required String aadhaar,
+  }) async {
+    try {
+      final response = await _dio.post(
+        ApiConstants.accountRecoveryVerifyKycEndpoint,
+        data: {
+          'pan_no': panNo,
+          'aadhaar': aadhaar,
+        },
+      );
+
+      final payload = response.data as Map<String, dynamic>?;
+      final success = payload?['success'] == true;
+      if (!success) {
+        final message =
+            payload?['message'] as String? ?? 'KYC verification failed';
+        throw Exception(message);
+      }
+      return payload?['message'] as String? ??
+          'Existing KYC verified successfully';
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.badResponse) {
+        _throwApiMessage(e, fallback: 'KYC verification failed');
+      }
+      logger.error(
+        'Account recovery verify KYC failed: ${e.toString()}',
+        error: e,
+      );
+      rethrow;
+    } catch (e) {
+      logger.error(
+        'Account recovery verify KYC failed: ${e.toString()}',
+        error: e,
+      );
+      rethrow;
+    }
+  }
+
   Future<void> logout() async {
     try {
       final refreshToken = await _secureStorage.read(key: 'refreshToken');
@@ -385,7 +536,13 @@ class AuthRepository {
       await _secureStorage.delete(key: 'tokenExpiresAt');
       await _secureStorage.delete(key: 'userId');
       await _secureStorage.delete(key: 'mobile');
+      await _secureStorage.delete(key: StorageKeys.tempAccessToken);
     }
+  }
+
+  Future<bool> hasTemporaryAccess() async {
+    final token = await _secureStorage.read(key: StorageKeys.tempAccessToken);
+    return token != null && token.trim().isNotEmpty;
   }
 
   Future<bool> refreshSession() async {

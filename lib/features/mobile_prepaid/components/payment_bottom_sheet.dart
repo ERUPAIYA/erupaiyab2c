@@ -521,6 +521,14 @@ class PaymentBottomSheet extends ConsumerStatefulWidget {
 class _PaymentBottomSheetState extends ConsumerState<PaymentBottomSheet> {
   bool _useECoins = false;
 
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(
+      () => ref.read(profileControllerProvider.notifier).fetchProfileIfNeeded(),
+    );
+  }
+
   double _availableECoins() {
     final balance =
         ref.watch(profileControllerProvider).profile?.walletBalance ?? 0;
@@ -677,7 +685,7 @@ class _PaymentBottomSheetState extends ConsumerState<PaymentBottomSheet> {
     required String keyOverride,
     required String transactionRef,
   }) async {
-    if (!RazorpayGuard.ensureNotPaused(ref)) return;
+    if (!await RazorpayGuard.ensureProfileReadyAndNotPaused(ref)) return;
     await RazorpayService.instance.openCheckout(
       amount: amount,
       name: billerName,
@@ -904,6 +912,14 @@ class _PrepaidPaymentBottomSheetState
     extends ConsumerState<PrepaidPaymentBottomSheet> {
   bool _useECoins = false;
 
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(
+      () => ref.read(profileControllerProvider.notifier).fetchProfileIfNeeded(),
+    );
+  }
+
   double _restrictionPercent() {
     final raw = widget.ecoinsRestrictionsPercent;
     if (raw == null || raw.isNaN || raw.isInfinite) return 5;
@@ -1001,7 +1017,7 @@ class _PrepaidPaymentBottomSheetState
     required String transactionRef,
     Map<String, String>? prefill,
   }) async {
-    if (!RazorpayGuard.ensureNotPaused(ref)) return;
+    if (!await RazorpayGuard.ensureProfileReadyAndNotPaused(ref)) return;
     await RazorpayService.instance.openCheckout(
       amount: amount,
       name: billerName,

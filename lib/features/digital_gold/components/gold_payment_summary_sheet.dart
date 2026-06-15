@@ -67,6 +67,9 @@ class GoldPaymentSummarySheet extends HookConsumerWidget {
     }
 
     useEffect(() {
+      Future.microtask(
+        () => ref.read(profileControllerProvider.notifier).fetchProfileIfNeeded(),
+      );
       return () {
         debounce?.cancel();
       };
@@ -252,7 +255,11 @@ class GoldPaymentSummarySheet extends HookConsumerWidget {
                         return;
                       }
 
-                      if (!RazorpayGuard.ensureNotPaused(ref)) return;
+                      if (!await RazorpayGuard.ensureProfileReadyAndNotPaused(
+                        ref,
+                      )) {
+                        return;
+                      }
 
                       isSubmitting.value = true;
                       try {

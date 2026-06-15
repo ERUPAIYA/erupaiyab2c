@@ -1,5 +1,7 @@
 // ignore_for_file: deprecated_member_use
 
+import 'dart:async';
+
 import 'package:e_rupaiya/widgets/custom_elevated_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -15,10 +17,12 @@ import '../../../widgets/app_snackbar.dart';
 import '../../../widgets/k_dialog.dart';
 import '../../paymentgateway/razorpay_guard.dart';
 import '../../paymentgateway/razorpay_service.dart';
+import '../../profile/controllers/profile_controller.dart';
 import '../../profile/models/transaction_history_entry.dart';
 import '../components/education_payment_sheets.dart';
 import '../controllers/education_fees_controller.dart';
 import '../models/education_fees_responses.dart';
+import '../repositories/education_fees_repository.dart';
 
 class EducationFeesPaymentView extends HookConsumerWidget {
   const EducationFeesPaymentView({super.key});
@@ -27,6 +31,12 @@ class EducationFeesPaymentView extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(educationFeesControllerProvider);
     final repository = ref.read(educationFeesRepositoryProvider);
+    useEffect(() {
+      Future.microtask(
+        () => ref.read(profileControllerProvider.notifier).fetchProfileIfNeeded(),
+      );
+      return null;
+    }, const []);
     final amount = _parseAmount(state.amountInput);
     final selectedCard = useState<EducationCard?>(null);
     final cardsAsync = useMemoized(
@@ -42,21 +52,71 @@ class EducationFeesPaymentView extends HookConsumerWidget {
         dialog: EducationPaymentSummarySheet(
           amount: amount,
           onPayNow: (payable) async {
-            if (!RazorpayGuard.ensureNotPaused(ref)) return;
+            if (!await RazorpayGuard.ensureProfileReadyAndNotPaused(ref)) {
+              return;
+            }
+            final card = selectedCard.value;
+            EducationCreateOrderResponse order;
+            try {
+              order = await repository.createOrder(
+                recipientName: state.recipientName,
+                accountNo: state.accountNumber,
+                ifsc: state.ifsc,
+                amount: payable,
+              );
+            } catch (e) {
+              AppSnackbar.show(
+                'Failed to create order. Please try again.',
+                backgroundColor: Colors.red,
+                textColor: Colors.white,
+              );
+              return;
+            }
+
+            if (!order.status ||
+                order.orderId.isEmpty ||
+                order.key.isEmpty) {
+              AppSnackbar.show(
+                order.message.isNotEmpty
+                    ? order.message
+                    : 'Failed to create order. Please try again.',
+                backgroundColor: Colors.red,
+                textColor: Colors.white,
+              );
+              return;
+            }
+
             await RazorpayService.instance.openCheckout(
-              amount: payable,
+              amount: order.amount > 0 ? order.amount : payable,
               name: state.recipientName.isEmpty
                   ? 'Education Fees'
                   : state.recipientName,
               description: 'Tuition fee payment',
+              orderId: order.orderId,
+              keyOverride: order.key,
               onSuccess: (paymentId) async {
-                final card = selectedCard.value;
+                final verified = await _verifyEducationPaymentStatus(
+                  repository: repository,
+                  transactionRefId: order.transactionRefId,
+                );
+                if (verified == null || !verified.isSuccess) {
+                  if (!context.mounted) return;
+                  AppSnackbar.show(
+                    (verified?.message.isNotEmpty ?? false)
+                        ? verified!.message
+                        : 'Unable to verify payment status. Please try again.',
+                    backgroundColor: Colors.red,
+                    textColor: Colors.white,
+                  );
+                  return;
+                }
+
                 try {
                   await repository.reportPaymentSuccess(
                     recipientName: state.recipientName,
                     accountNo: state.accountNumber,
                     ifsc: state.ifsc,
-                    amount: payable,
+                    amount: order.amount > 0 ? order.amount : payable,
                     paymentId: paymentId,
                     status: 'success',
                     cardToken: card?.cardToken ?? '',
@@ -65,20 +125,14 @@ class EducationFeesPaymentView extends HookConsumerWidget {
                     expiryMonth: card?.expiryMonth ?? '',
                     expiryYear: card?.expiryYear ?? '',
                   );
-                } catch (e) {
-                  AppSnackbar.show(
-                    e.toString(),
-                    backgroundColor: Colors.red,
-                    textColor: Colors.white,
-                  );
-                }
+                } catch (_) {}
                 if (context.mounted) {
                   context.push(
                     RouteConstants.transactionDetail,
                     extra: _buildEducationSuccessEntry(
                       recipientName: state.recipientName,
                       maskedAccount: _maskAccount(state.accountNumber),
-                      amount: payable,
+                      amount: order.amount > 0 ? order.amount : payable,
                       paymentId: paymentId,
                     ),
                   );
@@ -182,6 +236,25 @@ class EducationFeesPaymentView extends HookConsumerWidget {
       ),
     );
   }
+}
+
+Future<EducationPaymentStatusResponse?> _verifyEducationPaymentStatus({
+  required EducationFeesRepository repository,
+  required String transactionRefId,
+}) async {
+  if (transactionRefId.trim().isEmpty) return null;
+  var latest =
+      await repository.fetchPaymentStatus(transactionRefId: transactionRefId);
+  if (latest.isSuccess || latest.isFailed) return latest;
+
+  const pollInterval = Duration(seconds: 2);
+  for (var attempt = 0; attempt < 2; attempt++) {
+    await Future.delayed(pollInterval);
+    latest =
+        await repository.fetchPaymentStatus(transactionRefId: transactionRefId);
+    if (latest.isSuccess || latest.isFailed) return latest;
+  }
+  return latest;
 }
 
 class _PayingToCard extends StatelessWidget {
@@ -330,7 +403,6 @@ class _CardListSection extends StatelessWidget {
         ),
       );
     }
-    final card = selectedCard.value ?? cards.first;
     if (selectedCard.value == null) {
       selectedCard.value = cards.first;
     }

@@ -92,6 +92,12 @@ class BillerDetailView extends HookConsumerWidget {
     final pipedGasErrorMessage = useState<String?>(null);
     final creditCardErrorMessage = useState<String?>(null);
     final didAutoFetchBill = useRef(false);
+    useEffect(() {
+      Future.microtask(
+        () => ref.read(profileControllerProvider.notifier).fetchProfileIfNeeded(),
+      );
+      return null;
+    }, const []);
     final isSubscription = _isSubscriptionFlow(
       paymentType: args?.paymentType,
       detailCategory: detail?.billerCategoryName,
@@ -604,7 +610,7 @@ class BillerDetailView extends HookConsumerWidget {
                               final errorText =
                                   fieldErrors.value[param.paramName];
                               final label = isGasLockedMobile
-                                  ? 'Mobile Number'
+                                  ? 'Registered Mobile Number'
                                   : param.paramName;
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 16),
@@ -961,12 +967,13 @@ class BillerDetailView extends HookConsumerWidget {
                                               _resolveSubscriptionMobile(
                                             customerParamsInput,
                                           );
-                                          final name = (biller.billerName ?? '')
+                                          final name = biller.billerName
                                                   .trim()
                                                   .isNotEmpty
                                               ? biller.billerName.trim()
                                               : 'Subscription';
-                                          if (!RazorpayGuard.ensureNotPaused(
+                                          if (!await RazorpayGuard
+                                              .ensureProfileReadyAndNotPaused(
                                             ref,
                                           )) {
                                             return;

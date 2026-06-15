@@ -89,35 +89,45 @@ class _PinDigitField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: AppColors.lightBorder),
-      ),
-      child: Center(
-        child: TextField(
-          controller: controller,
-          focusNode: focusNode,
-          enabled: enabled,
-          textAlign: TextAlign.center,
-          keyboardType: TextInputType.number,
-          maxLength: 1,
-          decoration: const InputDecoration(
-            border: InputBorder.none,
-            counterText: '',
-            contentPadding: EdgeInsets.zero,
-            isDense: true,
+    return ListenableBuilder(
+      listenable: Listenable.merge([focusNode, controller]),
+      builder: (context, _) {
+        final hasValue = controller.text.trim().isNotEmpty;
+        final isFocused = focusNode.hasFocus;
+        final borderColor =
+            isFocused || hasValue ? AppColors.primary : AppColors.lightBorder;
+
+        return Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12.r),
+            border: Border.all(color: borderColor),
           ),
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w600,
+          child: Center(
+            child: TextField(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: enabled,
+              textAlign: TextAlign.center,
+              keyboardType: TextInputType.number,
+              maxLength: 1,
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                counterText: '',
+                contentPadding: EdgeInsets.zero,
+                isDense: true,
               ),
-          onChanged: onChanged,
-        ),
-      ),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+              onChanged: onChanged,
+            ),
+          ),
+        );
+      },
     );
   }
 }
