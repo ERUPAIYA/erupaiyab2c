@@ -2,6 +2,7 @@ import 'package:e_rupaiya/features/home/views/home_search_view.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
+import 'config/temporary_block_debug_config.dart';
 import 'constants/routes_constant.dart';
 import 'features/auth/controllers/auth_controller.dart';
 import 'features/auth/models/auth_state.dart';
@@ -10,6 +11,8 @@ import 'features/auth/views/otp_success_view.dart';
 import 'features/auth/views/otp_verification_view.dart';
 import 'features/auth/views/pin_setup_view.dart';
 import 'features/auth/views/splash_view.dart';
+import 'features/auth/views/temporary_block_identity_completion_view.dart';
+import 'features/auth/models/otp_verification_args.dart';
 import 'features/digital_gold/models/digital_gold_preview.dart';
 import 'features/digital_gold/models/digital_metal.dart';
 import 'features/digital_gold/models/digital_gold_purchase_receipt.dart';
@@ -92,6 +95,7 @@ final routerProvider = Provider<GoRouter>(
         if (authState.isLoading) return null;
 
         final isAuthenticated = authState.isAuthenticated;
+        final hasTemporaryAccess = authState.hasTemporaryAccess;
 
         // Auth screens that unauthenticated users may visit.
         const authRoutes = [
@@ -103,10 +107,29 @@ final routerProvider = Provider<GoRouter>(
         ];
         final isOnAuthRoute = authRoutes.contains(location);
         final isReferralRoute = location.startsWith(RouteConstants.referral);
+        const temporaryAccessRoutes = [
+          RouteConstants.login,
+          RouteConstants.temporaryBlockOtp,
+          RouteConstants.temporaryBlockIdentityCompletion,
+          RouteConstants.kycVerification,
+          RouteConstants.helpSupport,
+          RouteConstants.helpCenterChat,
+          RouteConstants.supportTickets,
+          RouteConstants.supportTicketDetail,
+        ];
+        final isOnTemporaryAccessRoute =
+            temporaryAccessRoutes.contains(location);
 
         // If authenticated and on an auth screen → send to home.
         if (isAuthenticated && isOnAuthRoute) {
           return RouteConstants.home;
+        }
+
+        if (!isAuthenticated && hasTemporaryAccess) {
+          if (isOnTemporaryAccessRoute || isOnAuthRoute || isReferralRoute) {
+            return null;
+          }
+          return RouteConstants.login;
         }
 
         // If not authenticated and on a protected screen → send to login.
@@ -139,13 +162,66 @@ final routerProvider = Provider<GoRouter>(
         ),
         GoRoute(
           path: RouteConstants.otp,
-          builder: (context, state) => OtpVerificationView(
-            phoneNumber: state.extra as String?,
-          ),
+          builder: (context, state) {
+            final extra = state.extra;
+            if (extra is OtpVerificationArgs) {
+              return OtpVerificationView(args: extra);
+            }
+            return OtpVerificationView(
+              args: OtpVerificationArgs(phoneNumber: extra as String?),
+            );
+          },
+        ),
+        GoRoute(
+          path: RouteConstants.temporaryBlockOtp,
+          builder: (context, state) {
+            final extra = state.extra;
+            if (extra is OtpVerificationArgs) {
+              return OtpVerificationView(args: extra);
+            }
+            final flow = state.uri.queryParameters['flow'];
+            final phone = state.uri.queryParameters['phone'];
+            if (flow != null && flow.isNotEmpty) {
+              final flowType = flow == 'noKyc'
+                  ? TemporaryBlockFlowType.noKyc
+                  : TemporaryBlockFlowType.kycVerified;
+              final successRoute = flowType == TemporaryBlockFlowType.noKyc
+                  ? RouteConstants.kycVerification
+                  : RouteConstants.temporaryBlockIdentityCompletion;
+              return OtpVerificationView(
+                args: OtpVerificationArgs(
+                  phoneNumber: phone,
+                  title: 'Verify Your Identity',
+                  heading: 'Verify Your Identity',
+                  description:
+                      'Enter the OTPs sent to your registered mobile number and email address to verify your identity.',
+                  primaryButtonLabel: 'Verify & Continue',
+                  successDialogTitle: 'Mobile and Email verified successfully',
+                  successDialogMessage:
+                      'This device has been successfully verified and added to your trusted devices. You can now access your account securely.',
+                  successButtonLabel: 'Complete KYC',
+                  successRoute: successRoute,
+                  successRouteExtra:
+                      successRoute == RouteConstants.kycVerification
+                          ? false
+                          : null,
+                  temporaryBlockFlowType: flowType,
+                ),
+              );
+            }
+            return OtpVerificationView(
+              args: OtpVerificationArgs(phoneNumber: extra as String?),
+            );
+          },
         ),
         GoRoute(
           path: RouteConstants.otpSuccess,
           builder: (context, state) => const OtpSuccessView(),
+        ),
+        GoRoute(
+          path: RouteConstants.temporaryBlockIdentityCompletion,
+          builder: (context, state) =>
+              const TemporaryBlockIdentityCompletionView(),
         ),
         GoRoute(
           path: RouteConstants.addPin,
@@ -163,7 +239,9 @@ final routerProvider = Provider<GoRouter>(
         ),
         GoRoute(
           path: RouteConstants.kycVerification,
-          builder: (context, state) => const KycVerificationView(),
+          builder: (context, state) => KycVerificationView(
+            startFromAadhaar: state.extra is bool ? state.extra as bool : false,
+          ),
         ),
         GoRoute(
           path: RouteConstants.panVerification,

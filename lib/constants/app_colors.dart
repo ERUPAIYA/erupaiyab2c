@@ -15,6 +15,7 @@ class AppColors {
   static const Color cardShadow = Color(0x1A000000);
   static const Color textPrimary = Color(0xFF3A1D12);
   static const Color white = Colors.white;
+  static const Color black = Colors.black;
   static const Color red = Colors.redAccent;
   static const Color green = Colors.green;
   static const Color lightBorder = Color(0xFFE4DFDA);

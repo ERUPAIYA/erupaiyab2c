@@ -18,6 +18,7 @@ import 'package:persistent_bottom_nav_bar/persistent_bottom_nav_bar.dart';
 import '../../../constants/app_colors.dart';
 import '../../../constants/file_constants.dart';
 import '../../../constants/routes_constant.dart';
+import '../../../config/temporary_block_debug_config.dart';
 import '../../../services/location_access_service.dart';
 import '../../../services/location_service.dart';
 import '../../../services/notification_badge_service.dart';
@@ -28,7 +29,10 @@ import '../../../widgets/complete_profile_dialog.dart';
 import '../../../widgets/custom_elevated_button.dart';
 import '../../../widgets/k_dialog.dart';
 import '../../auth/controllers/auth_controller.dart';
+import '../../auth/components/temporary_block_dialog.dart';
+import '../../auth/models/otp_verification_args.dart';
 import '../../connectivity/controllers/connectivity_controller.dart';
+import '../../profile/models/profile_model.dart';
 import '../../profile/controllers/profile_controller.dart';
 import '../../profile/views/offers_view.dart';
 import '../../profile/views/profile_view.dart';
@@ -1967,6 +1971,7 @@ class _HomeContent extends HookConsumerWidget {
     final bannerCacheWidth = (screenWidth * devicePixelRatio).round();
 
     final didShowCompleteProfile = useRef(false);
+    final didShowTemporaryBlock = useRef(false);
     // Track auth transitions across navigation; initialize to false so that if
     // Home is already mounted (behind login) we still refresh once on login.
     final wasAuthenticated = useRef<bool>(false);
@@ -2028,6 +2033,71 @@ class _HomeContent extends HookConsumerWidget {
       });
       return null;
     }, [homeState.isNameEmailExist, homeState.quickActions]);
+
+    final temporaryBlockFlow = _resolveTemporaryBlockFlow(profileState.profile);
+    useEffect(() {
+      if (temporaryBlockFlow == null || didShowTemporaryBlock.value) {
+        return null;
+      }
+      if (profileState.profile == null) {
+        return null;
+      }
+      didShowTemporaryBlock.value = true;
+      Future.microtask(() async {
+        if (!context.mounted) return;
+        await KDialog.instance.openDialog(
+          barrierDismissible: false,
+          dialog: TemporaryBlockDialog(
+            flowType: temporaryBlockFlow,
+            onSupportTap: () {
+              Navigator.of(context, rootNavigator: true).pop();
+              Future.microtask(() {
+                if (!context.mounted) return;
+                context.push(RouteConstants.helpSupport);
+              });
+            },
+            onPrimaryTap: () {
+              final profile = profileState.profile;
+              final successRoute = temporaryBlockFlow ==
+                      TemporaryBlockFlowType.noKyc
+                  ? RouteConstants.kycVerification
+                  : RouteConstants.temporaryBlockIdentityCompletion;
+              final flowQueryValue =
+                  temporaryBlockFlow == TemporaryBlockFlowType.noKyc
+                      ? 'noKyc'
+                      : 'kycVerified';
+              Navigator.of(context, rootNavigator: true).pop();
+              Future.microtask(() {
+                if (!context.mounted) return;
+                context.push(
+                  '${RouteConstants.temporaryBlockOtp}?flow=$flowQueryValue&phone=${profile?.mobile ?? ''}',
+                  extra: OtpVerificationArgs(
+                    phoneNumber: profile?.mobile,
+                    title: 'Verify Your Identity',
+                    heading: 'Verify Your Identity',
+                    description:
+                        'Enter the OTPs sent to your registered mobile number and email address to verify your identity.',
+                    primaryButtonLabel: 'Verify & Continue',
+                    successDialogTitle:
+                        'Mobile and Email verified successfully',
+                    successDialogMessage:
+                        'This device has been successfully verified and added to your trusted device list. You can now access your account securely.',
+                    successButtonLabel: 'Complete KYC',
+                    successRoute: successRoute,
+                    successRouteExtra:
+                        successRoute == RouteConstants.kycVerification
+                            ? false
+                            : null,
+                    temporaryBlockFlowType: temporaryBlockFlow,
+                  ),
+                );
+              });
+            },
+          ),
+        );
+      });
+      return null;
+    }, [temporaryBlockFlow, profileState.profile?.id]);
 
     final topBanners = homeState.banners?['top'] ?? [];
     final middleBanners = homeState.banners?['middle'] ?? [];
@@ -2799,6 +2869,13 @@ class _HomeContent extends HookConsumerWidget {
       ),
     );
   }
+}
+
+TemporaryBlockFlowType? _resolveTemporaryBlockFlow(ProfileModel? profile) {
+  if (TemporaryBlockDebugConfig.enabled) {
+    return TemporaryBlockDebugConfig.flowType;
+  }
+  return null;
 }
 
 class _HomeErrorState extends StatelessWidget {

@@ -160,6 +160,90 @@ class EducationPaymentSummaryResponse {
   final String? message;
 }
 
+class EducationCreateOrderResponse {
+  const EducationCreateOrderResponse({
+    required this.status,
+    required this.message,
+    required this.txnId,
+    required this.transactionRefId,
+    required this.orderId,
+    required this.amount,
+    required this.currency,
+    required this.key,
+  });
+
+  factory EducationCreateOrderResponse.fromJson(Map<String, dynamic> json) {
+    double toDouble(Object? value) {
+      if (value is num) return value.toDouble();
+      return double.tryParse(value?.toString() ?? '') ?? 0.0;
+    }
+
+    return EducationCreateOrderResponse(
+      status: json['status'] == true,
+      message: (json['message'] ?? '').toString(),
+      txnId: int.tryParse((json['txn_id'] ?? '').toString()) ?? 0,
+      transactionRefId: (json['transaction_ref_id'] ?? '').toString().trim(),
+      orderId: (json['order_id'] ?? '').toString().trim(),
+      amount: toDouble(json['amount']),
+      currency: (json['currency'] ?? 'INR').toString().trim(),
+      key: (json['key'] ?? '').toString().trim(),
+    );
+  }
+
+  final bool status;
+  final String message;
+  final int txnId;
+  final String transactionRefId;
+  final String orderId;
+  final double amount;
+  final String currency;
+  final String key;
+}
+
+class EducationPaymentStatusResponse {
+  const EducationPaymentStatusResponse({
+    required this.status,
+    required this.message,
+    required this.transactionId,
+    required this.paymentStatus,
+    required this.amount,
+    required this.updatedAt,
+  });
+
+  factory EducationPaymentStatusResponse.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    final data = json['data'];
+    final flattened = data is Map
+        ? <String, dynamic>{
+            ...json,
+            ...data.map((key, value) => MapEntry(key.toString(), value)),
+          }
+        : json;
+
+    return EducationPaymentStatusResponse(
+      status: json['status'] == true,
+      message: (json['message'] ?? '').toString().trim(),
+      transactionId: (flattened['transaction_id'] ?? '').toString().trim(),
+      paymentStatus: (flattened['status'] ?? '').toString().trim(),
+      amount: (flattened['amount'] ?? '').toString().trim(),
+      updatedAt: (flattened['updated_at'] ?? '').toString().trim(),
+    );
+  }
+
+  final bool status;
+  final String message;
+  final String transactionId;
+  final String paymentStatus;
+  final String amount;
+  final String updatedAt;
+
+  bool get isSuccess => paymentStatus.trim().toUpperCase() == 'SUCCESS';
+  bool get isPending => paymentStatus.trim().toUpperCase() == 'PENDING';
+  bool get isProcessing => paymentStatus.trim().toUpperCase() == 'PROCESSING';
+  bool get isFailed => paymentStatus.trim().toUpperCase() == 'FAILED';
+}
+
 class EducationCard {
   const EducationCard({
     required this.cardId,

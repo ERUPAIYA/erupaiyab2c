@@ -23,11 +23,13 @@ import '../../../services/logger_service.dart';
 import '../../../services/phone_hint_service.dart';
 import '../../../widgets/app_snackbar.dart';
 import '../../../widgets/grey_text_form_field.dart';
+import '../../profile/controllers/profile_controller.dart';
 import '../components/auth_brand_header.dart';
 import '../components/otp_verification_card.dart';
 import '../components/phone_number_input_card.dart';
 import '../controllers/auth_controller.dart';
 import '../models/auth_flow.dart';
+import '../utils/temporary_block_flow_launcher.dart';
 import 'reset_mpin_view.dart';
 
 enum _LoginStep {
@@ -218,15 +220,27 @@ class LoginView extends HookConsumerWidget {
         AppSnackbar.show('Please enter a 4-digit PIN');
         return;
       }
-      final success = await ref
+      final result = await ref
           .read(authControllerProvider.notifier)
           .login(mobile: phone, pin: pin);
-      if (success) {
+      if (result.isSuccess) {
+        await ref
+            .read(profileControllerProvider.notifier)
+            .fetchProfileIfNeeded(force: true);
         if (context.mounted) {
           context.go(RouteConstants.home);
         }
+      } else if (result.isSuspected) {
+        pinController.clear();
+        pinFocusNode.requestFocus();
+        if (!context.mounted) return;
+        await launchTemporaryBlockedFlow(
+          context: context,
+          phoneNumber: phone,
+          isKycVerified: result.isKycVerified == true,
+        );
       } else {
-        AppSnackbar.show(_genericErrorMessage);
+        AppSnackbar.show(result.message ?? _genericErrorMessage);
         pinController.clear();
         pinFocusNode.requestFocus();
       }

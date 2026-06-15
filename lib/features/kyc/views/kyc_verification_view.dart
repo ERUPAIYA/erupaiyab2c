@@ -21,14 +21,21 @@ import '../../refer_and_earn/views/add_bank_account_view.dart';
 import '../repositories/kyc_repository.dart';
 
 class KycVerificationView extends HookConsumerWidget {
-  const KycVerificationView({super.key});
+  const KycVerificationView({
+    super.key,
+    this.startFromAadhaar = false,
+  });
+
+  final bool startFromAadhaar;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repository = useMemoized(() => KycRepository());
     final deviceIdService = useMemoized(() => const DeviceIdService());
-    final step = useState(_KycStep.pan);
-    final panDone = useState(false);
+    final step = useState(
+      startFromAadhaar ? _KycStep.aadhaar : _KycStep.pan,
+    );
+    final panDone = useState(startFromAadhaar);
     final aadhaarDone = useState(false);
     final otpSent = useState(false);
 
@@ -49,16 +56,18 @@ class KycVerificationView extends HookConsumerWidget {
 
     final referenceId = useState('');
     final maskedAadhaar = useState('');
-    final timerSeconds = useState(59);
+    final timerSeconds = useState(0);
     final timerTick = useRef<Timer?>(null);
     final successDialogShown = useState(false);
 
     void startTimer() {
       timerTick.value?.cancel();
-      timerSeconds.value = 59;
+      timerSeconds.value = 60;
       timerTick.value = Timer.periodic(const Duration(seconds: 1), (timer) {
-        if (timerSeconds.value == 0) {
+        if (timerSeconds.value <= 1) {
+          timerSeconds.value = 0;
           timer.cancel();
+          timerTick.value = null;
           return;
         }
         timerSeconds.value -= 1;
@@ -76,6 +85,15 @@ class KycVerificationView extends HookConsumerWidget {
         }
       };
     }, const []);
+
+    useEffect(() {
+      if (!otpSent.value) {
+        timerTick.value?.cancel();
+        timerTick.value = null;
+        timerSeconds.value = 0;
+      }
+      return null;
+    }, [otpSent.value]);
 
     Future<void> verifyPan() async {
       final pan = panController.text.trim().toUpperCase();
@@ -309,6 +327,9 @@ class KycVerificationView extends HookConsumerWidget {
                       controller.clear();
                     }
                     otpSent.value = false;
+                    timerTick.value?.cancel();
+                    timerTick.value = null;
+                    timerSeconds.value = 0;
                   },
                   otpControllers: otpControllers,
                   otpFocusNodes: otpFocusNodes,

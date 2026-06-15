@@ -9,6 +9,7 @@ import 'package:e_rupaiya/widgets/k_dialog.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 
+import '../constants/storage_keys.dart';
 import '../config/app_env.dart';
 import '../widgets/app_snackbar.dart';
 
@@ -99,6 +100,7 @@ class DioInterceptors extends InterceptorsWrapper {
     await secureStorage.delete(key: 'refreshTokenExpiresAt');
     await secureStorage.delete(key: 'userId');
     await secureStorage.delete(key: 'mobile');
+    await secureStorage.delete(key: StorageKeys.tempAccessToken);
   }
 
   Future<bool> _refreshAccessToken() async {
@@ -212,10 +214,15 @@ class DioInterceptors extends InterceptorsWrapper {
     }
     if (!skipAuth) {
       final accessToken = await Utils.getAccessToken();
+      final tempAccessToken = await Utils.getTemporaryAccessToken();
       final tokenType = await Utils.getTokenType();
-      if (accessToken != null) {
+      final resolvedToken =
+          accessToken ?? ((tempAccessToken?.trim().isNotEmpty ?? false)
+              ? tempAccessToken
+              : null);
+      if (resolvedToken != null) {
         options.headers['Authorization'] =
-            '${tokenType ?? 'Bearer'} $accessToken';
+            '${tokenType ?? 'Bearer'} $resolvedToken';
       }
     }
 

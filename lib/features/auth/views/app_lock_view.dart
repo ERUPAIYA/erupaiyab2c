@@ -21,6 +21,7 @@ import '../../../constants/routes_constant.dart';
 import '../../../config/app_env.dart';
 import '../../../services/logger_service.dart';
 import '../../../widgets/app_snackbar.dart';
+import '../../profile/controllers/profile_controller.dart';
 import '../controllers/auth_controller.dart';
 
 void _debugLog(String message) {
@@ -139,6 +140,9 @@ class AppLockView extends HookConsumerWidget {
           );
       isUnlocking.value = false;
       if (success) {
+        await ref
+            .read(profileControllerProvider.notifier)
+            .fetchProfileIfNeeded(force: true);
         if (context.mounted) {
           Navigator.of(context).pop();
         }

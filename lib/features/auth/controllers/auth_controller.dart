@@ -6,6 +6,7 @@ import '../../../constants/storage_keys.dart';
 import '../../../services/logger_service.dart';
 import '../../../utils/utils.dart';
 import '../../refer_and_earn/repositories/referral_repository.dart';
+import '../models/auth_login_result.dart';
 import '../models/auth_flow.dart';
 import '../models/auth_state.dart';
 import '../repositories/auth_repository.dart';
@@ -85,8 +86,11 @@ class AuthController extends StateNotifier<AuthState> {
           return false;
         },
       );
+      final hasTemporaryAccess =
+          !refreshed && await _repository.hasTemporaryAccess();
       state = state.copyWith(
         isAuthenticated: refreshed,
+        hasTemporaryAccess: hasTemporaryAccess,
         isLoading: false,
         isSubmitting: false,
         errorMessage: null,
@@ -95,6 +99,7 @@ class AuthController extends StateNotifier<AuthState> {
       logger.error('Initial auth check failed: $e', error: e);
       state = state.copyWith(
         isAuthenticated: false,
+        hasTemporaryAccess: false,
         isLoading: false,
         isSubmitting: false,
         errorMessage: null,
@@ -139,21 +144,31 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
-  Future<bool> login({
+  Future<AuthLoginResult> login({
     required String mobile,
     required String pin,
   }) async {
     state = state.copyWith(isSubmitting: true, errorMessage: null);
     try {
-      await _repository.login(mobile: mobile, pin: pin);
+      final result = await _repository.login(mobile: mobile, pin: pin);
+      if (result.isSuspected) {
+        state = state.copyWith(
+          isAuthenticated: false,
+          hasTemporaryAccess: true,
+          isSubmitting: false,
+          errorMessage: null,
+        );
+        return result;
+      }
       state = state.copyWith(
         isAuthenticated: true,
+        hasTemporaryAccess: false,
         isSubmitting: false,
         pendingMobile: null,
         errorMessage: null,
       );
       await _handlePendingReferral();
-      return true;
+      return result;
     } catch (e) {
       state = state.copyWith(
         isSubmitting: false,
@@ -162,7 +177,7 @@ class AuthController extends StateNotifier<AuthState> {
           'Login failed. Please try again.',
         ),
       );
-      return false;
+      return AuthLoginResult.failure(message: state.errorMessage);
     }
   }
 
@@ -230,14 +245,14 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<String?> setPin({
     required String pin,
-    String? userId,
+    String? mobile,
   }) async {
-    final storedUserId = await _repository.secureStorage.read(key: 'userId');
-    final resolvedUserId = userId ?? storedUserId;
-    if (resolvedUserId == null || resolvedUserId.isEmpty) {
+    final storedMobile = await _repository.secureStorage.read(key: 'mobile');
+    final resolvedMobile = mobile ?? state.pendingMobile ?? storedMobile ?? '';
+    if (resolvedMobile.isEmpty) {
       state = state.copyWith(
         isSubmitting: false,
-        errorMessage: 'Missing user ID. Please try again.',
+        errorMessage: 'Missing mobile number. Please try again.',
       );
       return null;
     }
@@ -245,7 +260,7 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(isSubmitting: true, errorMessage: null);
     try {
       final message = await _repository.setPin(
-        userId: resolvedUserId,
+        mobile: resolvedMobile,
         pin: pin,
       );
       state = state.copyWith(
@@ -271,6 +286,7 @@ class AuthController extends StateNotifier<AuthState> {
     await _repository.logout();
     state = state.copyWith(
       isAuthenticated: false,
+      hasTemporaryAccess: false,
       pendingMobile: null,
       errorMessage: null,
     );
@@ -327,14 +343,14 @@ class AuthController extends StateNotifier<AuthState> {
   Future<String?> forgotPin({
     required String otp,
     required String pin,
-    String? userId,
+    String? mobile,
   }) async {
-    final storedUserId = await _repository.secureStorage.read(key: 'userId');
-    final resolvedUserId = userId ?? storedUserId;
-    if (resolvedUserId == null || resolvedUserId.isEmpty) {
+    final storedMobile = await _repository.secureStorage.read(key: 'mobile');
+    final resolvedMobile = mobile ?? state.pendingMobile ?? storedMobile ?? '';
+    if (resolvedMobile.isEmpty) {
       state = state.copyWith(
         isSubmitting: false,
-        errorMessage: 'Missing user ID. Please try again.',
+        errorMessage: 'Missing mobile number. Please try again.',
       );
       return null;
     }
@@ -342,7 +358,7 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(isSubmitting: true, errorMessage: null);
     try {
       final message = await _repository.forgotPin(
-        userId: resolvedUserId,
+        mobile: resolvedMobile,
         otp: otp,
         pin: pin,
       );
@@ -354,6 +370,81 @@ class AuthController extends StateNotifier<AuthState> {
         errorMessage: _messageFromException(
           e,
           'Failed to reset PIN. Please try again.',
+        ),
+      );
+      return null;
+    }
+  }
+
+  Future<String?> sendAccountRecoveryOtp() async {
+    state = state.copyWith(isSubmitting: true, errorMessage: null);
+    try {
+      final message = await _repository.sendAccountRecoveryOtp();
+      state = state.copyWith(
+        isSubmitting: false,
+        errorMessage: null,
+      );
+      return message;
+    } catch (e) {
+      state = state.copyWith(
+        isSubmitting: false,
+        errorMessage: _messageFromException(
+          e,
+          'Failed to send OTP. Please try again.',
+        ),
+      );
+      return null;
+    }
+  }
+
+  Future<bool> verifyAccountRecoveryOtp({
+    required String mobileOtp,
+    required String emailOtp,
+  }) async {
+    state = state.copyWith(isSubmitting: true, errorMessage: null);
+    try {
+      await _repository.verifyAccountRecoveryOtp(
+        mobileOtp: mobileOtp,
+        emailOtp: emailOtp,
+      );
+      state = state.copyWith(
+        isSubmitting: false,
+        errorMessage: null,
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isSubmitting: false,
+        errorMessage: _messageFromException(
+          e,
+          'OTP verification failed. Please try again.',
+        ),
+      );
+      return false;
+    }
+  }
+
+  Future<String?> verifyAccountRecoveryKyc({
+    required String panNo,
+    required String aadhaar,
+  }) async {
+    state = state.copyWith(isSubmitting: true, errorMessage: null);
+    try {
+      final message = await _repository.verifyAccountRecoveryKyc(
+        panNo: panNo,
+        aadhaar: aadhaar,
+      );
+      state = state.copyWith(
+        isSubmitting: false,
+        errorMessage: null,
+      );
+      return message;
+    } catch (e) {
+      state = state.copyWith(
+        isSubmitting: false,
+        errorMessage: _messageFromException(
+          e,
+          'KYC verification failed. Please try again.',
         ),
       );
       return null;

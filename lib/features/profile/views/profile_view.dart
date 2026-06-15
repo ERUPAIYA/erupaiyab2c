@@ -112,10 +112,28 @@ class ProfileView extends HookConsumerWidget {
                             ),
                           ),
                           SizedBox(height: 16.h),
-                          _InviteEarnCard(
-                            onInvite: () =>
-                                context.push(RouteConstants.referAndEarn),
-                          ),
+                          if ((profile?.kycStatus ??
+                                  ProfileKycStatus.pending) ==
+                              ProfileKycStatus.verified)
+                            _InviteEarnCard(
+                              onInvite: () =>
+                                  context.push(RouteConstants.referAndEarn),
+                            )
+                          else
+                            _ProfileKycStatusCard(
+                              profile: profile,
+                              onTap: () {
+                                final latestProfile = profile;
+                                final startFromAadhaar = latestProfile
+                                            ?.kycStatus ==
+                                        ProfileKycStatus.inProgress &&
+                                    latestProfile?.isKycStep1Completed == true;
+                                context.push(
+                                  RouteConstants.kycVerification,
+                                  extra: startFromAadhaar,
+                                );
+                              },
+                            ),
                           SizedBox(height: 20.h),
                           Padding(
                             padding: EdgeInsets.symmetric(horizontal: 16.w),
@@ -370,6 +388,192 @@ class _InviteEarnCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ProfileKycStatusCard extends StatelessWidget {
+  const _ProfileKycStatusCard({
+    required this.profile,
+    required this.onTap,
+    this.statusOverride,
+  });
+
+  final ProfileModel? profile;
+  final VoidCallback onTap;
+  final ProfileKycStatus? statusOverride;
+
+  @override
+  Widget build(BuildContext context) {
+    final status =
+        statusOverride ?? profile?.kycStatus ?? ProfileKycStatus.pending;
+    final config = switch (status) {
+      ProfileKycStatus.inProgress => const _ProfileKycCardConfig(
+          title: 'KYC In Progress',
+          subtitle: 'KYC has been partially completed',
+          cta: 'Continue KYC',
+          gradient: LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [
+              Color(0xFFBFD7FF),
+              Color(0xFFEAF2FF),
+            ],
+          ),
+          accent: Color(0xFF2F6FDB),
+          icon: Icons.access_time_rounded,
+        ),
+      ProfileKycStatus.rejected => const _ProfileKycCardConfig(
+          title: 'KYC Rejected',
+          subtitle: 'KYC verification failed and requires resubmission',
+          cta: 'Resubmit KYC',
+          gradient: LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [
+              Color(0xFFFF8F8F),
+              Color(0xFFFFE9E9),
+            ],
+            stops: [0, 0.775],
+          ),
+          accent: Color(0xFFD94242),
+          icon: Icons.error_outline_rounded,
+        ),
+      ProfileKycStatus.pending ||
+      ProfileKycStatus.verified =>
+        const _ProfileKycCardConfig(
+          title: 'KYC Pending',
+          subtitle: 'KYC has not been completed yet',
+          cta: 'Start KYC',
+          gradient: LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [
+              Color(0xFFFFF4C5),
+              Color(0xFFFFFFFF),
+            ],
+            stops: [0, 1],
+          ),
+          accent: Color(0xFFD08A00),
+          icon: Icons.verified_user_outlined,
+        ),
+    };
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: config.gradient,
+        borderRadius: BorderRadius.circular(0),
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            right: -12.w,
+            top: 0,
+            bottom: 0,
+            child: Opacity(
+              opacity: 1,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Image.asset(
+                  FileConstants.kycBgIcon,
+                  width: 92.w,
+                  height: 84.h,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(16.w, 10.h, 16.w, 10.h),
+            child: Row(
+              children: [
+                Container(
+                  width: 48.r,
+                  height: 48.r,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    config.icon,
+                    color: config.accent,
+                    size: 20.r,
+                  ),
+                ),
+                SizedBox(width: 10.w),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        config.title,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppColors.black,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12.sp,
+                            ),
+                      ),
+                      SizedBox(height: 2.h),
+                      Text(
+                        config.subtitle,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.black,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 12.sp,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(width: 10.w),
+                SizedBox(
+                  height: 30.h,
+                  child: ElevatedButton(
+                    onPressed: onTap,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: EdgeInsets.symmetric(horizontal: 14.w),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18.r),
+                      ),
+                    ),
+                    child: Text(
+                      config.cta,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 8.sp,
+                          ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileKycCardConfig {
+  const _ProfileKycCardConfig({
+    required this.title,
+    required this.subtitle,
+    required this.cta,
+    required this.gradient,
+    required this.accent,
+    required this.icon,
+  });
+
+  final String title;
+  final String subtitle;
+  final String cta;
+  final LinearGradient gradient;
+  final Color accent;
+  final IconData icon;
 }
 
 class _ProfileSectionTitle extends StatelessWidget {

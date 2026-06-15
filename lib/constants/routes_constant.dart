@@ -2,10 +2,13 @@ class RouteConstants {
   static const String login = '/login';
   static const String register = '/register';
   static const String otp = '/otp';
+  static const String temporaryBlockOtp = '/temporary-block/otp';
   static const String splash = '/splash';
   static const String home = '/';
   static const String homeSearchView = '/home-search';
   static const String otpSuccess = '/otp-success';
+  static const String temporaryBlockIdentityCompletion =
+      '/temporary-block/identity-completion';
   static const String addPin = '/add-pin';
   static const String languageSelection = '/language';
   static const String kycOverview = '/kyc';

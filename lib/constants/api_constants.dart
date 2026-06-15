@@ -10,6 +10,12 @@ class ApiConstants {
   static const String requestForgotPinOtpEndpoint =
       '$baseUrl/api/auth/request-forgot-pin-otp';
   static const String forgotPinEndpoint = '$baseUrl/api/auth/forgot-pin';
+  static const String accountRecoverySendOtpEndpoint =
+      '$baseUrl/api/account-recovery/send-otp';
+  static const String accountRecoveryVerifyOtpEndpoint =
+      '$baseUrl/api/account-recovery/verify-otp';
+  static const String accountRecoveryVerifyKycEndpoint =
+      '$baseUrl/api/account-recovery/verify-kyc';
   static const String pinLockEndpoint = '$baseUrl/api/auth/pin-lock';
   static const String shareDownloadReceiptEndpoint =
       '$baseUrl/api/bill/share-download-receipt';
@@ -47,10 +53,14 @@ class ApiConstants {
       '$baseUrl/api/education/get-beneficiaries';
   static const String educationPaymentSummaryEndpoint =
       '$baseUrl/api/education/payment-summary';
+  static const String educationCreateOrderEndpoint =
+      '$baseUrl/api/education/create-order';
   static const String educationPaymentSuccessEndpoint =
       '$baseUrl/api/education/payment/success';
   static const String educationSaveBeneficiaryEndpoint =
       '$baseUrl/api/education/save-beneficiary';
+  static String educationStatusEndpoint(String transactionRefId) =>
+      '$baseUrl/api/education/status/$transactionRefId';
   static const String logoutEndpoint = '$baseUrl/api/auth/logout';
   static const String billersEndpoint = '$baseUrl/api/billers';
   static const String billerDetailsEndpoint = '$baseUrl/api/biller/details';

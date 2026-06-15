@@ -15,9 +15,11 @@ import '../../../constants/file_constants.dart';
 import '../../../constants/routes_constant.dart';
 import '../../../widgets/app_snackbar.dart';
 import '../../../widgets/custom_elevated_button.dart';
+import '../../profile/controllers/profile_controller.dart';
 import '../components/auth_brand_header.dart';
 import '../components/login_input_card.dart';
 import '../controllers/auth_controller.dart';
+import '../utils/temporary_block_flow_launcher.dart';
 
 class PinLoginView extends HookConsumerWidget {
   const PinLoginView({super.key});
@@ -57,17 +59,33 @@ class PinLoginView extends HookConsumerWidget {
         AppSnackbar.show('Please enter a 4-digit PIN');
         return;
       }
-      final success = await ref
+      final result = await ref
           .read(authControllerProvider.notifier)
           .login(mobile: phone, pin: pin);
-      if (success) {
+      if (result.isSuccess) {
+        await ref
+            .read(profileControllerProvider.notifier)
+            .fetchProfileIfNeeded(force: true);
         if (context.mounted) {
           context.go(RouteConstants.home);
         }
+      } else if (result.isSuspected) {
+        for (final controller in pinControllers) {
+          controller.clear();
+        }
+        pinFocusNodes.first.requestFocus();
+        if (!context.mounted) return;
+        await launchTemporaryBlockedFlow(
+          context: context,
+          phoneNumber: phone,
+          isKycVerified: result.isKycVerified == true,
+        );
       } else {
         final latestState = ref.read(authControllerProvider);
         AppSnackbar.show(
-          latestState.errorMessage ?? 'Login failed. Please try again.',
+          result.message ??
+              latestState.errorMessage ??
+              'Login failed. Please try again.',
         );
       }
     }
