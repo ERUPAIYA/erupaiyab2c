@@ -69,6 +69,17 @@ class PinLoginView extends HookConsumerWidget {
         if (context.mounted) {
           context.go(RouteConstants.home);
         }
+      } else if (result.requiresDeviceVerification) {
+        for (final controller in pinControllers) {
+          controller.clear();
+        }
+        pinFocusNodes.first.requestFocus();
+        if (!context.mounted) return;
+        await launchNewDeviceVerificationFlow(
+          context: context,
+          phoneNumber: phone,
+          verificationId: result.verificationId ?? '',
+        );
       } else if (result.isSuspected) {
         for (final controller in pinControllers) {
           controller.clear();

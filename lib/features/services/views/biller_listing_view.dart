@@ -124,26 +124,15 @@ class BillerListingView extends HookConsumerWidget {
       if (uiConfig.variant == _BillerListingVariant.postpaidFlow) return null;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!context.mounted) return;
-        ref.read(billerListingControllerProvider.notifier).updateSearch('');
         searchController.clear();
         ref
             .read(billerListingControllerProvider.notifier)
-            .fetchBillers(categoryName: categoryName);
+            .fetchBillers(categoryName: categoryName, searchQuery: '');
       });
       return null;
     }, [categoryName]);
 
-    useEffect(() {
-      searchController.text = listingState.searchQuery;
-      if (listingState.searchQuery.isNotEmpty) {
-        searchController.selection = TextSelection.fromPosition(
-          TextPosition(offset: listingState.searchQuery.length),
-        );
-      }
-      return null;
-    }, [listingState.searchQuery]);
-
-    final billers = listingState.filteredBillers;
+    final billers = listingState.billers;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -309,7 +298,7 @@ class _ElectricityFlow extends HookConsumerWidget {
     final recentTransactions =
         ref.watch(serviceLatestTransactionsProvider('electricity'));
 
-    final billers = listingState.filteredBillers;
+    final billers = listingState.billers;
     final showRecentSection = recentTransactions.maybeWhen(
       data: (items) => items.isNotEmpty,
       orElse: () => false,
@@ -910,13 +899,6 @@ class _MobilePostpaidFlow extends HookConsumerWidget {
     final selectedBiller = useState<Biller?>(null);
 
     useEffect(() {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(billerListingControllerProvider.notifier).updateSearch('');
-      });
-      return null;
-    }, const []);
-
-    useEffect(() {
       Future.microtask(() async {
         final granted = await permissionService.hasContactsPermission();
         if (!isMounted()) return;
@@ -974,10 +956,9 @@ class _MobilePostpaidFlow extends HookConsumerWidget {
     }, [contactQuery.value, contactsState.searchIndex]);
 
     Future<void> ensureBillersLoaded() async {
-      ref.read(billerListingControllerProvider.notifier).updateSearch('');
       await ref
           .read(billerListingControllerProvider.notifier)
-          .fetchBillers(categoryName: categoryName);
+          .fetchBillers(categoryName: categoryName, searchQuery: '');
     }
 
     useEffect(() {
@@ -989,7 +970,7 @@ class _MobilePostpaidFlow extends HookConsumerWidget {
     }, [selectedMobile.value]);
 
     final isSelectingContact = selectedMobile.value == null;
-    final billers = listingState.filteredBillers;
+    final billers = listingState.billers;
 
     return isSelectingContact
         ? NotificationListener<ScrollNotification>(

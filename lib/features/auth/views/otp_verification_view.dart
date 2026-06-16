@@ -12,6 +12,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:pinput/pinput.dart';
 import 'package:sms_autofill/sms_autofill.dart';
 
+import '../../../config/temporary_block_debug_config.dart';
 import '../../../constants/app_colors.dart';
 import '../../../constants/file_constants.dart';
 import '../../../constants/routes_constant.dart';
@@ -36,6 +37,8 @@ class OtpVerificationView extends HookConsumerWidget {
     final otpFocusNode = useFocusNode();
     final autoFilledCode = useState<String?>(null);
     final showIdentityVariant = args.temporaryBlockFlowType != null;
+    final isDeviceVerificationFlow =
+        args.temporaryBlockFlowType == TemporaryBlockFlowType.deviceVerification;
     final mobileOtpControllers = useMemoized(
       () => List.generate(_otpLength, (_) => TextEditingController()),
       const [],
@@ -88,8 +91,13 @@ class OtpVerificationView extends HookConsumerWidget {
     }
 
     Future<void> sendTemporaryBlockOtp({bool showToast = false}) async {
-      final message =
-          await ref.read(authControllerProvider.notifier).sendAccountRecoveryOtp();
+      final message = isDeviceVerificationFlow
+          ? await ref.read(authControllerProvider.notifier).sendDeviceOtp(
+                verificationId: args.deviceVerificationId ?? '',
+              )
+          : await ref
+              .read(authControllerProvider.notifier)
+              .sendAccountRecoveryOtp();
       if (message != null) {
         remainingSeconds.value = 60;
         emailRemainingSeconds.value = 60;
@@ -136,13 +144,21 @@ class OtpVerificationView extends HookConsumerWidget {
           return;
         }
         errorText.value = null;
-        final success = await ref
-            .read(authControllerProvider.notifier)
-            .verifyAccountRecoveryOtp(
-              mobileOtp: mobileOtp,
-              emailOtp: emailOtp,
-            );
-        if (success) {
+        final message = isDeviceVerificationFlow
+            ? await ref.read(authControllerProvider.notifier).verifyDeviceOtp(
+                  verificationId: args.deviceVerificationId ?? '',
+                  mobileOtp: mobileOtp,
+                  emailOtp: emailOtp,
+                )
+            : (await ref
+                    .read(authControllerProvider.notifier)
+                    .verifyAccountRecoveryOtp(
+                      mobileOtp: mobileOtp,
+                      emailOtp: emailOtp,
+                    ))
+                ? 'success'
+                : null;
+        if (message != null) {
           if (context.mounted) {
             if ((args.successDialogTitle?.isNotEmpty ?? false) ||
                 (args.successDialogMessage?.isNotEmpty ?? false)) {
@@ -152,13 +168,20 @@ class OtpVerificationView extends HookConsumerWidget {
                   title: args.successDialogTitle ?? 'Verified successfully',
                   message: args.successDialogMessage ?? '',
                   buttonLabel: args.successButtonLabel ?? 'Continue',
-                  onContinue: () {
+                  onContinue: () async {
                     Navigator.of(context, rootNavigator: true).pop();
+                    if (args.clearTemporaryAccessOnSuccess) {
+                      await ref.read(authControllerProvider.notifier).logout();
+                    }
                     final route = args.successRoute;
                     if (route != null) {
                       Future.microtask(() {
                         if (!context.mounted) return;
-                        context.push(route, extra: args.successRouteExtra);
+                        if (args.successRouteUseGo) {
+                          context.go(route);
+                        } else {
+                          context.push(route, extra: args.successRouteExtra);
+                        }
                       });
                     }
                   },
@@ -169,13 +192,31 @@ class OtpVerificationView extends HookConsumerWidget {
 
             final route = args.successRoute;
             if (route != null) {
-              context.push(route, extra: args.successRouteExtra);
+              if (args.successRouteUseGo) {
+                if (args.clearTemporaryAccessOnSuccess) {
+                  await ref.read(authControllerProvider.notifier).logout();
+                }
+                if (!context.mounted) return;
+                context.go(route);
+              } else {
+                context.push(route, extra: args.successRouteExtra);
+              }
             }
           }
         } else {
           final latestState = ref.read(authControllerProvider);
-          errorText.value = latestState.errorMessage ??
-              "Oops! That OTP doesn't seem right. Please check and re-enter.";
+          if (isDeviceVerificationFlow) {
+            AppSnackbar.show(
+              latestState.errorMessage ??
+                  'Verification failed. Please login again.',
+            );
+            if (context.mounted) {
+              context.go(RouteConstants.login);
+            }
+          } else {
+            errorText.value = latestState.errorMessage ??
+                "Oops! That OTP doesn't seem right. Please check and re-enter.";
+          }
         }
         return;
       }

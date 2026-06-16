@@ -230,6 +230,15 @@ class LoginView extends HookConsumerWidget {
         if (context.mounted) {
           context.go(RouteConstants.home);
         }
+      } else if (result.requiresDeviceVerification) {
+        pinController.clear();
+        pinFocusNode.requestFocus();
+        if (!context.mounted) return;
+        await launchNewDeviceVerificationFlow(
+          context: context,
+          phoneNumber: phone,
+          verificationId: result.verificationId ?? '',
+        );
       } else if (result.isSuspected) {
         pinController.clear();
         pinFocusNode.requestFocus();

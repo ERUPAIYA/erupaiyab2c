@@ -22,6 +22,17 @@ class AuthRepository {
 
   FlutterSecureStorage get secureStorage => _secureStorage;
 
+  bool _readBoolFlag(Map<String, dynamic>? payload, List<String> keys) {
+    if (payload == null) return false;
+    for (final key in keys) {
+      final raw = payload[key];
+      if (raw == true || raw == 1) return true;
+      final text = raw?.toString().trim().toLowerCase();
+      if (text == 'true' || text == '1') return true;
+    }
+    return false;
+  }
+
   Never _throwApiMessage(DioException e, {String fallback = 'Request failed'}) {
     final data = e.response?.data;
     if (data is Map) {
@@ -184,6 +195,8 @@ class AuthRepository {
         );
       }
 
+      final deviceContext = await const LoginDeviceContextService().collect();
+
       final response = await _dio.post(
         ApiConstants.loginEndpoint,
         options: Options(
@@ -198,6 +211,7 @@ class AuthRepository {
           'mobile': mobile,
           'pin': pin,
           'device_token': deviceToken,
+          ...deviceContext,
         },
       );
 
@@ -205,6 +219,19 @@ class AuthRepository {
       final success = payload?['success'] == true;
       if (!success) {
         final message = payload?['message'] as String? ?? 'Login failed';
+        final requiresDeviceVerification = _readBoolFlag(payload, const [
+          'device_verification_required',
+          'show_popup',
+        ]);
+        final verificationId =
+            (payload?['verification_id'] ?? '').toString().trim();
+        if (requiresDeviceVerification && verificationId.isNotEmpty) {
+          return AuthLoginResult.deviceVerificationRequired(
+            verificationId: verificationId,
+            showPopup: _readBoolFlag(payload, const ['show_popup']),
+            message: message,
+          );
+        }
         final tempAccessToken =
             (payload?['temp_access_token'] ?? '').toString().trim();
         if (tempAccessToken.isNotEmpty &&
@@ -227,6 +254,19 @@ class AuthRepository {
           );
         }
         throw Exception(message);
+      }
+
+      final requiresDeviceVerification = _readBoolFlag(payload, const [
+        'device_verification_required',
+      ]);
+      final verificationId =
+          (payload?['verification_id'] ?? '').toString().trim();
+      if (requiresDeviceVerification && verificationId.isNotEmpty) {
+        return AuthLoginResult.deviceVerificationRequired(
+          verificationId: verificationId,
+          showPopup: _readBoolFlag(payload, const ['show_popup']),
+          message: payload?['message'] as String? ?? 'New device detected.',
+        );
       }
 
       final data = payload?['data'] as Map<String, dynamic>? ?? {};
@@ -436,6 +476,81 @@ class AuthRepository {
         'Account recovery send OTP failed: ${e.toString()}',
         error: e,
       );
+      rethrow;
+    }
+  }
+
+  Future<String> sendDeviceOtp({required String verificationId}) async {
+    try {
+      final response = await _dio.post(
+        ApiConstants.sendDeviceOtpEndpoint,
+        data: {
+          'verification_id': verificationId,
+        },
+        options: Options(
+          extra: const {
+            'skipAuth': true,
+            'skipAuthRefresh': true,
+          },
+        ),
+      );
+
+      final payload = response.data as Map<String, dynamic>?;
+      final success = payload?['success'] == true;
+      if (!success) {
+        final message = payload?['message'] as String? ?? 'Failed to send OTP';
+        throw Exception(message);
+      }
+      return payload?['message'] as String? ?? 'OTP sent successfully';
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.badResponse) {
+        _throwApiMessage(e, fallback: 'Failed to send OTP');
+      }
+      logger.error('Device OTP send failed: ${e.toString()}', error: e);
+      rethrow;
+    } catch (e) {
+      logger.error('Device OTP send failed: ${e.toString()}', error: e);
+      rethrow;
+    }
+  }
+
+  Future<String> verifyDeviceOtp({
+    required String verificationId,
+    required String mobileOtp,
+    required String emailOtp,
+  }) async {
+    try {
+      final response = await _dio.post(
+        ApiConstants.verifyDeviceOtpEndpoint,
+        data: {
+          'verification_id': verificationId,
+          'mobile_otp': mobileOtp,
+          'email_otp': emailOtp,
+        },
+        options: Options(
+          extra: const {
+            'skipAuth': true,
+            'skipAuthRefresh': true,
+          },
+        ),
+      );
+
+      final payload = response.data as Map<String, dynamic>?;
+      final success = payload?['success'] == true;
+      if (!success) {
+        final message =
+            payload?['message'] as String? ?? 'Device verification failed';
+        throw Exception(message);
+      }
+      return payload?['message'] as String? ?? 'Device verified successfully';
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.badResponse) {
+        _throwApiMessage(e, fallback: 'Device verification failed');
+      }
+      logger.error('Device OTP verify failed: ${e.toString()}', error: e);
+      rethrow;
+    } catch (e) {
+      logger.error('Device OTP verify failed: ${e.toString()}', error: e);
       rethrow;
     }
   }

@@ -14,6 +14,9 @@ class OtpVerificationArgs {
     this.successDialogMessage,
     this.successButtonLabel,
     this.temporaryBlockFlowType,
+    this.successRouteUseGo = false,
+    this.clearTemporaryAccessOnSuccess = false,
+    this.deviceVerificationId,
   });
 
   final String? phoneNumber;
@@ -28,6 +31,9 @@ class OtpVerificationArgs {
   final String? successDialogMessage;
   final String? successButtonLabel;
   final TemporaryBlockFlowType? temporaryBlockFlowType;
+  final bool successRouteUseGo;
+  final bool clearTemporaryAccessOnSuccess;
+  final String? deviceVerificationId;
 
   bool get hasCustomSuccessFlow =>
       successRoute != null ||

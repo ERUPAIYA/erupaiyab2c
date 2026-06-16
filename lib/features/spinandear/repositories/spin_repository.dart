@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:dio/dio.dart';
 
 import '../../../constants/api_constants.dart';
@@ -8,21 +10,7 @@ class SpinRepository {
   SpinRepository({Dio? dio}) : _dio = dio ?? DioService.instance.client;
 
   final Dio _dio;
-  String? _cachedUserId;
-
-  Future<String> _getUserId() async {
-    if (_cachedUserId != null) return _cachedUserId!;
-
-    final response = await _dio.get(ApiConstants.profileEndpoint);
-    final payload = response.data as Map<String, dynamic>?;
-    final data = payload?['data'] as Map<String, dynamic>? ?? {};
-    final id = data['id']?.toString();
-    if (id == null || id.isEmpty) {
-      throw Exception('User ID not found in profile');
-    }
-    _cachedUserId = id;
-    return id;
-  }
+  final Random _random = Random.secure();
 
   /// Returns a map of category → list of coin values.
   /// e.g. {"Normal": [2,4,6,8], "Jackpot Spin": [25,50,75,100]}
@@ -48,20 +36,36 @@ class SpinRepository {
     }
   }
 
+  String _generateUuid() {
+    final bytes = List<int>.generate(16, (_) => _random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+    String toHex(int value) => value.toRadixString(16).padLeft(2, '0');
+    final hex = bytes.map(toHex).toList();
+
+    return '${hex.sublist(0, 4).join()}'
+        '${hex.sublist(4, 6).join()}-'
+        '${hex.sublist(6, 8).join()}-'
+        '${hex.sublist(8, 10).join()}-'
+        '${hex.sublist(10, 16).join()}';
+  }
+
   Future<void> recordSpin({
     required String spinType,
-    required int rewardValue,
+    bool includeIdempotencyKey = true,
   }) async {
     try {
-      final userId = await _getUserId();
+      final data = <String, dynamic>{
+        'spin_type': spinType,
+      };
+      if (includeIdempotencyKey) {
+        data['idempotency_key'] = _generateUuid();
+      }
 
       await _dio.post(
         ApiConstants.spinEndpoint,
-        data: {
-          'user_id': userId,
-          'spin_type': spinType,
-          'reward_value': rewardValue,
-        },
+        data: data,
         options: Options(
           contentType: Headers.formUrlEncodedContentType,
         ),

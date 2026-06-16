@@ -19,6 +19,7 @@ class BillerRepository {
     required String categoryName,
     int page = 1,
     int limit = 20,
+    String? search,
   }) async {
     try {
       final response = await _dio.get(
@@ -27,6 +28,7 @@ class BillerRepository {
           'category_name': categoryName,
           'page': page,
           'limit': limit,
+          if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
         },
       );
       final payload = response.data as Map<String, dynamic>? ?? {};
