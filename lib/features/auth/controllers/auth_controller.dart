@@ -160,6 +160,15 @@ class AuthController extends StateNotifier<AuthState> {
         );
         return result;
       }
+      if (result.requiresDeviceVerification) {
+        state = state.copyWith(
+          isAuthenticated: false,
+          hasTemporaryAccess: false,
+          isSubmitting: false,
+          errorMessage: null,
+        );
+        return result;
+      }
       state = state.copyWith(
         isAuthenticated: true,
         hasTemporaryAccess: false,
@@ -421,6 +430,57 @@ class AuthController extends StateNotifier<AuthState> {
         ),
       );
       return false;
+    }
+  }
+
+  Future<String?> sendDeviceOtp({required String verificationId}) async {
+    state = state.copyWith(isSubmitting: true, errorMessage: null);
+    try {
+      final message =
+          await _repository.sendDeviceOtp(verificationId: verificationId);
+      state = state.copyWith(
+        isSubmitting: false,
+        errorMessage: null,
+      );
+      return message;
+    } catch (e) {
+      state = state.copyWith(
+        isSubmitting: false,
+        errorMessage: _messageFromException(
+          e,
+          'Failed to send OTP. Please try again.',
+        ),
+      );
+      return null;
+    }
+  }
+
+  Future<String?> verifyDeviceOtp({
+    required String verificationId,
+    required String mobileOtp,
+    required String emailOtp,
+  }) async {
+    state = state.copyWith(isSubmitting: true, errorMessage: null);
+    try {
+      final message = await _repository.verifyDeviceOtp(
+        verificationId: verificationId,
+        mobileOtp: mobileOtp,
+        emailOtp: emailOtp,
+      );
+      state = state.copyWith(
+        isSubmitting: false,
+        errorMessage: null,
+      );
+      return message;
+    } catch (e) {
+      state = state.copyWith(
+        isSubmitting: false,
+        errorMessage: _messageFromException(
+          e,
+          'Device verification failed. Please try again.',
+        ),
+      );
+      return null;
     }
   }
 

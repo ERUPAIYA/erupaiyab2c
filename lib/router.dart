@@ -102,6 +102,7 @@ final routerProvider = Provider<GoRouter>(
           RouteConstants.login,
           RouteConstants.register,
           RouteConstants.otp,
+          RouteConstants.temporaryBlockOtp,
           RouteConstants.otpSuccess,
           RouteConstants.addPin,
         ];
@@ -182,12 +183,18 @@ final routerProvider = Provider<GoRouter>(
             final flow = state.uri.queryParameters['flow'];
             final phone = state.uri.queryParameters['phone'];
             if (flow != null && flow.isNotEmpty) {
-              final flowType = flow == 'noKyc'
-                  ? TemporaryBlockFlowType.noKyc
-                  : TemporaryBlockFlowType.kycVerified;
-              final successRoute = flowType == TemporaryBlockFlowType.noKyc
-                  ? RouteConstants.kycVerification
-                  : RouteConstants.temporaryBlockIdentityCompletion;
+              final flowType = switch (flow) {
+                'noKyc' => TemporaryBlockFlowType.noKyc,
+                'deviceVerification' =>
+                  TemporaryBlockFlowType.deviceVerification,
+                _ => TemporaryBlockFlowType.kycVerified,
+              };
+              final successRoute =
+                  flowType == TemporaryBlockFlowType.noKyc
+                      ? RouteConstants.kycVerification
+                      : (flowType == TemporaryBlockFlowType.deviceVerification
+                          ? RouteConstants.login
+                          : RouteConstants.temporaryBlockIdentityCompletion);
               return OtpVerificationView(
                 args: OtpVerificationArgs(
                   phoneNumber: phone,
@@ -196,15 +203,27 @@ final routerProvider = Provider<GoRouter>(
                   description:
                       'Enter the OTPs sent to your registered mobile number and email address to verify your identity.',
                   primaryButtonLabel: 'Verify & Continue',
-                  successDialogTitle: 'Mobile and Email verified successfully',
+                  successDialogTitle:
+                      flowType == TemporaryBlockFlowType.deviceVerification
+                          ? 'Device Verified'
+                          : 'Mobile and Email verified successfully',
                   successDialogMessage:
                       'This device has been successfully verified and added to your trusted devices. You can now access your account securely.',
-                  successButtonLabel: 'Complete KYC',
+                  successButtonLabel:
+                      flowType == TemporaryBlockFlowType.deviceVerification
+                          ? 'Continue to Login'
+                          : 'Complete KYC',
                   successRoute: successRoute,
                   successRouteExtra:
                       successRoute == RouteConstants.kycVerification
                           ? false
                           : null,
+                  successRouteUseGo:
+                      flowType == TemporaryBlockFlowType.deviceVerification,
+                  clearTemporaryAccessOnSuccess:
+                      false,
+                  deviceVerificationId:
+                      state.uri.queryParameters['verification_id'],
                   temporaryBlockFlowType: flowType,
                 ),
               );

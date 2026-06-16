@@ -1,6 +1,7 @@
 enum TemporaryBlockFlowType {
   noKyc,
   kycVerified,
+  deviceVerification,
 }
 
 class TemporaryBlockDebugConfig {

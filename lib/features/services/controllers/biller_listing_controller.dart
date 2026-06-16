@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../services/logger_service.dart';
@@ -22,9 +24,15 @@ class BillerListingController extends StateNotifier<BillerListingState> {
 
   final BillerRepository _repository;
   String? _activeCategoryName;
+  String _activeSearchQuery = '';
+  Timer? _searchDebounce;
 
-  Future<void> fetchBillers({required String categoryName}) async {
+  Future<void> fetchBillers({
+    required String categoryName,
+    String? searchQuery,
+  }) async {
     _activeCategoryName = categoryName;
+    _activeSearchQuery = searchQuery?.trim() ?? '';
     state = state.copyWith(
       isFetching: true,
       isFetchingMore: false,
@@ -38,6 +46,7 @@ class BillerListingController extends StateNotifier<BillerListingState> {
         categoryName: categoryName,
         page: 1,
         limit: state.limit,
+        search: _activeSearchQuery,
       );
       state = state.copyWith(
         isFetching: false,
@@ -75,6 +84,7 @@ class BillerListingController extends StateNotifier<BillerListingState> {
         categoryName: categoryName,
         page: nextPage,
         limit: state.limit,
+        search: _activeSearchQuery,
       );
       state = state.copyWith(
         isFetchingMore: false,
@@ -97,6 +107,21 @@ class BillerListingController extends StateNotifier<BillerListingState> {
   }
 
   void updateSearch(String query) {
-    state = state.copyWith(searchQuery: query);
+    final categoryName = _activeCategoryName;
+    _activeSearchQuery = query.trim();
+    _searchDebounce?.cancel();
+    if (categoryName == null) return;
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      fetchBillers(
+        categoryName: categoryName,
+        searchQuery: _activeSearchQuery,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    super.dispose();
   }
 }

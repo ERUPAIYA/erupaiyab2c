@@ -114,28 +114,18 @@ class SpinAndWinView extends HookConsumerWidget {
       final reward = currentRewards[targetIndex];
 
       try {
-        // Skip record-spin API call for "Better Luck Next Time"
-        if (reward.type != SpinRewardType.betterLuck) {
-          final spinType = reward.type == SpinRewardType.jackpot
-              ? 'jackpot'
-              : reward.type == SpinRewardType.extraSpin
-                  ? 'extra'
-                  : 'normal';
+        final spinType = reward.type == SpinRewardType.betterLuck
+            ? 'better_luck'
+            : reward.type == SpinRewardType.jackpot
+                ? 'jackpot'
+                : reward.type == SpinRewardType.extraSpin
+                    ? 'extra'
+                    : 'normal';
 
-          // For jackpot, pick a random value from the jackpot options
-          int rewardValue = reward.coins ?? 0;
-          final jackpotValues =
-              spinOptionsState.options['Jackpot Spin'] ?? const <int>[];
-          if (reward.type == SpinRewardType.jackpot &&
-              jackpotValues.isNotEmpty) {
-            rewardValue = jackpotValues[rng.nextInt(jackpotValues.length)];
-          }
-
-          await spinRepository.recordSpin(
-            spinType: spinType,
-            rewardValue: rewardValue,
-          );
-        }
+        await spinRepository.recordSpin(
+          spinType: spinType,
+          includeIdempotencyKey: reward.type != SpinRewardType.betterLuck,
+        );
 
         // Always refresh spin count from API after spinning (including extra spin)
         await profileController.fetchProfile();

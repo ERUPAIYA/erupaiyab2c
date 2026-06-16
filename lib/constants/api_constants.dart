@@ -4,6 +4,9 @@ class ApiConstants {
   static const String loginEndpoint = '$baseUrl/api/auth/login';
   static const String checkLoginEndpoint = '$baseUrl/api/auth/check-login';
   static const String verifyOtpEndpoint = '$baseUrl/api/auth/verify-otp';
+  static const String sendDeviceOtpEndpoint = '$baseUrl/api/auth/send-device-otp';
+  static const String verifyDeviceOtpEndpoint =
+      '$baseUrl/api/auth/verify-device-otp';
   static const String refreshTokenEndpoint = '$baseUrl/api/auth/refresh';
   static const String registerEndpoint = '$baseUrl/api/auth/register';
   static const String setPinEndpoint = '$baseUrl/api/auth/set-pin';
