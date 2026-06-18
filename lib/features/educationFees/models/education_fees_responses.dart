@@ -17,7 +17,6 @@ class EducationValidateAmountResponse {
       message: message,
     );
   }
-
   final bool status;
   final String? message;
 }

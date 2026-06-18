@@ -1,7 +1,6 @@
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../services/logger_service.dart';
-import '../models/bill_pay_response_model.dart';
 import '../models/biller_detail_model.dart';
 import '../models/biller_detail_state.dart';
 import '../models/biller_model.dart';
@@ -271,33 +270,5 @@ class BillerDetailController extends StateNotifier<BillerDetailState> {
 
   void reset() {
     state = const BillerDetailState();
-  }
-
-  String _resolvePayErrorMessage(BillPayResponse response) {
-    final raw = response.message.trim();
-    if (raw.isEmpty || RegExp(r'^\d{3}$').hasMatch(raw)) {
-      return _fallbackMessageForCode(response.code);
-    }
-    return raw;
-  }
-
-  String _fallbackMessageForCode(int code) {
-    switch (code) {
-      case 400:
-        return 'Payment request was invalid. Please verify the details.';
-      case 401:
-      case 403:
-        return 'You are not authorized to complete this payment.';
-      case 404:
-        return 'Payment service is unavailable. Please try again shortly.';
-      case 500:
-        return 'Payment Failed due to server error. Please try again later.';
-      case 502:
-      case 503:
-      case 504:
-        return 'Payment service is down. Please try again later.';
-      default:
-        return 'Payment failed. Please try again.';
-    }
   }
 }

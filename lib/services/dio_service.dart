@@ -1,6 +1,10 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:http_certificate_pinning/http_certificate_pinning.dart';
 
 import '../constants/api_constants.dart';
+import '../config/app_env.dart';
+import '../config/ssl_pinning_config.dart';
 import 'dio_interceptors.dart';
 
 class DioService {
@@ -23,6 +27,22 @@ class DioService {
         receiveTimeout: const Duration(milliseconds: 15000),
       ),
     );
+    final host = Uri.tryParse(ApiConstants.baseUrl)?.host.trim().toLowerCase();
+    final shouldEnablePinning =
+        (!SslPinningConfig.enableInProductionOnly || AppEnv.isProduction) &&
+            !kIsWeb &&
+            host != null &&
+            host.isNotEmpty &&
+            SslPinningConfig.allowedHosts.contains(host) &&
+            SslPinningConfig.sha256Fingerprints.isNotEmpty;
+    if (shouldEnablePinning) {
+      _dio.interceptors.add(
+        CertificatePinningInterceptor(
+          allowedSHAFingerprints: SslPinningConfig.sha256Fingerprints,
+          timeout: 50,
+        ),
+      );
+    }
     _dio.interceptors.add(DioInterceptors());
   }
 

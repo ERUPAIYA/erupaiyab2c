@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 
 import '../../../constants/api_constants.dart';
@@ -14,6 +15,26 @@ class BillerRepository {
   BillerRepository({Dio? dio}) : _dio = dio ?? DioService.instance.client;
 
   final Dio _dio;
+
+  Never _throwApiMessage(DioException e, {String fallback = 'Request failed'}) {
+    final data = e.response?.data;
+    if (data is Map) {
+      final direct = data['message']?.toString().trim();
+      if (direct != null && direct.isNotEmpty) {
+        throw Exception(direct);
+      }
+      final messages = data['messages'];
+      if (messages is Map) {
+        final nested = (messages['error'] ?? messages['message'] ?? '')
+            .toString()
+            .trim();
+        if (nested.isNotEmpty) {
+          throw Exception(nested);
+        }
+      }
+    }
+    throw Exception(fallback);
+  }
 
   Future<BillerListResponse> fetchBillers({
     required String categoryName,
@@ -141,18 +162,29 @@ class BillerRepository {
         }
       }
 
-      logger.info('Pay-allservices order request payload: $data');
+      if (kDebugMode) {
+        logger.info('Pay-allservices order request payload: $data');
+      }
 
       final response = await _dio.post(
         ApiConstants.payBillAllServicesEndpoint,
         data: data,
         options: Options(
           contentType: Headers.formUrlEncodedContentType,
-          validateStatus: (status) => status != null && status < 600,
         ),
       );
       final payload = response.data as Map<String, dynamic>? ?? {};
       return ServicePaymentOrderResult.fromJson(payload);
+    } on DioException catch (e, stackTrace) {
+      if (e.type == DioExceptionType.badResponse) {
+        _throwApiMessage(e, fallback: 'Failed to create order. Please try again.');
+      }
+      logger.error(
+        'Failed to create pay-allservices order',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
     } catch (e, stackTrace) {
       logger.error(
         'Failed to create pay-allservices order',

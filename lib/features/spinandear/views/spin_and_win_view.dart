@@ -124,7 +124,6 @@ class SpinAndWinView extends HookConsumerWidget {
 
         await spinRepository.recordSpin(
           spinType: spinType,
-          includeIdempotencyKey: reward.type != SpinRewardType.betterLuck,
         );
 
         // Always refresh spin count from API after spinning (including extra spin)

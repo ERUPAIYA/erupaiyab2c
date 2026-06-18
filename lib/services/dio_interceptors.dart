@@ -8,6 +8,7 @@ import 'package:e_rupaiya/features/auth/controllers/auth_controller.dart';
 import 'package:e_rupaiya/widgets/k_dialog.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http_certificate_pinning/http_certificate_pinning.dart';
 
 import '../constants/storage_keys.dart';
 import '../config/app_env.dart';
@@ -307,6 +308,7 @@ class DioInterceptors extends InterceptorsWrapper {
         final context = navigatorKey.currentContext;
         if (context != null) {
           try {
+            // ignore: use_build_context_synchronously
             await ProviderScope.containerOf(context)
                 .read(authControllerProvider.notifier)
                 .logout();
@@ -388,9 +390,9 @@ class DioInterceptors extends InterceptorsWrapper {
             }
           }
           apiMessage ??= data['message']?.toString().trim();
-          if (apiMessage != null && apiMessage!.isEmpty) apiMessage = null;
+          if (apiMessage != null && apiMessage.isEmpty) apiMessage = null;
           apiMessage ??= data['error']?.toString().trim();
-          if (apiMessage != null && apiMessage!.isEmpty) apiMessage = null;
+          if (apiMessage != null && apiMessage.isEmpty) apiMessage = null;
         }
         apiMessage ??= 'Something went wrong';
         AppSnackbar.show(
@@ -406,7 +408,14 @@ class DioInterceptors extends InterceptorsWrapper {
         backgroundColor: Colors.red,
       );
     } else {
-      if (err.error.toString().contains('SocketException')) {
+      if (err.error is CertificateNotVerifiedException ||
+          err.error is CertificateCouldNotBeVerifiedException) {
+        AppSnackbar.show(
+          'Secure connection failed. Please try again later.',
+          textColor: Colors.white,
+          backgroundColor: Colors.red,
+        );
+      } else if (err.error.toString().contains('SocketException')) {
         AppSnackbar.show(
           'Please check your internet connection.',
           textColor: Colors.white,

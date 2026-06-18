@@ -14,7 +14,6 @@ import '../models/plan_item.dart';
 import '../models/prepaid_plans_response.dart';
 import '../models/prepaid_transaction_status.dart';
 import '../models/recharge_order_result.dart';
-import '../models/recharge_result.dart';
 import '../models/region_option.dart';
 
 class MobilePrepaidRepository {
@@ -22,6 +21,26 @@ class MobilePrepaidRepository {
       : _dio = dio ?? DioService.instance.client;
 
   final Dio _dio;
+
+  Never _throwApiMessage(DioException e, {String fallback = 'Request failed'}) {
+    final data = e.response?.data;
+    if (data is Map) {
+      final direct = data['message']?.toString().trim();
+      if (direct != null && direct.isNotEmpty) {
+        throw Exception(direct);
+      }
+      final messages = data['messages'];
+      if (messages is Map) {
+        final nested = (messages['error'] ?? messages['message'] ?? '')
+            .toString()
+            .trim();
+        if (nested.isNotEmpty) {
+          throw Exception(nested);
+        }
+      }
+    }
+    throw Exception(fallback);
+  }
 
   Future<List<BannerModel>> fetchMobilePrepaidBanners({
     String lang = 'en',
@@ -247,73 +266,6 @@ class MobilePrepaidRepository {
     }
   }
 
-  Future<RechargeResult> recharge({
-    required String mobile,
-    required int amount,
-    required String operatorName,
-    required String desc,
-    String? referenceId,
-    int useWallet = 0,
-    double? walletAmount,
-    double? razorpayAmount,
-  }) async {
-    try {
-      final response = await _dio.post(
-        ApiConstants.prepaidRechargeEndpoint,
-        data: {
-          'mobile': mobile,
-          'amount': amount.toString(),
-          'operator': operatorName,
-          'desc': desc,
-          'use_wallet': useWallet.toString(),
-          if (walletAmount != null)
-            'wallet_amount': walletAmount.toStringAsFixed(2),
-          if (razorpayAmount != null)
-            'razorpay_amount': razorpayAmount.toStringAsFixed(2),
-          // if (referenceId != null && referenceId.isNotEmpty)
-          'reference_id': referenceId,
-        },
-        options: Options(
-          contentType: Headers.formUrlEncodedContentType,
-          validateStatus: (status) => status != null && status < 600,
-        ),
-      );
-      final payload = response.data as Map<String, dynamic>? ?? {};
-      final statusValue =
-          payload['status'] ?? payload['code'] ?? payload['error'];
-      final statusText = statusValue?.toString() ?? '';
-      final message = _extractRechargeMessage(payload);
-      final isSuccess = _isRechargeSuccess(statusValue, statusText);
-      final transactionId = (payload['transaction_id'] ??
-              payload['transactionId'] ??
-              payload['transaction_id'.toUpperCase()] ??
-              '')
-          .toString()
-          .trim();
-      final dateTime =
-          (payload['dateDate'] ?? payload['date_time'] ?? payload['date'] ?? '')
-              .toString()
-              .trim();
-
-      return RechargeResult(
-        status: statusText,
-        message: message.isNotEmpty
-            ? message
-            : (isSuccess ? 'Recharge completed.' : 'Recharge failed.'),
-        transactionId: transactionId,
-        dateTime: dateTime,
-        isSuccess: isSuccess,
-      );
-    } catch (e, stackTrace) {
-      logger.error(
-        'Failed to recharge',
-        error: e,
-        stackTrace: stackTrace,
-      );
-      rethrow;
-    }
-  }
-
   Future<RechargeOrderResult> createRechargeOrder({
     required String mobile,
     required int amount,
@@ -335,11 +287,20 @@ class MobilePrepaidRepository {
         },
         options: Options(
           contentType: Headers.formUrlEncodedContentType,
-          validateStatus: (status) => status != null && status < 600,
         ),
       );
       final payload = response.data as Map<String, dynamic>? ?? {};
       return RechargeOrderResult.fromJson(payload);
+    } on DioException catch (e, stackTrace) {
+      if (e.type == DioExceptionType.badResponse) {
+        _throwApiMessage(e, fallback: 'Failed to create order. Please try again.');
+      }
+      logger.error(
+        'Failed to create recharge order',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
     } catch (e, stackTrace) {
       logger.error(
         'Failed to create recharge order',
@@ -392,37 +353,6 @@ class MobilePrepaidRepository {
       );
       rethrow;
     }
-  }
-
-  bool _isRechargeSuccess(Object? statusValue, String statusText) {
-    final normalized = statusText.toLowerCase();
-    if (normalized == 'success' || normalized == 'ok' || normalized == 'true') {
-      return true;
-    }
-    if (normalized == 'failed' || normalized == 'failure') return false;
-    if (statusValue is int) {
-      return statusValue >= 200 && statusValue < 300;
-    }
-    final parsed = int.tryParse(statusText);
-    if (parsed != null) {
-      return parsed >= 200 && parsed < 300;
-    }
-    return false;
-  }
-
-  String _extractRechargeMessage(Map<String, dynamic> payload) {
-    final messages = payload['messages'];
-    if (messages is Map) {
-      final err = messages['error']?.toString().trim() ?? '';
-      if (err.isNotEmpty) return err;
-    }
-
-    final direct =
-        (payload['message'] ?? payload['msg'] ?? payload['error'] ?? '')
-            .toString()
-            .trim();
-    if (direct.isNotEmpty) return direct;
-    return '';
   }
 
   Future<List<LatestTransaction>> fetchLatestTransactions({

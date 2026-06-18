@@ -17,7 +17,6 @@ import '../../paymentgateway/razorpay_service.dart';
 import '../../profile/controllers/profile_controller.dart';
 import '../../profile/utils/receipt_actions.dart';
 import '../../services/controllers/biller_detail_controller.dart';
-import '../../services/models/bill_pay_response_model.dart';
 import '../../services/models/biller_detail_state.dart';
 import '../../services/models/recharge_status_result.dart';
 import '../controllers/mobile_prepaid_controller.dart';
@@ -28,24 +27,6 @@ enum _PaymentOutcome {
   pending,
   failure,
   insufficient,
-}
-
-_PaymentOutcome _resolvePaymentOutcome(
-  BillPayResponse? response,
-  String? errorMessage,
-) {
-  final status = response?.status.toUpperCase() ?? '';
-  final message = (response?.message ?? errorMessage ?? '').toLowerCase();
-  if (message.contains('insufficient')) {
-    return _PaymentOutcome.insufficient;
-  }
-  if (status.contains('PENDING') || status.contains('PROCESSING')) {
-    return _PaymentOutcome.pending;
-  }
-  if (response?.isSuccess == true) {
-    return _PaymentOutcome.success;
-  }
-  return _PaymentOutcome.failure;
 }
 
 String _paymentTitle(_PaymentOutcome outcome) {
@@ -1036,9 +1017,7 @@ class _PrepaidPaymentBottomSheetState
         final latestState = ref.read(mobilePrepaidControllerProvider);
         final verified = latestState.verifiedTransaction;
         final outcome = verified == null
-            ? (latestState.errorMessage != null
-                ? _resolvePaymentOutcome(null, latestState.errorMessage)
-                : _PaymentOutcome.success)
+            ? _PaymentOutcome.pending
             : (verified.isSuccess
                 ? _PaymentOutcome.success
                 : ((verified.isPending || verified.isProcessing)
@@ -1275,12 +1254,7 @@ class _PrepaidPaymentBottomSheetState
                                 final verified =
                                     latestState.verifiedTransaction;
                                 final outcome = verified == null
-                                    ? (latestState.errorMessage != null
-                                        ? _resolvePaymentOutcome(
-                                            null,
-                                            latestState.errorMessage,
-                                          )
-                                        : _PaymentOutcome.success)
+                                    ? _PaymentOutcome.pending
                                     : (verified.isSuccess
                                         ? _PaymentOutcome.success
                                         : ((verified.isPending ||

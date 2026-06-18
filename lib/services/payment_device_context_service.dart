@@ -43,7 +43,8 @@ class PaymentDeviceContextService {
         return (ios.identifierForVendor ?? ios.name).toString();
       }
     } catch (e, stackTrace) {
-      logger.error('Failed to resolve payment device ID', error: e, stackTrace: stackTrace);
+      logger.error('Failed to resolve payment device ID',
+          error: e, stackTrace: stackTrace);
     }
     return '';
   }
@@ -65,7 +66,8 @@ class PaymentDeviceContextService {
         }
       }
     } catch (e, stackTrace) {
-      logger.error('Failed to inspect VPN state for payment context', error: e, stackTrace: stackTrace);
+      logger.error('Failed to inspect VPN state for payment context',
+          error: e, stackTrace: stackTrace);
     }
     return false;
   }
@@ -101,7 +103,8 @@ class PaymentDeviceContextService {
         }
       }
     } catch (e, stackTrace) {
-      logger.error('Failed to inspect root/jailbreak state for payment context', error: e, stackTrace: stackTrace);
+      logger.error('Failed to inspect root/jailbreak state for payment context',
+          error: e, stackTrace: stackTrace);
     }
     return false;
   }
@@ -140,7 +143,8 @@ class PaymentDeviceContextService {
         isMocked: position.isMocked,
       );
     } catch (e, stackTrace) {
-      logger.error('Failed to collect payment location context', error: e, stackTrace: stackTrace);
+      logger.error('Failed to collect payment location context',
+          error: e, stackTrace: stackTrace);
       return const _LocationSnapshot.empty();
     }
   }

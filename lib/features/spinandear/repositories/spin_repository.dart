@@ -53,21 +53,18 @@ class SpinRepository {
 
   Future<void> recordSpin({
     required String spinType,
-    bool includeIdempotencyKey = true,
   }) async {
     try {
       final data = <String, dynamic>{
         'spin_type': spinType,
+        'idempotency_key': _generateUuid(),
       };
-      if (includeIdempotencyKey) {
-        data['idempotency_key'] = _generateUuid();
-      }
 
       await _dio.post(
         ApiConstants.spinEndpoint,
         data: data,
         options: Options(
-          contentType: Headers.formUrlEncodedContentType,
+          contentType: Headers.jsonContentType,
         ),
       );
     } catch (e, stackTrace) {

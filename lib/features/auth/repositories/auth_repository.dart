@@ -123,6 +123,13 @@ class AuthRepository {
     try {
       final response = await _dio.post(
         ApiConstants.verifyOtpEndpoint,
+        options: Options(
+          contentType: Headers.jsonContentType,
+          extra: const {
+            'skipAuth': true,
+            'skipAuthRefresh': true,
+          },
+        ),
         data: {
           'mobile': mobile,
           'otp': otp,
@@ -157,6 +164,13 @@ class AuthRepository {
     try {
       final response = await _dio.post(
         ApiConstants.setPinEndpoint,
+        options: Options(
+          contentType: Headers.jsonContentType,
+          extra: const {
+            'skipAuth': true,
+            'skipAuthRefresh': true,
+          },
+        ),
         data: {
           'mobile': mobile,
           'pin': pin,

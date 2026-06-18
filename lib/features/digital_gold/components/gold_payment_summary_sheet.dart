@@ -271,14 +271,29 @@ class GoldPaymentSummarySheet extends HookConsumerWidget {
                           onSuccess: (_) async {
                             // Call buy API only after Razorpay success
                             try {
+                              final otpData = otpResponse.value;
+                              final billingAddressId =
+                                  preview.billingAddressId;
+                              final customerId = preview.customerId;
+                              final quoteId = preview.quoteId;
+                              if (otpData == null ||
+                                  billingAddressId == null ||
+                                  customerId == null ||
+                                  quoteId == null) {
+                                AppSnackbar.show(
+                                  'Missing payment verification details. Please try again.',
+                                  type: AppSnackbarType.error,
+                                );
+                                return;
+                              }
                               final repository =
                                   ref.read(digitalGoldRepoProvider);
                               final receipt = await repository.buyGold(
-                                refId: otpResponse.value!.refId,
-                                billingAddressId: preview.billingAddressId!,
-                                customerId: preview.customerId!,
-                                quoteId: preview.quoteId!,
-                                stateResp: otpResponse.value!.stateResp,
+                                refId: otpData.refId,
+                                billingAddressId: billingAddressId,
+                                customerId: customerId,
+                                quoteId: quoteId,
+                                stateResp: otpData.stateResp,
                                 otp: otpController.text.trim(),
                               );
                               if (!context.mounted) return;
