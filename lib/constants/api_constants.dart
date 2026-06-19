@@ -4,7 +4,8 @@ class ApiConstants {
   static const String loginEndpoint = '$baseUrl/api/auth/login';
   static const String checkLoginEndpoint = '$baseUrl/api/auth/check-login';
   static const String verifyOtpEndpoint = '$baseUrl/api/auth/verify-otp';
-  static const String sendDeviceOtpEndpoint = '$baseUrl/api/auth/send-device-otp';
+  static const String sendDeviceOtpEndpoint =
+      '$baseUrl/api/auth/send-device-otp';
   static const String verifyDeviceOtpEndpoint =
       '$baseUrl/api/auth/verify-device-otp';
   static const String refreshTokenEndpoint = '$baseUrl/api/auth/refresh';
@@ -73,7 +74,7 @@ class ApiConstants {
   static const String fetchBillEndpoint = '$baseUrl/api/bill/fetch';
   // static const String payBillEndpoint = '$baseUrl/api/bill/pay';
   static const String payBillAllServicesEndpoint =
-      '$baseUrl/api/bill/pay-allservices';
+      '$baseUrl/api/bill/create-order';
   static const String prepaidCheckOperatorEndpoint =
       '$baseUrl/api/prepaid/checkOprators';
   static const String prepaidFetchOperatorsEndpoint =

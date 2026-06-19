@@ -868,8 +868,8 @@ class _DeleteAccountOtpDialog extends HookWidget {
 
     Future<void> verifyOtp() async {
       final otp = otpController.text.trim();
-      if (otp.length < 4) {
-        errorText.value = 'Please enter the 4-digit OTP.';
+      if (otp.length < 6) {
+        errorText.value = 'Please enter the 6-digit OTP.';
         return;
       }
       errorText.value = null;
@@ -905,7 +905,7 @@ class _DeleteAccountOtpDialog extends HookWidget {
             ),
             SizedBox(height: 8.h),
             Text(
-              'Please enter the 4-digit OTP sent to your registered number.',
+              'Please enter the 6-digit OTP sent to your registered number.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.textPrimary.withOpacity(0.7),
                     height: 1.4,
@@ -915,7 +915,7 @@ class _DeleteAccountOtpDialog extends HookWidget {
             TextField(
               controller: otpController,
               keyboardType: TextInputType.number,
-              maxLength: 4,
+              maxLength: 6,
               onChanged: (_) => errorText.value = null,
               decoration: InputDecoration(
                 counterText: '',

@@ -33,6 +33,7 @@ class AppLockView extends HookConsumerWidget {
   const AppLockView({super.key});
   static const String _genericErrorMessage =
       'Something went wrong. Please try again.';
+  static const int _forgotOtpLength = 4;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -102,7 +103,8 @@ class AppLockView extends HookConsumerWidget {
           Navigator.of(context).pop();
         }
       } catch (e, stackTrace) {
-        logger.error('Biometric authentication failed', error: e, stackTrace: stackTrace);
+        logger.error('Biometric authentication failed',
+            error: e, stackTrace: stackTrace);
         AppSnackbar.show(_genericErrorMessage);
       }
     }
@@ -193,8 +195,8 @@ class AppLockView extends HookConsumerWidget {
       final otp = forgotOtpController.text.trim();
       final pin = forgotPinController.text.trim();
       final confirmPin = forgotConfirmController.text.trim();
-      if (otp.length != 4) {
-        AppSnackbar.show('Please enter the 4-digit OTP.');
+      if (otp.length != _forgotOtpLength) {
+        AppSnackbar.show('Please enter the $_forgotOtpLength-digit OTP.');
         return;
       }
       if (pin.length != 4) {
@@ -335,6 +337,7 @@ class AppLockView extends HookConsumerWidget {
                                 _AppLockPinInput(
                                   controller: forgotOtpController,
                                   enabled: !authState.isSubmitting,
+                                  length: AppLockView._forgotOtpLength,
                                   onCompleted: (_) {},
                                 ),
                                 SizedBox(height: 10.h),
@@ -599,6 +602,7 @@ class _AppLockPinInput extends StatelessWidget {
     this.focusNode,
     this.enabled = true,
     this.obscure = false,
+    this.length = 4,
     required this.onCompleted,
   });
 
@@ -606,6 +610,7 @@ class _AppLockPinInput extends StatelessWidget {
   final FocusNode? focusNode;
   final bool enabled;
   final bool obscure;
+  final int length;
   final ValueChanged<String> onCompleted;
 
   @override
@@ -635,12 +640,12 @@ class _AppLockPinInput extends StatelessWidget {
       builder: (context, constraints) {
         final totalWidth = constraints.maxWidth;
         const gap = 10.0;
-        final fieldWidth = (totalWidth - (gap * 3)) / 4;
+        final fieldWidth = (totalWidth - (gap * (length - 1))) / length;
         final stretchedTheme = pinTheme.copyWith(width: fieldWidth);
         return Pinput(
           controller: controller,
           focusNode: focusNode,
-          length: 4,
+          length: length,
           enabled: enabled,
           obscureText: obscure,
           obscuringCharacter: '●',

@@ -101,7 +101,8 @@ class LoginView extends HookConsumerWidget {
           final initialUri = await AppLinks().getInitialLink();
           await handleIncomingUri(initialUri);
         } catch (e, stackTrace) {
-          logger.error('Failed to resolve initial referral deep link', error: e, stackTrace: stackTrace);
+          logger.error('Failed to resolve initial referral deep link',
+              error: e, stackTrace: stackTrace);
         }
       });
 
@@ -307,7 +308,8 @@ class LoginView extends HookConsumerWidget {
           );
           _debugLog('listenForCode started');
         } catch (e, stackTrace) {
-          logger.error('Failed to start OTP autofill listener in login view', error: e, stackTrace: stackTrace);
+          logger.error('Failed to start OTP autofill listener in login view',
+              error: e, stackTrace: stackTrace);
         }
       }();
 
@@ -447,7 +449,7 @@ class LoginView extends HookConsumerWidget {
                 return Pinput(
                   controller: pinController,
                   focusNode: pinFocusNode,
-                  length: 4,
+                  length: _otpLength,
                   enabled: !authState.isSubmitting,
                   obscureText: true,
                   obscuringCharacter: '●',

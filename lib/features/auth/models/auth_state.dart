@@ -5,6 +5,7 @@ class AuthState {
     required this.isLoading,
     required this.isSubmitting,
     this.pendingMobile,
+    this.postOtpToken,
     this.errorMessage,
   });
 
@@ -20,6 +21,7 @@ class AuthState {
   final bool isLoading;
   final bool isSubmitting;
   final String? pendingMobile;
+  final String? postOtpToken;
   final String? errorMessage;
 
   static const _sentinel = Object();
@@ -30,6 +32,7 @@ class AuthState {
     bool? isLoading,
     bool? isSubmitting,
     Object? pendingMobile = _sentinel,
+    Object? postOtpToken = _sentinel,
     Object? errorMessage = _sentinel,
   }) {
     return AuthState(
@@ -40,6 +43,9 @@ class AuthState {
       pendingMobile: pendingMobile == _sentinel
           ? this.pendingMobile
           : pendingMobile as String?,
+      postOtpToken: postOtpToken == _sentinel
+          ? this.postOtpToken
+          : postOtpToken as String?,
       errorMessage: errorMessage == _sentinel
           ? this.errorMessage
           : errorMessage as String?,

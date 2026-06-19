@@ -806,17 +806,11 @@ class _PaymentBottomSheetState extends ConsumerState<PaymentBottomSheet> {
                               final paymentType =
                                   _resolvePaymentType(detailState);
 
-                              final walletAmount =
-                                  _useECoins ? eCoinsApplied : 0.0;
-                              final razorpayAmount =
-                                  remainingAmount > 0 ? remainingAmount : 0.0;
-
                               final order =
                                   await controller.createPayAllServicesOrder(
                                 amount: widget.amount,
                                 paymentType: paymentType,
-                                walletAmount: walletAmount,
-                                razorpayAmount: razorpayAmount,
+                                useWallet: _useECoins,
                                 isCreditCardFlow: widget.isCreditCardFlow,
                               );
 
@@ -1226,8 +1220,6 @@ class _PrepaidPaymentBottomSheetState
                                     .createRechargeOrderWithPlan(
                                   plan: widget.plan,
                                   useWallet: _useECoins,
-                                  walletAmount: eCoinsApplied,
-                                  razorpayAmount: 0,
                                 );
                                 if (!context.mounted) return;
                                 if (order == null) {
@@ -1290,10 +1282,6 @@ class _PrepaidPaymentBottomSheetState
                                   await controller.createRechargeOrderWithPlan(
                                 plan: widget.plan,
                                 useWallet: _useECoins,
-                                walletAmount: _useECoins ? eCoinsApplied : 0,
-                                razorpayAmount: _useECoins
-                                    ? remainingAmount
-                                    : widget.plan.amount.toDouble(),
                               );
                               if (!context.mounted) return;
                               if (order == null) {

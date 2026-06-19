@@ -25,7 +25,7 @@ class ResetMpinView extends HookConsumerWidget {
     this.mobile,
   });
 
-  static const int _otpLength = 4;
+  static const int _otpLength = 6;
   static const String _genericErrorMessage =
       'Something went wrong. Please try again.';
   final String? mobile;

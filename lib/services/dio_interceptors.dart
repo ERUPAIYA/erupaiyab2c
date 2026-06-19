@@ -10,8 +10,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http_certificate_pinning/http_certificate_pinning.dart';
 
-import '../constants/storage_keys.dart';
 import '../config/app_env.dart';
+import '../constants/storage_keys.dart';
 import '../widgets/app_snackbar.dart';
 
 void _debugLog(String message) {
@@ -217,8 +217,8 @@ class DioInterceptors extends InterceptorsWrapper {
       final accessToken = await Utils.getAccessToken();
       final tempAccessToken = await Utils.getTemporaryAccessToken();
       final tokenType = await Utils.getTokenType();
-      final resolvedToken =
-          accessToken ?? ((tempAccessToken?.trim().isNotEmpty ?? false)
+      final resolvedToken = accessToken ??
+          ((tempAccessToken?.trim().isNotEmpty ?? false)
               ? tempAccessToken
               : null);
       if (resolvedToken != null) {

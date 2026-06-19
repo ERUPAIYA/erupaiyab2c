@@ -48,7 +48,7 @@ class _CompleteProfileDialogState extends State<CompleteProfileDialog> {
   bool _otpVerified = false;
   bool _googleInitialized = false;
 
-  static const int _otpLength = 4;
+  static const int _otpLength = 6;
   static const int _otpResendCooldownSeconds = 59;
   Timer? _otpTimer;
   int _otpSecondsRemaining = 0;

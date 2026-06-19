@@ -23,6 +23,7 @@ import '../utils/temporary_block_flow_launcher.dart';
 
 class PinLoginView extends HookConsumerWidget {
   const PinLoginView({super.key});
+  static const int _forgotOtpLength = 6;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -109,8 +110,9 @@ class PinLoginView extends HookConsumerWidget {
       }
       if (isRequestingOtp.value) return;
       isRequestingOtp.value = true;
-      final flow =
-          await ref.read(authControllerProvider.notifier).checkLogin(mobile: phone);
+      final flow = await ref
+          .read(authControllerProvider.notifier)
+          .checkLogin(mobile: phone);
       if (flow == null) {
         isRequestingOtp.value = false;
         AppSnackbar.show(
@@ -135,7 +137,8 @@ class PinLoginView extends HookConsumerWidget {
       showForgotPin.value = true;
       forgotRemainingSeconds.value = 60;
       forgotTimerRef.value?.cancel();
-      forgotTimerRef.value = Timer.periodic(const Duration(seconds: 1), (timer) {
+      forgotTimerRef.value =
+          Timer.periodic(const Duration(seconds: 1), (timer) {
         if (forgotRemainingSeconds.value <= 1) {
           forgotRemainingSeconds.value = 0;
           timer.cancel();
@@ -160,7 +163,8 @@ class PinLoginView extends HookConsumerWidget {
       AppSnackbar.show(message);
       forgotRemainingSeconds.value = 60;
       forgotTimerRef.value?.cancel();
-      forgotTimerRef.value = Timer.periodic(const Duration(seconds: 1), (timer) {
+      forgotTimerRef.value =
+          Timer.periodic(const Duration(seconds: 1), (timer) {
         if (forgotRemainingSeconds.value <= 1) {
           forgotRemainingSeconds.value = 0;
           timer.cancel();
@@ -174,8 +178,8 @@ class PinLoginView extends HookConsumerWidget {
       final otp = forgotOtpController.text.trim();
       final pin = forgotPinController.text.trim();
       final confirmPin = forgotConfirmController.text.trim();
-      if (otp.length != 4) {
-        AppSnackbar.show('Please enter the 4-digit OTP.');
+      if (otp.length != _forgotOtpLength) {
+        AppSnackbar.show('Please enter the $_forgotOtpLength-digit OTP.');
         return;
       }
       if (pin.length != 4) {
@@ -248,64 +252,64 @@ class PinLoginView extends HookConsumerWidget {
                 bottom: 24,
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: 8.w),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (!showForgotPin.value)
-                          LoginInputCard(
-                            phoneController: phoneController,
-                            pinControllers: pinControllers,
-                            pinFocusNodes: pinFocusNodes,
-                            onContinue: handleLogin,
-                            onForgotPin: handleForgotPinOpen,
-                            enabled: !authState.isSubmitting,
-                          )
-                        else
-                          _ForgotPinCard(
-                            otpController: forgotOtpController,
-                            pinController: forgotPinController,
-                            confirmPinController: forgotConfirmController,
-                            remainingSeconds: forgotRemainingSeconds.value,
-                            isSubmitting: authState.isSubmitting,
-                            isRequestingOtp: isRequestingOtp.value,
-                            onResend: handleForgotResend,
-                            onVerify: handleForgotVerify,
-                            onBack: () {
-                              showForgotPin.value = false;
-                              forgotTimerRef.value?.cancel();
-                              forgotRemainingSeconds.value = 0;
-                              forgotOtpController.clear();
-                              forgotPinController.clear();
-                              forgotConfirmController.clear();
-                            },
-                          ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (!showForgotPin.value)
+                        LoginInputCard(
+                          phoneController: phoneController,
+                          pinControllers: pinControllers,
+                          pinFocusNodes: pinFocusNodes,
+                          onContinue: handleLogin,
+                          onForgotPin: handleForgotPinOpen,
+                          enabled: !authState.isSubmitting,
+                        )
+                      else
+                        _ForgotPinCard(
+                          otpController: forgotOtpController,
+                          pinController: forgotPinController,
+                          confirmPinController: forgotConfirmController,
+                          remainingSeconds: forgotRemainingSeconds.value,
+                          isSubmitting: authState.isSubmitting,
+                          isRequestingOtp: isRequestingOtp.value,
+                          onResend: handleForgotResend,
+                          onVerify: handleForgotVerify,
+                          onBack: () {
+                            showForgotPin.value = false;
+                            forgotTimerRef.value?.cancel();
+                            forgotRemainingSeconds.value = 0;
+                            forgotOtpController.clear();
+                            forgotPinController.clear();
+                            forgotConfirmController.clear();
+                          },
+                        ),
                       SizedBox(height: 18.h),
-                        if (!showForgotPin.value)
-                          Text.rich(
-                            TextSpan(
-                              text: "Don\u2019t Have an account ? ",
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary,
-                                  ),
-                              children: [
-                                TextSpan(
-                                  text: 'Register',
-                                  style: const TextStyle(
-                                    color: AppColors.primary,
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                  recognizer: TapGestureRecognizer()
-                                    ..onTap = () {
-                                      context.go(RouteConstants.register);
-                                    },
+                      if (!showForgotPin.value)
+                        Text.rich(
+                          TextSpan(
+                            text: "Don\u2019t Have an account ? ",
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
                                 ),
-                              ],
-                            ),
+                            children: [
+                              TextSpan(
+                                text: 'Register',
+                                style: const TextStyle(
+                                  color: AppColors.primary,
+                                  decoration: TextDecoration.underline,
+                                ),
+                                recognizer: TapGestureRecognizer()
+                                  ..onTap = () {
+                                    context.go(RouteConstants.register);
+                                  },
+                              ),
+                            ],
                           ),
+                        ),
                     ],
                   ),
                 ),
@@ -377,7 +381,7 @@ class _ForgotPinCard extends StatelessWidget {
             ),
             SizedBox(height: 6.h),
             Text(
-              'Enter the 4-digit OTP sent to your mobile number.',
+              'Enter the 6-digit OTP sent to your mobile number.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.textPrimary.withOpacity(0.6),
                   ),
@@ -385,6 +389,7 @@ class _ForgotPinCard extends StatelessWidget {
             SizedBox(height: 12.h),
             _ForgotPinInput(
               controller: otpController,
+              length: PinLoginView._forgotOtpLength,
             ),
             SizedBox(height: 10.h),
             Row(
@@ -401,8 +406,9 @@ class _ForgotPinCard extends StatelessWidget {
                 ),
                 const Spacer(),
                 TextButton(
-                  onPressed:
-                      remainingSeconds == 0 && !isRequestingOtp ? onResend : null,
+                  onPressed: remainingSeconds == 0 && !isRequestingOtp
+                      ? onResend
+                      : null,
                   style: TextButton.styleFrom(
                     foregroundColor: remainingSeconds == 0
                         ? AppColors.primary
@@ -469,16 +475,18 @@ class _ForgotPinInput extends StatelessWidget {
   const _ForgotPinInput({
     required this.controller,
     this.obscureText = false,
+    this.length = 4,
   });
 
   final TextEditingController controller;
   final bool obscureText;
+  final int length;
 
   @override
   Widget build(BuildContext context) {
     return Pinput(
       controller: controller,
-      length: 4,
+      length: length,
       obscureText: obscureText,
       keyboardType: TextInputType.number,
       defaultPinTheme: PinTheme(

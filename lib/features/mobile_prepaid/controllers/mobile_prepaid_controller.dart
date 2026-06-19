@@ -255,8 +255,6 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
   Future<RechargeOrderResult?> createRechargeOrderWithPlan({
     required PlanItem plan,
     bool useWallet = false,
-    double walletAmount = 0,
-    double razorpayAmount = 0,
   }) async {
     if (state.operatorInfo == null || state.mobile.isEmpty) {
       state = state.copyWith(
@@ -280,8 +278,7 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
         amount: plan.amount,
         desc: plan.description,
         operatorName: state.operatorInfo!.operatorName,
-        walletAmount: useWallet ? walletAmount : 0,
-        razorpayAmount: useWallet ? razorpayAmount : plan.amount.toDouble(),
+        useWallet: useWallet,
       );
       state = state.copyWith(isRecharging: false);
       if (!order.isSuccess) {

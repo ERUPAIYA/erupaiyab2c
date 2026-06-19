@@ -94,7 +94,8 @@ class BillerDetailView extends HookConsumerWidget {
     final didAutoFetchBill = useRef(false);
     useEffect(() {
       Future.microtask(
-        () => ref.read(profileControllerProvider.notifier).fetchProfileIfNeeded(),
+        () =>
+            ref.read(profileControllerProvider.notifier).fetchProfileIfNeeded(),
       );
       return null;
     }, const []);
@@ -300,6 +301,10 @@ class BillerDetailView extends HookConsumerWidget {
       return hasFastTag(detail?.billerCategoryName) ||
           hasFastTag(biller?.billerName);
     })();
+    final fastTagMinAmount =
+        isFastTag && bill != null ? _resolveFastTagMinAmount(bill) : null;
+    final fastTagMaxAmount =
+        isFastTag && bill != null ? _resolveFastTagMaxAmount(bill) : null;
 
     // Set bill amount when fetched
     useEffect(() {
@@ -444,8 +449,9 @@ class BillerDetailView extends HookConsumerWidget {
       if (detail == null || biller == null) return null;
       if (bill != null) return null;
       if (didAutoFetchBill.value) return null;
-      if (detailState.isFetchingBill || detailState.isFetchingDetail)
+      if (detailState.isFetchingBill || detailState.isFetchingDetail) {
         return null;
+      }
 
       didAutoFetchBill.value = true;
       WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -875,6 +881,8 @@ class BillerDetailView extends HookConsumerWidget {
                               isCreditCardFlow: isCreditCardFlow,
                               isPipedGas: isPipedGas,
                               allowCustomAmount: isFastTag,
+                              minimumCustomAmount: fastTagMinAmount,
+                              maximumCustomAmount: fastTagMaxAmount,
                               isElectricity: isElectricity,
                               showFullDetailsInline: isFastTag,
                               hideAmountDisplayCard: isFastTag,
@@ -949,6 +957,13 @@ class BillerDetailView extends HookConsumerWidget {
                                   ? (subscriptionAmount ?? 0) <= 0
                                   : (bill != null &&
                                       ((enteredAmount ?? 0) <= 0 ||
+                                          (isFastTag &&
+                                              ((fastTagMinAmount != null &&
+                                                      (enteredAmount ?? 0) <
+                                                          fastTagMinAmount) ||
+                                                  (fastTagMaxAmount != null &&
+                                                      (enteredAmount ?? 0) >
+                                                          fastTagMaxAmount))) ||
                                           (isPipedGas &&
                                               ((enteredAmount ?? 0) <
                                                       PipedGasBillSection
@@ -988,8 +1003,7 @@ class BillerDetailView extends HookConsumerWidget {
                                               .createPayAllServicesOrder(
                                             amount: amountToPay,
                                             paymentType: paymentType,
-                                            walletAmount: 0,
-                                            razorpayAmount: amountToPay,
+                                            useWallet: false,
                                             isCreditCardFlow: isCreditCardFlow,
                                           );
                                           if (!context.mounted) return;

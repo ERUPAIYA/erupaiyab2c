@@ -821,6 +821,8 @@ class _CompactBillSection extends StatelessWidget {
     required this.isCreditCardFlow,
     required this.isPipedGas,
     this.allowCustomAmount = false,
+    this.minimumCustomAmount,
+    this.maximumCustomAmount,
     this.isElectricity = false,
     this.showFullDetailsInline = false,
     this.hideAmountDisplayCard = false,
@@ -837,6 +839,8 @@ class _CompactBillSection extends StatelessWidget {
   final bool isCreditCardFlow;
   final bool isPipedGas;
   final bool allowCustomAmount;
+  final double? minimumCustomAmount;
+  final double? maximumCustomAmount;
   final bool isElectricity;
   final bool showFullDetailsInline;
   final bool hideAmountDisplayCard;
@@ -1015,57 +1019,108 @@ class _CompactBillSection extends StatelessWidget {
               ),
         ),
         const SizedBox(height: 8),
-        TextField(
-          controller: billAmountController,
-          keyboardType: TextInputType.number,
-          readOnly: !allowCustomAmount,
-          onTap: () {
-            // Make it easy to replace the prefilled amount (e.g. FASTag).
-            billAmountController.selection = TextSelection(
-              baseOffset: 0,
-              extentOffset: billAmountController.text.length,
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: billAmountController,
+          builder: (context, value, _) {
+            final amountError = allowCustomAmount
+                ? _validateCustomAmount(
+                    value.text,
+                    minimumCustomAmount: minimumCustomAmount,
+                    maximumCustomAmount: maximumCustomAmount,
+                  )
+                : null;
+            return TextField(
+              controller: billAmountController,
+              keyboardType: TextInputType.number,
+              readOnly: !allowCustomAmount,
+              onTap: () {
+                billAmountController.selection = TextSelection(
+                  baseOffset: 0,
+                  extentOffset: billAmountController.text.length,
+                );
+              },
+              inputFormatters: [
+                if (allowCustomAmount)
+                  FilteringTextInputFormatter.digitsOnly
+                else
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+              ],
+              onChanged: (nextValue) {
+                if (selectedAmountType != _PaymentAmountType.custom) {
+                  onAmountTypeChanged(_PaymentAmountType.custom);
+                }
+                if (!allowCustomAmount) return;
+                final parsed = _parseEnteredAmount(nextValue);
+                if (maximumCustomAmount != null &&
+                    parsed != null &&
+                    parsed > maximumCustomAmount!) {
+                  final trimmed = nextValue.substring(
+                    0,
+                    nextValue.length - 1,
+                  );
+                  billAmountController.value = TextEditingValue(
+                    text: trimmed,
+                    selection: TextSelection.collapsed(
+                      offset: trimmed.length,
+                    ),
+                  );
+                }
+              },
+              onEditingComplete: () {
+                if (selectedAmountType != _PaymentAmountType.custom) {
+                  onAmountTypeChanged(_PaymentAmountType.custom);
+                }
+              },
+              decoration: InputDecoration(
+                prefixText: '\u20B9  ',
+                errorText: amountError,
+                prefixStyle: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.lightBorder),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.lightBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.primary),
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.red),
+                ),
+                focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.red),
+                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              ),
             );
           },
-          inputFormatters: [
-            if (allowCustomAmount)
-              FilteringTextInputFormatter.digitsOnly
-            else
-              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-          ],
-          onChanged: (value) {
-            if (selectedAmountType != _PaymentAmountType.custom) {
-              onAmountTypeChanged(_PaymentAmountType.custom);
-            }
-          },
-          onEditingComplete: () {
-            if (selectedAmountType != _PaymentAmountType.custom) {
-              onAmountTypeChanged(_PaymentAmountType.custom);
-            }
-          },
-          decoration: InputDecoration(
-            prefixText: '\u20B9  ',
-            prefixStyle: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-            filled: true,
-            fillColor: Colors.grey.shade50,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.lightBorder),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.lightBorder),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.primary),
-            ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          ),
         ),
+        if (allowCustomAmount &&
+            (minimumCustomAmount != null || maximumCustomAmount != null)) ...[
+          const SizedBox(height: 8),
+          Text(
+            [
+              if (minimumCustomAmount != null)
+                'Minimum recharge amount: ₹${_formatAmountForInput(minimumCustomAmount!)}',
+              if (maximumCustomAmount != null)
+                'Maximum recharge amount: ₹${_formatAmountForInput(maximumCustomAmount!)}',
+            ].join('  •  '),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.textPrimary.withOpacity(0.6),
+                ),
+          ),
+        ],
       ],
     );
   }
@@ -1646,6 +1701,46 @@ double? _resolveMinimumDue(BillResponse bill) {
       'Min Due',
     ],
   );
+}
+
+double? _resolveFastTagMinAmount(BillResponse bill) {
+  return _extractAmountFromDetails(
+    bill,
+    const [
+      'MinimumRechargeAmount',
+      'Minimum Recharge Amount',
+      'Minimum Recharge',
+      'Min Recharge Amount',
+    ],
+  );
+}
+
+double? _resolveFastTagMaxAmount(BillResponse bill) {
+  return _extractAmountFromDetails(
+    bill,
+    const [
+      'Maximum Permissible Recharge Amount',
+      'MaximumPermissibleRechargeAmount',
+      'Maximum Recharge Amount',
+      'Max Recharge Amount',
+    ],
+  );
+}
+
+String? _validateCustomAmount(
+  String rawValue, {
+  double? minimumCustomAmount,
+  double? maximumCustomAmount,
+}) {
+  final amount = _parseEnteredAmount(rawValue);
+  if (amount == null) return null;
+  if (minimumCustomAmount != null && amount < minimumCustomAmount) {
+    return 'Minimum recharge amount is ₹${_formatAmountForInput(minimumCustomAmount)}';
+  }
+  if (maximumCustomAmount != null && amount > maximumCustomAmount) {
+    return 'Maximum recharge amount is ₹${_formatAmountForInput(maximumCustomAmount)}';
+  }
+  return null;
 }
 
 double? _extractAmountFromDetails(BillResponse bill, List<String> keys) {

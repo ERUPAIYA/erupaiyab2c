@@ -174,6 +174,7 @@ class AuthController extends StateNotifier<AuthState> {
         hasTemporaryAccess: false,
         isSubmitting: false,
         pendingMobile: null,
+        postOtpToken: null,
         errorMessage: null,
       );
       await _handlePendingReferral();
@@ -230,13 +231,14 @@ class AuthController extends StateNotifier<AuthState> {
 
     state = state.copyWith(isSubmitting: true, errorMessage: null);
     try {
-      await _repository.verifyOtp(
+      final postOtpToken = await _repository.verifyOtp(
         mobile: resolvedMobile,
         otp: otp,
       );
       state = state.copyWith(
         isSubmitting: false,
         pendingMobile: resolvedMobile,
+        postOtpToken: postOtpToken,
         errorMessage: null,
       );
       return true;
@@ -256,12 +258,11 @@ class AuthController extends StateNotifier<AuthState> {
     required String pin,
     String? mobile,
   }) async {
-    final storedMobile = await _repository.secureStorage.read(key: 'mobile');
-    final resolvedMobile = mobile ?? state.pendingMobile ?? storedMobile ?? '';
-    if (resolvedMobile.isEmpty) {
+    final postOtpToken = state.postOtpToken?.trim() ?? '';
+    if (postOtpToken.isEmpty) {
       state = state.copyWith(
         isSubmitting: false,
-        errorMessage: 'Missing mobile number. Please try again.',
+        errorMessage: 'Missing verification token. Please verify OTP again.',
       );
       return null;
     }
@@ -269,12 +270,13 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(isSubmitting: true, errorMessage: null);
     try {
       final message = await _repository.setPin(
-        mobile: resolvedMobile,
+        postOtpToken: postOtpToken,
         pin: pin,
       );
       state = state.copyWith(
         isSubmitting: false,
         pendingMobile: null,
+        postOtpToken: null,
         errorMessage: null,
       );
       await _handlePendingReferral();
@@ -297,6 +299,7 @@ class AuthController extends StateNotifier<AuthState> {
       isAuthenticated: false,
       hasTemporaryAccess: false,
       pendingMobile: null,
+      postOtpToken: null,
       errorMessage: null,
     );
   }

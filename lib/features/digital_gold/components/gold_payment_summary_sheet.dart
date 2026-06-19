@@ -33,7 +33,7 @@ class GoldPaymentSummarySheet extends HookConsumerWidget {
   final ValueChanged<DigitalGoldPurchaseReceipt> onBuyNow;
   final DigitalMetal metal;
   final DigitalGoldPreview preview;
-  static const int _otpLength = 4;
+  static const int _otpLength = 6;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -68,7 +68,8 @@ class GoldPaymentSummarySheet extends HookConsumerWidget {
 
     useEffect(() {
       Future.microtask(
-        () => ref.read(profileControllerProvider.notifier).fetchProfileIfNeeded(),
+        () =>
+            ref.read(profileControllerProvider.notifier).fetchProfileIfNeeded(),
       );
       return () {
         debounce?.cancel();
@@ -272,8 +273,7 @@ class GoldPaymentSummarySheet extends HookConsumerWidget {
                             // Call buy API only after Razorpay success
                             try {
                               final otpData = otpResponse.value;
-                              final billingAddressId =
-                                  preview.billingAddressId;
+                              final billingAddressId = preview.billingAddressId;
                               final customerId = preview.customerId;
                               final quoteId = preview.quoteId;
                               if (otpData == null ||

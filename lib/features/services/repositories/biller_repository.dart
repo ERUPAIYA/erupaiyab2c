@@ -25,9 +25,8 @@ class BillerRepository {
       }
       final messages = data['messages'];
       if (messages is Map) {
-        final nested = (messages['error'] ?? messages['message'] ?? '')
-            .toString()
-            .trim();
+        final nested =
+            (messages['error'] ?? messages['message'] ?? '').toString().trim();
         if (nested.isNotEmpty) {
           throw Exception(nested);
         }
@@ -49,7 +48,8 @@ class BillerRepository {
           'category_name': categoryName,
           'page': page,
           'limit': limit,
-          if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+          if (search != null && search.trim().isNotEmpty)
+            'search': search.trim(),
         },
       );
       final payload = response.data as Map<String, dynamic>? ?? {};
@@ -132,8 +132,7 @@ class BillerRepository {
     required List<String> paymentModes,
     required String billerName,
     required String paymentType,
-    double walletAmount = 0,
-    double razorpayAmount = 0,
+    bool useWallet = false,
   }) async {
     try {
       Map<String, dynamic> deviceContext = const <String, dynamic>{};
@@ -150,8 +149,7 @@ class BillerRepository {
         'ref_id': refId,
         'arr_bill_payment_modes': paymentModes.join(','),
         'masked_identifier': maskedIdentifier,
-        'wallet_amount': walletAmount.toStringAsFixed(2),
-        'razorpay_amount': razorpayAmount.toStringAsFixed(2),
+        'use_wallet': useWallet ? 1 : 0,
         ...deviceContext,
       };
 
@@ -177,7 +175,8 @@ class BillerRepository {
       return ServicePaymentOrderResult.fromJson(payload);
     } on DioException catch (e, stackTrace) {
       if (e.type == DioExceptionType.badResponse) {
-        _throwApiMessage(e, fallback: 'Failed to create order. Please try again.');
+        _throwApiMessage(e,
+            fallback: 'Failed to create order. Please try again.');
       }
       logger.error(
         'Failed to create pay-allservices order',

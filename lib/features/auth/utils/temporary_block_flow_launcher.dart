@@ -32,9 +32,8 @@ Future<void> launchTemporaryBlockedFlow({
         final successRoute = flowType == TemporaryBlockFlowType.noKyc
             ? RouteConstants.kycVerification
             : RouteConstants.temporaryBlockIdentityCompletion;
-        final flowQueryValue = flowType == TemporaryBlockFlowType.noKyc
-            ? 'noKyc'
-            : 'kycVerified';
+        final flowQueryValue =
+            flowType == TemporaryBlockFlowType.noKyc ? 'noKyc' : 'kycVerified';
         Navigator.of(context, rootNavigator: true).pop();
         Future.microtask(() {
           if (!context.mounted) return;
@@ -92,8 +91,7 @@ Future<void> launchNewDeviceVerificationFlow({
               successRouteUseGo: true,
               clearTemporaryAccessOnSuccess: false,
               deviceVerificationId: verificationId,
-              temporaryBlockFlowType:
-                  TemporaryBlockFlowType.deviceVerification,
+              temporaryBlockFlowType: TemporaryBlockFlowType.deviceVerification,
             ),
           );
         });

@@ -154,8 +154,7 @@ class BillerDetailController extends StateNotifier<BillerDetailState> {
   Future<ServicePaymentOrderResult?> createPayAllServicesOrder({
     required double amount,
     required String paymentType,
-    double walletAmount = 0,
-    double razorpayAmount = 0,
+    bool useWallet = false,
     bool isCreditCardFlow = false,
   }) async {
     final biller = state.selectedBiller;
@@ -186,8 +185,7 @@ class BillerDetailController extends StateNotifier<BillerDetailState> {
             .toList(),
         billerName: biller.billerName,
         paymentType: paymentType,
-        walletAmount: walletAmount,
-        razorpayAmount: razorpayAmount,
+        useWallet: useWallet,
       );
       state = state.copyWith(isPayingBill: false);
       if (!order.isSuccess) {

@@ -116,7 +116,7 @@ class AuthRepository {
     }
   }
 
-  Future<void> verifyOtp({
+  Future<String?> verifyOtp({
     required String mobile,
     required String otp,
   }) async {
@@ -148,6 +148,17 @@ class AuthRepository {
       if (userId != null) {
         await _secureStorage.write(key: 'userId', value: userId.toString());
       }
+      final postOtpToken = (data['post_otp_token'] ?? '').toString().trim();
+      return postOtpToken.isEmpty ? null : postOtpToken;
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.badResponse) {
+        _throwApiMessage(e, fallback: 'OTP verification failed');
+      }
+      logger.error(
+        'OTP verification failed: ${e.toString()}',
+        error: e,
+      );
+      rethrow;
     } catch (e) {
       logger.error(
         'OTP verification failed: ${e.toString()}',
@@ -158,7 +169,7 @@ class AuthRepository {
   }
 
   Future<String> setPin({
-    required String mobile,
+    required String postOtpToken,
     required String pin,
   }) async {
     try {
@@ -172,7 +183,7 @@ class AuthRepository {
           },
         ),
         data: {
-          'mobile': mobile,
+          'post_otp_token': postOtpToken,
           'pin': pin,
         },
       );
@@ -391,6 +402,13 @@ class AuthRepository {
     try {
       final response = await _dio.post(
         ApiConstants.requestForgotPinOtpEndpoint,
+        options: Options(
+          contentType: Headers.jsonContentType,
+          extra: const {
+            'skipAuth': true,
+            'skipAuthRefresh': true,
+          },
+        ),
         data: {
           'mobile': mobile,
           'appHash': appHash.trim(),
@@ -432,6 +450,13 @@ class AuthRepository {
     try {
       final response = await _dio.post(
         ApiConstants.forgotPinEndpoint,
+        options: Options(
+          contentType: Headers.jsonContentType,
+          extra: const {
+            'skipAuth': true,
+            'skipAuthRefresh': true,
+          },
+        ),
         data: {
           'mobile': mobile,
           'otp': otp,
@@ -466,13 +491,13 @@ class AuthRepository {
 
   Future<String> sendAccountRecoveryOtp() async {
     try {
-      final response = await _dio.post(ApiConstants.accountRecoverySendOtpEndpoint);
+      final response =
+          await _dio.post(ApiConstants.accountRecoverySendOtpEndpoint);
 
       final payload = response.data as Map<String, dynamic>?;
       final success = payload?['success'] == true;
       if (!success) {
-        final message =
-            payload?['message'] as String? ?? 'Failed to send OTP';
+        final message = payload?['message'] as String? ?? 'Failed to send OTP';
         throw Exception(message);
       }
       return payload?['message'] as String? ?? 'OTP sent successfully';

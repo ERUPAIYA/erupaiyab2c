@@ -31,9 +31,8 @@ class MobilePrepaidRepository {
       }
       final messages = data['messages'];
       if (messages is Map) {
-        final nested = (messages['error'] ?? messages['message'] ?? '')
-            .toString()
-            .trim();
+        final nested =
+            (messages['error'] ?? messages['message'] ?? '').toString().trim();
         if (nested.isNotEmpty) {
           throw Exception(nested);
         }
@@ -271,8 +270,7 @@ class MobilePrepaidRepository {
     required int amount,
     required String operatorName,
     required String desc,
-    double walletAmount = 0,
-    double razorpayAmount = 0,
+    bool useWallet = false,
   }) async {
     try {
       final response = await _dio.post(
@@ -281,8 +279,7 @@ class MobilePrepaidRepository {
           'mobile': mobile,
           'amount': amount.toDouble().toStringAsFixed(2),
           'operator': operatorName,
-          'wallet_amount': walletAmount.toStringAsFixed(2),
-          'razorpay_amount': razorpayAmount.toStringAsFixed(2),
+          'use_wallet': useWallet ? 1 : 0,
           'desc': desc,
         },
         options: Options(
@@ -293,7 +290,8 @@ class MobilePrepaidRepository {
       return RechargeOrderResult.fromJson(payload);
     } on DioException catch (e, stackTrace) {
       if (e.type == DioExceptionType.badResponse) {
-        _throwApiMessage(e, fallback: 'Failed to create order. Please try again.');
+        _throwApiMessage(e,
+            fallback: 'Failed to create order. Please try again.');
       }
       logger.error(
         'Failed to create recharge order',

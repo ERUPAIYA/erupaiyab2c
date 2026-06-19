@@ -21,9 +21,7 @@ class LoginDeviceContextService {
       'isMock': location.isMocked,
       'isVpn': vpn,
       'isRooted': rooted,
-      // Send both keys to match backend expectations across versions.
       'deviceId': deviceId,
-      'device_id': deviceId,
       'timestamp': now.millisecondsSinceEpoch.toString(),
     };
   }
@@ -45,7 +43,8 @@ class LoginDeviceContextService {
         return (ios.identifierForVendor ?? ios.name).toString();
       }
     } catch (e, stackTrace) {
-      logger.error('Failed to resolve login device ID', error: e, stackTrace: stackTrace);
+      logger.error('Failed to resolve login device ID',
+          error: e, stackTrace: stackTrace);
     }
     return '';
   }
@@ -67,7 +66,8 @@ class LoginDeviceContextService {
         }
       }
     } catch (e, stackTrace) {
-      logger.error('Failed to inspect VPN state for login context', error: e, stackTrace: stackTrace);
+      logger.error('Failed to inspect VPN state for login context',
+          error: e, stackTrace: stackTrace);
     }
     return false;
   }
@@ -103,7 +103,8 @@ class LoginDeviceContextService {
         }
       }
     } catch (e, stackTrace) {
-      logger.error('Failed to inspect root/jailbreak state for login context', error: e, stackTrace: stackTrace);
+      logger.error('Failed to inspect root/jailbreak state for login context',
+          error: e, stackTrace: stackTrace);
     }
     return false;
   }
@@ -132,7 +133,8 @@ class LoginDeviceContextService {
         isMocked: position.isMocked,
       );
     } catch (e, stackTrace) {
-      logger.error('Failed to collect login location context', error: e, stackTrace: stackTrace);
+      logger.error('Failed to collect login location context',
+          error: e, stackTrace: stackTrace);
       return const _LocationSnapshot.empty();
     }
   }

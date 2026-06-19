@@ -26,7 +26,7 @@ import '../models/otp_verification_args.dart';
 class OtpVerificationView extends HookConsumerWidget {
   const OtpVerificationView({super.key, required this.args});
 
-  static const int _otpLength = 4;
+  static const int _otpLength = 6;
 
   final OtpVerificationArgs args;
 
@@ -37,8 +37,8 @@ class OtpVerificationView extends HookConsumerWidget {
     final otpFocusNode = useFocusNode();
     final autoFilledCode = useState<String?>(null);
     final showIdentityVariant = args.temporaryBlockFlowType != null;
-    final isDeviceVerificationFlow =
-        args.temporaryBlockFlowType == TemporaryBlockFlowType.deviceVerification;
+    final isDeviceVerificationFlow = args.temporaryBlockFlowType ==
+        TemporaryBlockFlowType.deviceVerification;
     final mobileOtpControllers = useMemoized(
       () => List.generate(_otpLength, (_) => TextEditingController()),
       const [],
@@ -423,8 +423,9 @@ class OtpVerificationView extends HookConsumerWidget {
                     args.heading,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w700,
-                          color:
-                              showIdentityVariant ? AppColors.primary : AppColors.textPrimary,
+                          color: showIdentityVariant
+                              ? AppColors.primary
+                              : AppColors.textPrimary,
                         ),
                   ),
                   SizedBox(height: 8.h),
@@ -469,7 +470,7 @@ class OtpVerificationView extends HookConsumerWidget {
                     _IdentityOtpSection(
                       title: 'Mobile OTP',
                       subtitle:
-                          'Enter the 4 digit OTP sent to your registered mobile number.',
+                          'Enter the 6 digit OTP sent to your registered mobile number.',
                       controllers: mobileOtpControllers,
                       focusNodes: mobileOtpFocusNodes,
                       timerText: timerText,
@@ -481,7 +482,7 @@ class OtpVerificationView extends HookConsumerWidget {
                     _IdentityOtpSection(
                       title: 'Email OTP',
                       subtitle:
-                          'Enter the 4 digit OTP sent to your registered email address.',
+                          'Enter the 6 digit OTP sent to your registered email address.',
                       controllers: emailOtpControllers,
                       focusNodes: emailOtpFocusNodes,
                       timerText: emailTimerText,
@@ -568,16 +569,16 @@ class OtpVerificationView extends HookConsumerWidget {
                     showArrow: false,
                     height: 42.h,
                   ),
-                  if (!showIdentityVariant) ...[
-                    SizedBox(height: 8.h),
-                    Text(
-                      'OTP',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.textPrimary.withOpacity(0.6),
-                            fontWeight: FontWeight.w600,
-                          ),
-                    ),
-                  ],
+                  // if (!showIdentityVariant) ...[
+                  //   SizedBox(height: 8.h),
+                  //   Text(
+                  //     'OTPj',
+                  //     style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  //           color: AppColors.textPrimary.withOpacity(0.6),
+                  //           fontWeight: FontWeight.w600,
+                  //         ),
+                  //   ),
+                  // ],
                 ],
               ),
             ),

@@ -278,6 +278,8 @@ class _HomeTopBar extends StatelessWidget {
   const _HomeTopBar({
     required this.initials,
     required this.walletBalance,
+    this.isWalletLoading = false,
+    this.hasWalletError = false,
     required this.onSearchTap,
     required this.onReferTap,
     required this.onProfileTap,
@@ -285,7 +287,9 @@ class _HomeTopBar extends StatelessWidget {
   });
 
   final String initials;
-  final double walletBalance;
+  final double? walletBalance;
+  final bool isWalletLoading;
+  final bool hasWalletError;
   final VoidCallback onSearchTap;
   final VoidCallback onReferTap;
   final VoidCallback onProfileTap;
@@ -296,9 +300,12 @@ class _HomeTopBar extends StatelessWidget {
     final textStyle = GoogleFonts.plusJakartaSans(
       textStyle: Theme.of(context).textTheme.bodySmall,
     );
-    final displayBalance = walletBalance == walletBalance.roundToDouble()
-        ? walletBalance.toStringAsFixed(0)
-        : walletBalance.toStringAsFixed(2);
+    final resolvedWalletBalance = walletBalance;
+    final displayBalance = resolvedWalletBalance == null
+        ? '--'
+        : resolvedWalletBalance == resolvedWalletBalance.roundToDouble()
+            ? resolvedWalletBalance.toStringAsFixed(0)
+            : resolvedWalletBalance.toStringAsFixed(2);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -349,14 +356,26 @@ class _HomeTopBar extends StatelessWidget {
                       height: compact ? 14.w : 16.w,
                     ),
                     SizedBox(width: 6.w),
-                    Text(
-                      displayBalance,
-                      style: textStyle.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w700,
-                        fontSize: compact ? 10.sp : 11.sp,
+                    if (isWalletLoading)
+                      SizedBox(
+                        width: compact ? 12.w : 14.w,
+                        height: compact ? 12.w : 14.w,
+                        child: const CircularProgressIndicator(
+                          strokeWidth: 1.8,
+                          color: AppColors.textPrimary,
+                        ),
+                      )
+                    else
+                      Text(
+                        displayBalance,
+                        style: textStyle.copyWith(
+                          color: hasWalletError
+                              ? AppColors.textPrimary.withOpacity(0.55)
+                              : AppColors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: compact ? 10.sp : 11.sp,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -1706,10 +1725,10 @@ class _HomeContent extends HookConsumerWidget {
             },
             onPrimaryTap: () {
               final profile = profileState.profile;
-              final successRoute = temporaryBlockFlow ==
-                      TemporaryBlockFlowType.noKyc
-                  ? RouteConstants.kycVerification
-                  : RouteConstants.temporaryBlockIdentityCompletion;
+              final successRoute =
+                  temporaryBlockFlow == TemporaryBlockFlowType.noKyc
+                      ? RouteConstants.kycVerification
+                      : RouteConstants.temporaryBlockIdentityCompletion;
               final flowQueryValue =
                   temporaryBlockFlow == TemporaryBlockFlowType.noKyc
                       ? 'noKyc'
@@ -1880,7 +1899,11 @@ class _HomeContent extends HookConsumerWidget {
     final initials = profileState.profile?.initials.isNotEmpty == true
         ? profileState.profile!.initials
         : '';
-    final walletBalance = profileState.profile?.walletBalance ?? 0.0;
+    final walletBalance = profileState.profile?.walletBalance;
+    final isWalletLoading =
+        profileState.profile == null && profileState.isFetching;
+    final hasWalletError =
+        profileState.profile == null && profileState.errorMessage != null;
     final payBillsCategory = quickActions == null
         ? null
         : findCategory(quickActions, ['utilities', 'bills', 'expenses']);
@@ -2039,6 +2062,8 @@ class _HomeContent extends HookConsumerWidget {
                         child: _HomeTopBar(
                           initials: initials,
                           walletBalance: walletBalance,
+                          isWalletLoading: isWalletLoading,
+                          hasWalletError: hasWalletError,
                           compact: true,
                           onSearchTap: () {
                             PersistentNavBarNavigator.pushNewScreen(
