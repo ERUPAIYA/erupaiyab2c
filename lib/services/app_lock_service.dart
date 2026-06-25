@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../features/auth/controllers/auth_controller.dart';
@@ -9,6 +8,7 @@ import '../features/auth/models/auth_state.dart';
 import '../features/auth/views/app_lock_view.dart';
 import '../features/profile/controllers/profile_controller.dart';
 import '../services/logger_service.dart';
+import '../services/secure_storage_service.dart';
 import '../widgets/k_dialog.dart';
 
 final appLockServiceProvider = Provider<AppLockService>((ref) {
@@ -35,7 +35,7 @@ class AppLockService with WidgetsBindingObserver {
   final Duration inactivityTimeout = const Duration(minutes: 2);
   static const _lastActiveKey = 'appLockLastActiveAt';
   static const _lockOnNextOpenKey = 'appLockOnNextOpen';
-  static const FlutterSecureStorage _storage = FlutterSecureStorage();
+  static const _storage = SecureStorageService.instance;
 
   Timer? _timer;
   bool _shouldLock = false;

@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -319,7 +320,9 @@ class OtpVerificationView extends HookConsumerWidget {
       if (digits.isEmpty) return;
       final trimmed =
           digits.length > _otpLength ? digits.substring(0, _otpLength) : digits;
-      debugPrint('OTP autofill received: $trimmed');
+      if (kDebugMode) {
+        debugPrint('OTP autofill received: $trimmed');
+      }
       otpController.text = trimmed;
       otpFocusNode.unfocus();
       autoFilledCode.value = trimmed;
@@ -329,27 +332,37 @@ class OtpVerificationView extends HookConsumerWidget {
     useEffect(() {
       var isDisposed = false;
       final autoFill = SmsAutoFill();
-      debugPrint('init SMS autofill');
+      if (kDebugMode) {
+        debugPrint('init SMS autofill');
+      }
       final sub = autoFill.code.listen((code) {
         if (isDisposed) return;
-        debugPrint('OTP SMS code stream: $code');
+        if (kDebugMode) {
+          debugPrint('OTP SMS code stream: $code');
+        }
         applyOtpCode(code);
       });
 
       () async {
         try {
           final signature = await autoFill.getAppSignature;
-          debugPrint(
-            'SMS Retriever app signature: ${signature.isEmpty ? "<empty>" : signature}',
-          );
+          if (kDebugMode) {
+            debugPrint(
+              'SMS Retriever app signature: ${signature.isEmpty ? "<empty>" : signature}',
+            );
+          }
           await autoFill.listenForCode(
             smsCodeRegexPattern: '\\d{$_otpLength}',
           );
-          debugPrint('listenForCode started');
+          if (kDebugMode) {
+            debugPrint('listenForCode started');
+          }
         } catch (e) {
-          debugPrint(
-            'OTP autofill init failed',
-          );
+          if (kDebugMode) {
+            debugPrint(
+              'OTP autofill init failed',
+            );
+          }
         }
       }();
 
@@ -357,7 +370,9 @@ class OtpVerificationView extends HookConsumerWidget {
         isDisposed = true;
         sub.cancel();
         autoFill.unregisterListener();
-        debugPrint('dispose SMS autofill');
+        if (kDebugMode) {
+          debugPrint('dispose SMS autofill');
+        }
         for (final controller in mobileOtpControllers) {
           controller.dispose();
         }

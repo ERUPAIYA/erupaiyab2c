@@ -5,9 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 import '../../../constants/app_colors.dart';
 import '../../../constants/file_constants.dart';
@@ -24,6 +24,7 @@ import '../../home/models/banner_model.dart';
 import '../../mobile_prepaid/components/contacts_list.dart';
 import '../../mobile_prepaid/controllers/contacts_cache_controller.dart';
 import '../../mobile_prepaid/models/latest_transaction.dart';
+import '../components/service_recent_section.dart';
 import '../controllers/biller_detail_controller.dart';
 import '../controllers/biller_listing_controller.dart';
 import '../controllers/service_extras_controller.dart';
@@ -145,79 +146,10 @@ class BillerListingView extends HookConsumerWidget {
         },
       ),
       body: switch (uiConfig.variant) {
-        _BillerListingVariant.standard => Column(
-            children: [
-              if (uiConfig.showSearch)
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: SearchTextfield(
-                    hintText: 'Search Service',
-                    controller: searchController,
-                    onChange: (value) => ref
-                        .read(billerListingControllerProvider.notifier)
-                        .updateSearch(value),
-                  ),
-                ),
-              Expanded(
-                child: ScreenWrapper(
-                  isFetching: listingState.isFetching,
-                  isEmpty: billers.isEmpty,
-                  emptyMessage: 'No providers found',
-                  errorMessage: listingState.errorMessage,
-                  actions: listingState.errorMessage != null
-                      ? [
-                          TextButton(
-                            onPressed: () => ref
-                                .read(billerListingControllerProvider.notifier)
-                                .fetchBillers(categoryName: categoryName),
-                            child: const Text('Retry'),
-                          ),
-                        ]
-                      : null,
-                  child: InfiniteScrollListener(
-                    isLoading: listingState.isFetchingMore,
-                    hasMore: listingState.hasMore,
-                    onEndReached: () => ref
-                        .read(billerListingControllerProvider.notifier)
-                        .fetchNextPage(),
-                    child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount:
-                          billers.length + (listingState.isFetchingMore ? 1 : 0),
-                      itemBuilder: (context, index) {
-                        if (index >= billers.length) {
-                          return Padding(
-                            padding: EdgeInsets.symmetric(vertical: 16.h),
-                            child: const Center(
-                              child: SpinKitCircle(
-                                color: AppColors.primary,
-                                size: 48,
-                              ),
-                            ),
-                          );
-                        }
-                        return _BillerTile(
-                          biller: billers[index],
-                          onTap: () {
-                            ref
-                                .read(billerDetailControllerProvider.notifier)
-                                .selectBiller(billers[index]);
-                            context.push(
-                              RouteConstants.billerDetail,
-                              extra: BillerDetailArgs(
-                                biller: billers[index],
-                                paymentType: categoryName,
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ),
-            ],
+        _BillerListingVariant.standard => _StandardBillerListingBody(
+            categoryName: categoryName,
+            showSearch: uiConfig.showSearch,
+            searchController: searchController,
           ),
         _BillerListingVariant.figmaBannerRecents => _BillerListingFigmaLayout(
             bannerAsset: uiConfig.bannerAsset,
@@ -283,6 +215,67 @@ class BillerListingView extends HookConsumerWidget {
   }
 }
 
+class _StandardBillerListingBody extends HookConsumerWidget {
+  const _StandardBillerListingBody({
+    required this.categoryName,
+    required this.showSearch,
+    required this.searchController,
+  });
+
+  final String categoryName;
+  final bool showSearch;
+  final TextEditingController searchController;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final listingState = ref.watch(billerListingControllerProvider);
+    final billers = listingState.billers;
+
+    void openBiller(Biller biller) {
+      ref.read(billerDetailControllerProvider.notifier).selectBiller(biller);
+      context.push(
+        RouteConstants.billerDetail,
+        extra: BillerDetailArgs(
+          biller: biller,
+          paymentType: categoryName,
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        if (showSearch)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: SearchTextfield(
+              hintText: 'Search Service',
+              controller: searchController,
+              onChange: (value) => ref
+                  .read(billerListingControllerProvider.notifier)
+                  .updateSearch(value),
+            ),
+          ),
+        Expanded(
+          child: _BillerListPane(
+            isFetching: listingState.isFetching,
+            errorMessage: listingState.errorMessage,
+            billers: billers,
+            isFetchingMore: listingState.isFetchingMore,
+            hasMore: listingState.hasMore,
+            onRetry: () => ref
+                .read(billerListingControllerProvider.notifier)
+                .fetchBillers(categoryName: categoryName),
+            onEndReached: () => ref
+                .read(billerListingControllerProvider.notifier)
+                .fetchNextPage(),
+            onTapBiller: openBiller,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _ElectricityFlow extends HookConsumerWidget {
   const _ElectricityFlow({
     required this.categoryName,
@@ -296,7 +289,7 @@ class _ElectricityFlow extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final listingState = ref.watch(billerListingControllerProvider);
     final recentTransactions =
-        ref.watch(serviceLatestTransactionsProvider('electricity'));
+        ref.watch(serviceLatestTransactionsProvider('Electricity'));
 
     final billers = listingState.billers;
     final showRecentSection = recentTransactions.maybeWhen(
@@ -317,7 +310,7 @@ class _ElectricityFlow extends HookConsumerWidget {
 
     return Column(
       children: [
-        _ElectricityRecentSection(
+        ServiceRecentSection(
           recentTransactions: recentTransactions,
           onPayNow: (txn) {
             final normalizedBiller = txn.billerName.trim().toLowerCase();
@@ -349,7 +342,7 @@ class _ElectricityFlow extends HookConsumerWidget {
                 paymentType: categoryName,
                 mobileNumber: identifier,
                 autoFetchBill: !isMaskedIdentifier,
-                autoOpenPaymentSheet: false,
+                autoOpenPaymentSheet: !isMaskedIdentifier,
               ),
             );
 
@@ -375,51 +368,19 @@ class _ElectricityFlow extends HookConsumerWidget {
           ),
         ),
         Expanded(
-          child: ScreenWrapper(
+          child: _BillerListPane(
             isFetching: listingState.isFetching,
-            isEmpty: billers.isEmpty,
-            emptyMessage: 'No providers found',
             errorMessage: listingState.errorMessage,
-            actions: listingState.errorMessage != null
-                ? [
-                    TextButton(
-                      onPressed: () => ref
-                          .read(billerListingControllerProvider.notifier)
-                          .fetchBillers(categoryName: categoryName),
-                      child: const Text('Retry'),
-                    ),
-                  ]
-                : null,
-            child: InfiniteScrollListener(
-              isLoading: listingState.isFetchingMore,
-              hasMore: listingState.hasMore,
-              onEndReached: () => ref
-                  .read(billerListingControllerProvider.notifier)
-                  .fetchNextPage(),
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount:
-                    billers.length + (listingState.isFetchingMore ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (index >= billers.length) {
-                    return Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16.h),
-                      child: const Center(
-                        child: SpinKitCircle(
-                          color: AppColors.primary,
-                          size: 48,
-                        ),
-                      ),
-                    );
-                  }
-                  final biller = billers[index];
-                  return _BillerTile(
-                    biller: biller,
-                    onTap: () => openBiller(biller),
-                  );
-                },
-              ),
-            ),
+            billers: billers,
+            isFetchingMore: listingState.isFetchingMore,
+            hasMore: listingState.hasMore,
+            onRetry: () => ref
+                .read(billerListingControllerProvider.notifier)
+                .fetchBillers(categoryName: categoryName),
+            onEndReached: () => ref
+                .read(billerListingControllerProvider.notifier)
+                .fetchNextPage(),
+            onTapBiller: openBiller,
           ),
         ),
       ],
@@ -427,446 +388,66 @@ class _ElectricityFlow extends HookConsumerWidget {
   }
 }
 
-class _ElectricityRecentSection extends StatelessWidget {
-  const _ElectricityRecentSection({
-    required this.recentTransactions,
-    required this.onPayNow,
+class _BillerListPane extends StatelessWidget {
+  const _BillerListPane({
+    required this.isFetching,
+    required this.errorMessage,
+    required this.billers,
+    required this.isFetchingMore,
+    required this.hasMore,
+    required this.onRetry,
+    required this.onEndReached,
+    required this.onTapBiller,
   });
 
-  final AsyncValue<List<LatestTransaction>> recentTransactions;
-  final ValueChanged<LatestTransaction> onPayNow;
+  final bool isFetching;
+  final String? errorMessage;
+  final List<Biller> billers;
+  final bool isFetchingMore;
+  final bool hasMore;
+  final VoidCallback onRetry;
+  final VoidCallback onEndReached;
+  final ValueChanged<Biller> onTapBiller;
 
   @override
   Widget build(BuildContext context) {
-    return recentTransactions.when(
-      loading: () => Padding(
-        padding: EdgeInsets.only(bottom: 16.h),
-        child: Column(
-          children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 0),
-              child: _ElectricitySectionHeader(
-                title: 'Recent',
-                actionText: 'View all',
-                onAction: () {},
-              ),
-            ),
-            SizedBox(height: 10.h),
-            _ElectricityRecentRow(
-              recentTransactions: recentTransactions,
-              onPayNow: onPayNow,
-            ),
-          ],
-        ),
-      ),
-      error: (_, __) => const SizedBox.shrink(),
-      data: (items) {
-        if (items.isEmpty) return const SizedBox.shrink();
-        return Padding(
-          padding: EdgeInsets.only(bottom: 16.h),
-          child: Column(
-            children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 0),
-                child: _ElectricitySectionHeader(
-                  title: 'Recent',
-                  actionText: 'View all',
-                  onAction: () {},
-                ),
-              ),
-              SizedBox(height: 10.h),
-              _ElectricityRecentRow(
-                recentTransactions: AsyncValue.data(items),
-                onPayNow: onPayNow,
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _ElectricitySectionHeader extends StatelessWidget {
-  const _ElectricitySectionHeader({
-    required this.title,
-    this.actionText,
-    this.onAction,
-  });
-
-  final String title;
-  final String? actionText;
-  final VoidCallback? onAction;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(
-          title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
-        ),
-        const Spacer(),
-        if ((actionText ?? '').trim().isNotEmpty && onAction != null)
-          InkWell(
-            onTap: onAction,
-            child: Text(
-              actionText!,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFFE85A2C),
-                    fontWeight: FontWeight.w700,
-                    decoration: TextDecoration.underline,
-                  ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _ElectricityRecentRow extends StatelessWidget {
-  const _ElectricityRecentRow({
-    required this.recentTransactions,
-    required this.onPayNow,
-  });
-
-  final AsyncValue<List<LatestTransaction>> recentTransactions;
-  final ValueChanged<LatestTransaction> onPayNow;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 124.h,
-      child: recentTransactions.when(
-        loading: () => ListView.separated(
-          padding: EdgeInsets.symmetric(horizontal: 16.w),
-          scrollDirection: Axis.horizontal,
-          itemCount: 2,
-          separatorBuilder: (_, __) => SizedBox(width: 12.w),
-          itemBuilder: (_, __) => const _ElectricityRecentCardShimmer(),
-        ),
-        error: (_, __) => const SizedBox.shrink(),
-        data: (items) {
-          if (items.isEmpty) return const SizedBox.shrink();
-          final display = items.take(10).toList();
-          return ListView.separated(
-            padding: EdgeInsets.symmetric(horizontal: 16.w),
-            scrollDirection: Axis.horizontal,
-            itemCount: display.length,
-            separatorBuilder: (_, __) => SizedBox(width: 12.w),
-            itemBuilder: (context, index) => _ElectricityRecentCard(
-              txn: display[index],
-              onPayNow: () => onPayNow(display[index]),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _ElectricityRecentCardShimmer extends StatelessWidget {
-  const _ElectricityRecentCardShimmer();
-
-  @override
-  Widget build(BuildContext context) {
-    return _Shimmer(
-      child: Container(
-        width: 280.w,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16.r),
-          border: Border.all(color: const Color(0xFFE2E2E2)),
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: EdgeInsets.all(14.w),
-              child: Row(
-                children: [
-                  Container(
-                    height: 38.w,
-                    width: 38.w,
-                    decoration: BoxDecoration(
-                      color: AppColors.lightBorder.withOpacity(0.25),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  SizedBox(width: 12.w),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          height: 12.h,
-                          width: 160.w,
-                          decoration: BoxDecoration(
-                            color: AppColors.lightBorder.withOpacity(0.25),
-                            borderRadius: BorderRadius.circular(8.r),
-                          ),
-                        ),
-                        SizedBox(height: 8.h),
-                        Container(
-                          height: 10.h,
-                          width: 110.w,
-                          decoration: BoxDecoration(
-                            color: AppColors.lightBorder.withOpacity(0.25),
-                            borderRadius: BorderRadius.circular(8.r),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Divider(
-              height: 1,
-              thickness: 1,
-              color: AppColors.lightBorder.withOpacity(0.6),
-            ),
-            Padding(
-              padding: EdgeInsets.all(14.w),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          height: 14.h,
-                          width: 90.w,
-                          decoration: BoxDecoration(
-                            color: AppColors.lightBorder.withOpacity(0.25),
-                            borderRadius: BorderRadius.circular(8.r),
-                          ),
-                        ),
-                        SizedBox(height: 8.h),
-                        Container(
-                          height: 10.h,
-                          width: 120.w,
-                          decoration: BoxDecoration(
-                            color: AppColors.lightBorder.withOpacity(0.25),
-                            borderRadius: BorderRadius.circular(8.r),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    height: 30.h,
-                    width: 86.w,
-                    decoration: BoxDecoration(
-                      color: AppColors.lightBorder.withOpacity(0.25),
-                      borderRadius: BorderRadius.circular(22.r),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Prevent tiny RenderFlex overflow due to fractional dp rounding.
-            SizedBox(height: 1.h),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ElectricityRecentCard extends StatelessWidget {
-  const _ElectricityRecentCard({
-    required this.txn,
-    required this.onPayNow,
-  });
-
-  final LatestTransaction txn;
-  final VoidCallback onPayNow;
-
-  @override
-  Widget build(BuildContext context) {
-    final title = txn.billerName.trim();
-    final serviceNo = txn.serviceNo.trim();
-    final amount = txn.amount;
-    final dueLabel = _formatDueDate(txn.dueDate);
-
-    return Container(
-      width: 280.w,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(
-          color: const Color(0xFFE2E2E2),
-        ),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: 14.w,
-              vertical: 14.h,
-            ),
-            child: Row(
-              children: [
-                Container(
-                  height: 38.w,
-                  width: 38.w,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.black.withOpacity(0.08),
-                    ),
-                  ),
-                  child: ClipOval(
-                    child: txn.icon.trim().isEmpty
-                        ? Icon(
-                            Icons.bolt,
-                            size: 18.sp,
-                            color: AppColors.primary,
-                          )
-                        : AppNetworkImage(
-                            url: txn.icon,
-                            fit: BoxFit.contain,
-                            showShimmer: false,
-                          ),
-                  ),
-                ),
-                SizedBox(width: 12.w),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary,
-                            ),
-                      ),
-                      SizedBox(height: 4.h),
-                      Text(
-                        serviceNo,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.textPrimary.withOpacity(0.6),
-                              fontWeight: FontWeight.w600,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.more_vert,
-                  color: AppColors.textPrimary.withOpacity(0.45),
-                ),
-              ],
-            ),
-          ),
-          Divider(
-            height: 1,
-            color: AppColors.lightBorder.withOpacity(0.7),
-          ),
-          Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: 14.w,
-              vertical: 14.h,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '₹${amount.toStringAsFixed(2)}',
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w900,
-                                  color: AppColors.textPrimary,
-                                ),
-                      ),
-                      if (dueLabel.isNotEmpty) ...[
-                        SizedBox(height: 4.h),
-                        Text(
-                          dueLabel,
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Colors.red.shade600,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                SizedBox(width: 12.w),
-                SizedBox(
-                  height: 30.h,
-                  child: ElevatedButton(
-                    onPressed: onPayNow,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFE85A2C),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: EdgeInsets.symmetric(horizontal: 18.w),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(22.r),
-                      ),
-                    ),
-                    child: Text(
-                      'Pay Now',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                          ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatDueDate(String? raw) {
-    final value = (raw ?? '').trim();
-
-    if (value.isEmpty || value.toLowerCase() == 'null') {
-      return '';
+    if (isFetching && billers.isEmpty && errorMessage == null) {
+      return const _BillerListingSkeleton();
     }
 
-    final parsed = DateTime.tryParse(value);
-
-    if (parsed == null) {
-      return 'Due On $value';
-    }
-
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-
-    final m = months[parsed.month - 1];
-
-    return 'Due On ${parsed.day} $m ${parsed.year}';
+    return ScreenWrapper(
+      isFetching: false,
+      isEmpty: billers.isEmpty,
+      emptyMessage: 'No providers found',
+      errorMessage: errorMessage,
+      actions: errorMessage != null
+          ? [
+              TextButton(
+                onPressed: onRetry,
+                child: const Text('Retry'),
+              ),
+            ]
+          : null,
+      child: InfiniteScrollListener(
+        isLoading: isFetchingMore,
+        hasMore: hasMore,
+        onEndReached: onEndReached,
+        child: ListView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: billers.length + (isFetchingMore ? 1 : 0),
+          itemBuilder: (context, index) {
+            if (index >= billers.length) {
+              return const _BillerListingFooterSkeleton();
+            }
+            final biller = billers[index];
+            return _BillerTile(
+              biller: biller,
+              onTap: () => onTapBiller(biller),
+            );
+          },
+        ),
+      ),
+    );
   }
 }
 
@@ -1915,15 +1496,7 @@ class _BillerListingFigmaLayout extends StatelessWidget {
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
                     if (index >= billers.length) {
-                      return Padding(
-                        padding: EdgeInsets.symmetric(vertical: 16.h),
-                        child: const Center(
-                          child: SpinKitCircle(
-                            color: AppColors.primary,
-                            size: 48,
-                          ),
-                        ),
-                      );
+                      return const _BillerListingFooterSkeleton();
                     }
                     final item = billers[index];
                     return Column(
@@ -1945,6 +1518,92 @@ class _BillerListingFigmaLayout extends StatelessWidget {
   }
 }
 
+class _BillerListingSkeleton extends StatelessWidget {
+  const _BillerListingSkeleton();
+
+  static const _mockBillers = [
+    Biller(billerId: '1', billerName: 'Electricity Board Service'),
+    Biller(billerId: '2', billerName: 'Regional Power Provider'),
+    Biller(billerId: '3', billerName: 'National Utility Payment'),
+    Biller(billerId: '4', billerName: 'Consumer Energy Services'),
+    Biller(billerId: '5', billerName: 'State Electricity Network'),
+    Biller(billerId: '6', billerName: 'Metro Bill Payments'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Skeletonizer(
+      enabled: true,
+      child: IgnorePointer(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Container(
+                height: 52.h,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14.r),
+                  border: Border.all(color: AppColors.lightBorder),
+                ),
+                padding: EdgeInsets.symmetric(horizontal: 14.w),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.search,
+                      color: AppColors.textPrimary,
+                    ),
+                    SizedBox(width: 10.w),
+                    Expanded(
+                      child: Text(
+                        'Search Service',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppColors.textPrimary,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _mockBillers.length,
+                separatorBuilder: (_, __) => SizedBox(height: 10.h),
+                itemBuilder: (_, index) => _BillerTile(
+                  biller: _mockBillers[index],
+                  onTap: () {},
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BillerListingFooterSkeleton extends StatelessWidget {
+  const _BillerListingFooterSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Skeletonizer(
+      enabled: true,
+      child: IgnorePointer(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: _BillerTile(
+            biller: _BillerListingSkeleton._mockBillers.first,
+            onTap: null,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ServiceRecentRow extends StatelessWidget {
   const _ServiceRecentRow({
     required this.recentTransactions,
@@ -1956,55 +1615,11 @@ class _ServiceRecentRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return recentTransactions.when(
-      loading: () => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _FigmaSectionHeader(
-            title: 'Recents',
-            actionText: 'View all',
-          ),
-          SizedBox(height: 10.h),
-          SizedBox(
-            height: 120.h,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: 2,
-              separatorBuilder: (_, __) => SizedBox(width: 12.w),
-              itemBuilder: (_, __) => const _ElectricityRecentCardShimmer(),
-            ),
-          ),
-          SizedBox(height: 18.h),
-        ],
-      ),
-      error: (_, __) => const SizedBox.shrink(),
-      data: (items) {
-        if (items.isEmpty) return const SizedBox.shrink();
-        final display = items.take(10).toList();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const _FigmaSectionHeader(
-              title: 'Recents',
-              actionText: 'View all',
-            ),
-            SizedBox(height: 10.h),
-            SizedBox(
-              height: 120.h,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: display.length,
-                separatorBuilder: (_, __) => SizedBox(width: 12.w),
-                itemBuilder: (context, index) => _ElectricityRecentCard(
-                  txn: display[index],
-                  onPayNow: () => onPayNow(display[index]),
-                ),
-              ),
-            ),
-            SizedBox(height: 18.h),
-          ],
-        );
-      },
+    return ServiceRecentSection(
+      recentTransactions: recentTransactions,
+      onPayNow: onPayNow,
+      title: 'Recents',
+      actionText: 'View all',
     );
   }
 }

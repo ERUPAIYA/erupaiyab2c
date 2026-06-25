@@ -18,6 +18,8 @@ class TransactionHistoryEntry {
     required this.paymentMode,
     required this.vpa,
     required this.rrn,
+    this.customerParams = const [],
+    this.amountBreakdown = const {},
     this.routes = const [],
   });
 
@@ -39,9 +41,28 @@ class TransactionHistoryEntry {
   final String paymentMode;
   final String vpa;
   final String rrn;
+  final List<TransactionCustomerParam> customerParams;
+  final Map<String, dynamic> amountBreakdown;
   final List<TransactionRoute> routes;
 
   factory TransactionHistoryEntry.fromJson(Map<String, dynamic> json) {
+    final rawCustomerParams = json['customer_params'];
+    final customerParams = rawCustomerParams is List
+        ? rawCustomerParams
+            .whereType<Map>()
+            .map(
+              (e) => TransactionCustomerParam.fromJson(
+                e.map((key, value) => MapEntry(key.toString(), value)),
+              ),
+            )
+            .toList()
+        : const <TransactionCustomerParam>[];
+    final rawAmountBreakdown = json['amount_breakdown'];
+    final amountBreakdown = rawAmountBreakdown is Map
+        ? rawAmountBreakdown.map(
+            (key, value) => MapEntry(key.toString(), value),
+          )
+        : const <String, dynamic>{};
     final rawRoutes = json['routes'];
     final routes = rawRoutes is List
         ? rawRoutes
@@ -76,7 +97,26 @@ class TransactionHistoryEntry {
       paymentMode: _stringOrEmpty(json['payment_mode']),
       vpa: _stringOrEmpty(json['vpa']),
       rrn: _stringOrEmpty(json['rrn']),
+      customerParams: customerParams,
+      amountBreakdown: amountBreakdown,
       routes: routes,
+    );
+  }
+}
+
+class TransactionCustomerParam {
+  const TransactionCustomerParam({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  factory TransactionCustomerParam.fromJson(Map<String, dynamic> json) {
+    return TransactionCustomerParam(
+      label: _stringOrEmpty(json['label']),
+      value: _stringOrEmpty(json['value']),
     );
   }
 }

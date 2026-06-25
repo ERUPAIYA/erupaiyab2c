@@ -395,11 +395,14 @@ void _openPaymentResultFlow(
       : goHome;
 
   if (outcome == _PaymentOutcome.success) {
+    final amountText =
+        '\u20B9${amount.toStringAsFixed(amount.truncateToDouble() == amount ? 0 : 2)}';
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => PaymentThankYouScreen(
-          title: _paymentTitle(outcome),
-          subtitle: _paymentSubtitle(outcome),
+          title: 'Thank You',
+          subtitle: 'for your $amountText payment for mobile recharge',
+          highlightedSubtitleText: amountText,
           playSound: true,
           autoNavigateAfter: const Duration(seconds: 2),
           onAutoNavigate: (screenContext) {

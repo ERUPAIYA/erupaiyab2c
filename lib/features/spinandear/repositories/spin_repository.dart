@@ -58,6 +58,7 @@ class SpinRepository {
       final data = <String, dynamic>{
         'spin_type': spinType,
         'idempotency_key': _generateUuid(),
+        'operation': 'SPIN',
       };
 
       await _dio.post(

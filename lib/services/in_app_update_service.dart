@@ -5,7 +5,7 @@ import 'package:in_app_update/in_app_update.dart';
 import '../config/app_env.dart';
 
 void _debugLog(String message) {
-  if (!AppEnv.enableLogs) return;
+  if (!AppEnv.enableLogs || !kDebugMode) return;
   debugPrint(message);
 }
 

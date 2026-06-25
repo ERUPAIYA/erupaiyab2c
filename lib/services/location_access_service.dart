@@ -1,19 +1,19 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../constants/storage_keys.dart';
 import '../config/app_env.dart';
+import 'secure_storage_service.dart';
 
 void _debugLog(String message) {
-  if (!AppEnv.enableLogs) return;
+  if (!AppEnv.enableLogs || !kDebugMode) return;
   debugPrint(message);
 }
 
 class LocationAccessService {
   LocationAccessService._();
 
-  static const FlutterSecureStorage _storage = FlutterSecureStorage();
+  static const _storage = SecureStorageService.instance;
 
   static Future<bool> isEnabledPreference() async {
     final value = await _storage.read(key: StorageKeys.locationAccessEnabled);

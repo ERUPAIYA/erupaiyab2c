@@ -138,9 +138,29 @@ class EducationFeesPaymentView extends HookConsumerWidget {
                   );
                 }
               },
-              onFailure: (message) {
+              onFailure: (message) async {
+                final verified = await _verifyEducationPaymentStatus(
+                  repository: repository,
+                  transactionRefId: order.transactionRefId,
+                );
+                if (verified != null && verified.isSuccess) {
+                  if (!context.mounted) return;
+                  context.push(
+                    RouteConstants.transactionDetail,
+                    extra: _buildEducationSuccessEntry(
+                      recipientName: state.recipientName,
+                      maskedAccount: _maskAccount(state.accountNumber),
+                      amount: order.amount > 0 ? order.amount : payable,
+                      paymentId: order.transactionRefId,
+                    ),
+                  );
+                  return;
+                }
+                if (!context.mounted) return;
                 AppSnackbar.show(
-                  message,
+                  (verified?.message.isNotEmpty ?? false)
+                      ? verified!.message
+                      : message,
                   backgroundColor: Colors.red,
                   textColor: Colors.white,
                 );

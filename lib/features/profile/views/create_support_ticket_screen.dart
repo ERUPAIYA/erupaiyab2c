@@ -303,6 +303,7 @@ class CreateSupportTicketScreen extends HookConsumerWidget {
                           : const Text('Submit'),
                     ),
                   ),
+                  SizedBox(height: 20.h),
                 ],
               ),
             ),

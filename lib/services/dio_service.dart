@@ -8,6 +8,10 @@ import '../config/ssl_pinning_config.dart';
 import 'dio_interceptors.dart';
 
 class DioService {
+  static const Duration _defaultConnectTimeout = Duration(seconds: 15);
+  static const Duration _defaultSendTimeout = Duration(seconds: 15);
+  static const Duration _defaultReceiveTimeout = Duration(seconds: 30);
+
   // Private static instance
   static DioService? _instance;
 
@@ -19,12 +23,9 @@ class DioService {
     _dio = Dio(
       BaseOptions(
         baseUrl: ApiConstants.baseUrl,
-        // NOTE: These values are meant to be in milliseconds.
-        // Using seconds here causes requests to appear "stuck" (e.g. check-login)
-        // for a very long time on slow / interrupted networks.
-        connectTimeout: const Duration(milliseconds: 5000),
-        sendTimeout: const Duration(milliseconds: 5000),
-        receiveTimeout: const Duration(milliseconds: 15000),
+        connectTimeout: _defaultConnectTimeout,
+        sendTimeout: _defaultSendTimeout,
+        receiveTimeout: _defaultReceiveTimeout,
       ),
     );
     final host = Uri.tryParse(ApiConstants.baseUrl)?.host.trim().toLowerCase();

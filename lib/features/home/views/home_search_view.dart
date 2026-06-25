@@ -4,9 +4,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 import '../../../constants/app_colors.dart';
 import '../../../constants/routes_constant.dart';
@@ -126,7 +126,7 @@ class HomeSearchView extends HookConsumerWidget {
                 },
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             if (bannerError.value == null && banners.value.isNotEmpty)
               SizedBox(
                 height: _bannerHeight,
@@ -146,20 +146,15 @@ class HomeSearchView extends HookConsumerWidget {
                         url: banner.image,
                         width: double.infinity,
                         height: _bannerHeight,
-                        fit: BoxFit.contain,
+                        fit: BoxFit.cover,
                       ),
                     );
                   },
                 ),
               ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             if (isLoading.value)
-              const Center(
-                child: SpinKitCircle(
-                  color: AppColors.primary,
-                  size: 48,
-                ),
-              )
+              const _HomeSearchLoadingSkeleton()
             else if (error.value != null)
               Padding(
                 padding:
@@ -227,6 +222,60 @@ class HomeSearchView extends HookConsumerWidget {
             else
               const SizedBox.shrink(),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeSearchLoadingSkeleton extends StatelessWidget {
+  const _HomeSearchLoadingSkeleton();
+
+  static const _mockCategories = [
+    QuickActionCategory(
+      category: 'Popular Services',
+      services: [
+        QuickActionService(name: 'Electricity'),
+        QuickActionService(name: 'Credit Card'),
+        QuickActionService(name: 'DTH'),
+        QuickActionService(name: 'Fastag'),
+        QuickActionService(name: 'Broadband'),
+        QuickActionService(name: 'Piped Gas'),
+        QuickActionService(name: 'Water'),
+        QuickActionService(name: 'Insurance'),
+      ],
+    ),
+    QuickActionCategory(
+      category: 'Recharge & Bills',
+      services: [
+        QuickActionService(name: 'Mobile Prepaid'),
+        QuickActionService(name: 'Mobile Postpaid'),
+        QuickActionService(name: 'Landline'),
+        QuickActionService(name: 'Cable TV'),
+      ],
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Skeletonizer(
+      enabled: true,
+      child: IgnorePointer(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          child: Column(
+            children: _mockCategories
+                .map(
+                  (category) => Padding(
+                    padding: const EdgeInsets.only(bottom: 24),
+                    child: _CategorySection(
+                      category: category,
+                      onServiceTap: (_) {},
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
         ),
       ),
     );

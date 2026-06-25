@@ -5,23 +5,27 @@ import 'package:dio/dio.dart';
 import 'package:e_rupaiya/constants/api_constants.dart';
 import 'package:e_rupaiya/core/barrel_file.dart';
 import 'package:e_rupaiya/features/auth/controllers/auth_controller.dart';
+import 'package:e_rupaiya/features/home/controllers/home_controller.dart';
 import 'package:e_rupaiya/widgets/k_dialog.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http_certificate_pinning/http_certificate_pinning.dart';
 
 import '../config/app_env.dart';
+import '../config/ssl_pinning_config.dart';
 import '../constants/storage_keys.dart';
+import 'secure_storage_service.dart';
 import '../widgets/app_snackbar.dart';
 
 void _debugLog(String message) {
-  if (!AppEnv.enableLogs) return;
+  if (!AppEnv.enableLogs || !kDebugMode) return;
   debugPrint(message);
 }
 
 class DioInterceptors extends InterceptorsWrapper {
-  final FlutterSecureStorage secureStorage = const FlutterSecureStorage();
+  final secureStorage = SecureStorageService.instance;
   static Completer<bool>? _refreshCompleter;
+  static bool _handlingServerUnavailable = false;
 
   static const int _maxLogBodyChars = 6000;
   static const Set<String> _sensitiveKeys = {
@@ -104,6 +108,34 @@ class DioInterceptors extends InterceptorsWrapper {
     await secureStorage.delete(key: StorageKeys.tempAccessToken);
   }
 
+  Dio _buildPinnedRefreshClient() {
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: ApiConstants.baseUrl,
+        connectTimeout: const Duration(seconds: 15),
+        sendTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 30),
+      ),
+    );
+    final host = Uri.tryParse(ApiConstants.baseUrl)?.host.trim().toLowerCase();
+    final shouldEnablePinning =
+        (!SslPinningConfig.enableInProductionOnly || AppEnv.isProduction) &&
+            !kIsWeb &&
+            host != null &&
+            host.isNotEmpty &&
+            SslPinningConfig.allowedHosts.contains(host) &&
+            SslPinningConfig.sha256Fingerprints.isNotEmpty;
+    if (shouldEnablePinning) {
+      dio.interceptors.add(
+        CertificatePinningInterceptor(
+          allowedSHAFingerprints: SslPinningConfig.sha256Fingerprints,
+          timeout: 50,
+        ),
+      );
+    }
+    return dio;
+  }
+
   Future<bool> _refreshAccessToken() async {
     if (_refreshCompleter != null) {
       return _refreshCompleter!.future;
@@ -116,13 +148,7 @@ class DioInterceptors extends InterceptorsWrapper {
         return _refreshCompleter!.future;
       }
 
-      final dio = Dio(
-        BaseOptions(
-          baseUrl: ApiConstants.baseUrl,
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 10),
-        ),
-      );
+      final dio = _buildPinnedRefreshClient();
       final response = await dio.post(
         ApiConstants.refreshTokenEndpoint,
         data: {'refresh_token': refreshToken},
@@ -131,6 +157,7 @@ class DioInterceptors extends InterceptorsWrapper {
       final success = payload?['success'] == true;
       final data = payload?['data'] as Map<String, dynamic>? ?? {};
       final accessToken = data['access_token'] as String?;
+      final nextRefreshToken = data['refresh_token'] as String?;
       final tokenType = data['token_type'] as String?;
       final expiresIn = data['expires_in'] as int?;
 
@@ -142,6 +169,9 @@ class DioInterceptors extends InterceptorsWrapper {
       final expiresAt =
           DateTime.now().add(Duration(seconds: expiresIn)).toIso8601String();
       await secureStorage.write(key: 'accessToken', value: accessToken);
+      if (nextRefreshToken != null && nextRefreshToken.isNotEmpty) {
+        await secureStorage.write(key: 'refreshToken', value: nextRefreshToken);
+      }
       await secureStorage.write(
         key: 'tokenType',
         value: tokenType ?? 'Bearer',
@@ -285,7 +315,9 @@ class DioInterceptors extends InterceptorsWrapper {
       stackTrace: err.stackTrace,
     );
     final skipAuth = err.requestOptions.extra['skipAuth'] == true;
-    if (err.response?.statusCode == 401 && !skipAuth) {
+    if (err.response?.statusCode == 503) {
+      await _handleServerUnavailable();
+    } else if (err.response?.statusCode == 401 && !skipAuth) {
       final alreadyRetried = err.requestOptions.extra['retried'] == true;
       final isRefreshCall = err.requestOptions.extra['isRefresh'] == true;
       if (!alreadyRetried && !isRefreshCall) {
@@ -299,7 +331,7 @@ class DioInterceptors extends InterceptorsWrapper {
         }
       }
       final refreshExpired = await _isRefreshTokenExpired();
-      if (refreshExpired == null || refreshExpired == true) {
+      if (refreshExpired == true) {
         AppSnackbar.show(
           'Session Expired. Please login again.',
           textColor: Colors.white,
@@ -430,5 +462,36 @@ class DioInterceptors extends InterceptorsWrapper {
       }
     }
     super.onError(err, handler);
+  }
+
+  Future<void> _handleServerUnavailable() async {
+    if (_handlingServerUnavailable) return;
+    _handlingServerUnavailable = true;
+    try {
+      final context = navigatorKey.currentContext;
+      if (context == null) return;
+
+      final container = ProviderScope.containerOf(context);
+      container.read(homeControllerProvider.notifier).showServerUnavailable();
+
+      final authState = container.read(authControllerProvider);
+      if (!authState.isAuthenticated && !authState.hasTemporaryAccess) {
+        AppSnackbar.show(
+          'Server unavailable. Please try again later.',
+          textColor: Colors.white,
+          backgroundColor: Colors.red,
+        );
+        return;
+      }
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final router = GoRouter.maybeOf(context);
+        router?.go(RouteConstants.home);
+      });
+    } finally {
+      Future<void>.delayed(const Duration(milliseconds: 800), () {
+        _handlingServerUnavailable = false;
+      });
+    }
   }
 }

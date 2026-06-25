@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../constants/routes_constant.dart';
+import '../../../services/secure_storage_service.dart';
 import '../../../services/logger_service.dart';
 import '../../../utils/utils.dart';
 import '../../auth/controllers/auth_controller.dart';
@@ -12,7 +12,7 @@ class AppDrawer extends HookConsumerWidget {
   const AppDrawer({super.key});
 
   Future<Map<String, String>> _getUserDetails() async {
-    const secureStorage = FlutterSecureStorage();
+    const secureStorage = SecureStorageService.instance;
     final userId = await secureStorage.read(key: 'userId');
 
     final initials = (userId ?? '')

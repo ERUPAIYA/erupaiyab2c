@@ -1632,6 +1632,7 @@ class _HomeContent extends HookConsumerWidget {
     final homeState = ref.watch(homeControllerProvider);
     final profileState = ref.watch(profileControllerProvider);
     final authState = ref.watch(authControllerProvider);
+    final homeRepository = useMemoized(HomeRepository.new);
     final hasInternet = ref.watch(connectivityStatusProvider).value ?? true;
     final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
     final screenWidth = MediaQuery.sizeOf(context).width;
@@ -1639,6 +1640,7 @@ class _HomeContent extends HookConsumerWidget {
 
     final didShowCompleteProfile = useRef(false);
     final didShowTemporaryBlock = useRef(false);
+    final didShowReminderPopup = useRef(false);
     // Track auth transitions across navigation; initialize to false so that if
     // Home is already mounted (behind login) we still refresh once on login.
     final wasAuthenticated = useRef<bool>(false);
@@ -1765,6 +1767,81 @@ class _HomeContent extends HookConsumerWidget {
       });
       return null;
     }, [temporaryBlockFlow, profileState.profile?.id]);
+
+    useEffect(() {
+      final hasLoadedHome = homeState.quickActions != null;
+      final needsProfile = homeState.isNameEmailExist == false && hasLoadedHome;
+      if (!hasLoadedHome ||
+          needsProfile ||
+          temporaryBlockFlow != null ||
+          didShowReminderPopup.value) {
+        return null;
+      }
+      didShowReminderPopup.value = true;
+      Future.microtask(() async {
+        if (!context.mounted) return;
+        try {
+          final response = await homeRepository.fetchBillReminders(
+            page: 1,
+            limit: 20,
+          );
+          if (!context.mounted || !response.status || response.items.isEmpty) {
+            return;
+          }
+          final reminder = response.items.first;
+          final biller = Biller(
+            billerId: reminder.billerId,
+            billerName: reminder.billerName,
+            icon: reminder.billerIcon,
+          );
+          final paymentType = reminder.paymentType.trim();
+          final normalizedPaymentType = paymentType.toLowerCase();
+          final maskedDigits =
+              reminder.maskedIdentifier.replaceAll(RegExp(r'\D'), '');
+          final cardLast4 = maskedDigits.length >= 4
+              ? maskedDigits.substring(maskedDigits.length - 4)
+              : null;
+          await KDialog.instance.openDialog(
+            dialog: _HomeReminderDialog(
+              data: reminder,
+              onPrimaryTap: reminder.canPayNow
+                  ? () {
+                      Navigator.of(context, rootNavigator: true).pop();
+                      ref
+                          .read(billerDetailControllerProvider.notifier)
+                          .selectBiller(biller);
+                      context.push(
+                        RouteConstants.billerDetail,
+                        extra: BillerDetailArgs(
+                          biller: biller,
+                          isCreditCard:
+                              normalizedPaymentType.contains('credit'),
+                          paymentType:
+                              paymentType.isNotEmpty ? paymentType : null,
+                          mobileNumber: reminder.customerMobile.trim().isNotEmpty
+                              ? reminder.customerMobile.trim()
+                              : null,
+                          cardLast4: cardLast4,
+                          autoFetchBill:
+                              normalizedPaymentType.contains('credit') &&
+                                  reminder.customerMobile.trim().isNotEmpty &&
+                                  cardLast4 != null,
+                          autoOpenPaymentSheet: false,
+                        ),
+                      );
+                    }
+                  : null,
+            ),
+          );
+        } catch (_) {}
+      });
+      return null;
+    }, [
+      homeState.quickActions,
+      homeState.isNameEmailExist,
+      temporaryBlockFlow,
+      homeRepository,
+    ]);
 
     final topBanners = homeState.banners?['top'] ?? [];
     final middleBanners = homeState.banners?['middle'] ?? [];
@@ -1926,619 +2003,781 @@ class _HomeContent extends HookConsumerWidget {
       ],
     );
 
+    return _HomeScaffoldBody(
+      topBannerGradient: topBannerGradient,
+      onRefresh: () => Future.wait([
+        ref.read(homeControllerProvider.notifier).fetchQuickActions(),
+        ref.read(homeControllerProvider.notifier).fetchAllQuickActions(),
+        ref.read(spinOptionsControllerProvider.notifier).fetchSpinOptions(),
+        ref.read(profileControllerProvider.notifier).fetchProfile(),
+      ]),
+      quickActions: quickActions,
+      homeErrorMessage: homeState.errorMessage,
+      isServerUnavailable: homeState.isServerUnavailable,
+      bannerAreaHeight: bannerAreaHeight,
+      topBanners: topBanners,
+      topBannerController: topBannerController,
+      topBannerPage: topBannerPage.value,
+      onTopBannerPageChanged: (page) => topBannerPage.value = page,
+      showBannerPlaceholder: showBannerPlaceholder,
+      topBannerHeight: topBannerHeight,
+      initials: initials,
+      walletBalance: walletBalance,
+      isWalletLoading: isWalletLoading,
+      hasWalletError: hasWalletError,
+      onSearchTap: () {
+        PersistentNavBarNavigator.pushNewScreen(
+          context,
+          screen: const HomeSearchView(),
+          withNavBar: false,
+        );
+      },
+      onReferTap: () {
+        PersistentNavBarNavigator.pushNewScreen(
+          context,
+          screen: const ReferAndEarnView(),
+          withNavBar: false,
+        );
+      },
+      onProfileTap: () {
+        PersistentNavBarNavigator.pushNewScreen(
+          context,
+          screen: const ProfileView(),
+          withNavBar: false,
+        );
+      },
+      onRetryHome: () =>
+          ref.read(homeControllerProvider.notifier).fetchQuickActions(),
+      onRestart: () => context.go(RouteConstants.splash),
+      payBillsServices: payBillsCategory?.services ?? const [],
+      educationServices: educationCategory?.services ?? const [],
+      insuranceServices: insuranceCategory?.services ?? const [],
+      onServiceTap: handleServiceTap,
+      onMyBillsTap: () => context.push(RouteConstants.quickActions),
+      onExploreUtilitiesTap: () => context.push(RouteConstants.homeSearchView),
+      onGoldTap: () => context.push('${RouteConstants.digitalGold}?entry=home'),
+      onSilverTap: () =>
+          context.push('${RouteConstants.digitalGold}?metal=silver&entry=home'),
+      bankingInvestmentBanners: bankingInvestmentBanners,
+      bankingBannerController: bankingBannerController,
+      bankingBannerPage: bankingBannerPage.value,
+      onBankingBannerPageChanged: (page) => bankingBannerPage.value = page,
+      onBankingBannerTap: () {
+        final index = bankingBannerPage.value;
+        final banner = index >= 0 && index < bankingInvestmentBanners.length
+            ? bankingInvestmentBanners[index]
+            : null;
+        final redirectUrl = banner?.redirectUrl;
+        if (redirectUrl != null && redirectUrl.trim().isNotEmpty) {
+          BannerRedirectMapper.handle(context, redirectUrl);
+          return;
+        }
+        context.push('${RouteConstants.digitalGold}?entry=home');
+      },
+      middleBanners: middleBanners,
+      middleBannerController: middleBannerController,
+      middleBannerPage: middleBannerPage.value,
+      onMiddleBannerPageChanged: (page) => middleBannerPage.value = page,
+      bottomBanners: bottomBanners,
+      bottomBannerController: bottomBannerController,
+      bottomBannerPage: bottomBannerPage.value,
+      onBottomBannerPageChanged: (page) => bottomBannerPage.value = page,
+      onMiddleBannerTap: (index) => BannerRedirectMapper.handle(
+        context,
+        middleBanners[index].redirectUrl,
+      ),
+      onBottomBannerTap: (index) => BannerRedirectMapper.handle(
+        context,
+        bottomBanners[index].redirectUrl,
+      ),
+      onSpinTap: () => context.push(RouteConstants.spinAndWin),
+      onFaqTap: () => context.push(RouteConstants.faq),
+    );
+  }
+}
+
+class _HomeScaffoldBody extends StatelessWidget {
+  const _HomeScaffoldBody({
+    required this.topBannerGradient,
+    required this.onRefresh,
+    required this.quickActions,
+    required this.homeErrorMessage,
+    required this.isServerUnavailable,
+    required this.bannerAreaHeight,
+    required this.topBanners,
+    required this.topBannerController,
+    required this.topBannerPage,
+    required this.onTopBannerPageChanged,
+    required this.showBannerPlaceholder,
+    required this.topBannerHeight,
+    required this.initials,
+    required this.walletBalance,
+    required this.isWalletLoading,
+    required this.hasWalletError,
+    required this.onSearchTap,
+    required this.onReferTap,
+    required this.onProfileTap,
+    required this.onRetryHome,
+    required this.onRestart,
+    required this.payBillsServices,
+    required this.educationServices,
+    required this.insuranceServices,
+    required this.onServiceTap,
+    required this.onMyBillsTap,
+    required this.onExploreUtilitiesTap,
+    required this.onGoldTap,
+    required this.onSilverTap,
+    required this.bankingInvestmentBanners,
+    required this.bankingBannerController,
+    required this.bankingBannerPage,
+    required this.onBankingBannerPageChanged,
+    required this.onBankingBannerTap,
+    required this.middleBanners,
+    required this.middleBannerController,
+    required this.middleBannerPage,
+    required this.onMiddleBannerPageChanged,
+    required this.bottomBanners,
+    required this.bottomBannerController,
+    required this.bottomBannerPage,
+    required this.onBottomBannerPageChanged,
+    required this.onMiddleBannerTap,
+    required this.onBottomBannerTap,
+    required this.onSpinTap,
+    required this.onFaqTap,
+  });
+
+  final Gradient topBannerGradient;
+  final RefreshCallback onRefresh;
+  final List<QuickActionCategory>? quickActions;
+  final String? homeErrorMessage;
+  final bool isServerUnavailable;
+  final double bannerAreaHeight;
+  final List<BannerModel> topBanners;
+  final PageController topBannerController;
+  final int topBannerPage;
+  final ValueChanged<int> onTopBannerPageChanged;
+  final bool showBannerPlaceholder;
+  final double topBannerHeight;
+  final String initials;
+  final double? walletBalance;
+  final bool isWalletLoading;
+  final bool hasWalletError;
+  final VoidCallback onSearchTap;
+  final VoidCallback onReferTap;
+  final VoidCallback onProfileTap;
+  final VoidCallback onRetryHome;
+  final VoidCallback onRestart;
+  final List<QuickActionService> payBillsServices;
+  final List<QuickActionService> educationServices;
+  final List<QuickActionService> insuranceServices;
+  final Future<void> Function(String serviceName) onServiceTap;
+  final VoidCallback onMyBillsTap;
+  final VoidCallback onExploreUtilitiesTap;
+  final VoidCallback onGoldTap;
+  final VoidCallback onSilverTap;
+  final List<BannerModel> bankingInvestmentBanners;
+  final PageController bankingBannerController;
+  final int bankingBannerPage;
+  final ValueChanged<int> onBankingBannerPageChanged;
+  final VoidCallback onBankingBannerTap;
+  final List<BannerModel> middleBanners;
+  final PageController middleBannerController;
+  final int middleBannerPage;
+  final ValueChanged<int> onMiddleBannerPageChanged;
+  final List<BannerModel> bottomBanners;
+  final PageController bottomBannerController;
+  final int bottomBannerPage;
+  final ValueChanged<int> onBottomBannerPageChanged;
+  final ValueChanged<int> onMiddleBannerTap;
+  final ValueChanged<int> onBottomBannerTap;
+  final VoidCallback onSpinTap;
+  final VoidCallback onFaqTap;
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
           Positioned.fill(
             child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: topBannerGradient,
-              ),
+              decoration: BoxDecoration(gradient: topBannerGradient),
             ),
           ),
           RefreshIndicator(
-              color: AppColors.primary,
-              onRefresh: () => Future.wait([
-                    ref
-                        .read(homeControllerProvider.notifier)
-                        .fetchQuickActions(),
-                    ref
-                        .read(homeControllerProvider.notifier)
-                        .fetchAllQuickActions(),
-                    ref
-                        .read(spinOptionsControllerProvider.notifier)
-                        .fetchSpinOptions(),
-                    ref.read(profileControllerProvider.notifier).fetchProfile(),
-                  ]),
-              child: CustomScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  slivers: [
-                    SliverAppBar(
-                      pinned: true,
-                      floating: false,
-                      automaticallyImplyLeading: false,
-                      centerTitle: false,
-                      titleSpacing: 0,
-                      backgroundColor: const Color(0xffD66D4D),
-                      elevation: 0,
-                      toolbarHeight: 54.h,
-                      expandedHeight: MediaQuery.of(context).padding.top +
-                          36.h +
-                          14.h +
-                          bannerAreaHeight +
-                          (topBanners.length > 1 ? 16.h : 0.h),
-                      flexibleSpace: FlexibleSpaceBar(
-                        collapseMode: CollapseMode.none,
-                        background: Container(
-                          decoration:
-                              BoxDecoration(gradient: topBannerGradient),
-                          child: Padding(
-                            padding: EdgeInsets.only(
-                              left: 16.w,
-                              right: 16.w,
-                              top: MediaQuery.of(context).padding.top +
-                                  58.h +
-                                  10.h,
+            color: AppColors.primary,
+            onRefresh: onRefresh,
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                _HomeTopSliverAppBar(
+                  gradient: topBannerGradient,
+                  bannerAreaHeight: bannerAreaHeight,
+                  topBanners: topBanners,
+                  topBannerController: topBannerController,
+                  topBannerPage: topBannerPage,
+                  onTopBannerPageChanged: onTopBannerPageChanged,
+                  showBannerPlaceholder: showBannerPlaceholder,
+                  topBannerHeight: topBannerHeight,
+                  initials: initials,
+                  walletBalance: walletBalance,
+                  isWalletLoading: isWalletLoading,
+                  hasWalletError: hasWalletError,
+                  onSearchTap: onSearchTap,
+                  onReferTap: onReferTap,
+                  onProfileTap: onProfileTap,
+                ),
+                if (quickActions == null && homeErrorMessage == null)
+                  const HomeShimmer()
+                else if (homeErrorMessage != null && quickActions == null)
+                  SliverToBoxAdapter(
+                    child: _HomeErrorState(
+                      isServerUnavailable: isServerUnavailable,
+                      onRetry: onRetryHome,
+                      onRestart: onRestart,
+                    ),
+                  )
+                else if (quickActions != null)
+                  SliverToBoxAdapter(
+                    child: _HomeMainSections(
+                      payBillsServices: payBillsServices,
+                      educationServices: educationServices,
+                      insuranceServices: insuranceServices,
+                      onServiceTap: onServiceTap,
+                      onMyBillsTap: onMyBillsTap,
+                      onExploreUtilitiesTap: onExploreUtilitiesTap,
+                      onGoldTap: onGoldTap,
+                      onSilverTap: onSilverTap,
+                      bankingInvestmentBanners: bankingInvestmentBanners,
+                      bankingBannerController: bankingBannerController,
+                      bankingBannerPage: bankingBannerPage,
+                      onBankingBannerPageChanged: onBankingBannerPageChanged,
+                      onBankingBannerTap: onBankingBannerTap,
+                      middleBanners: middleBanners,
+                      middleBannerController: middleBannerController,
+                      middleBannerPage: middleBannerPage,
+                      onMiddleBannerPageChanged: onMiddleBannerPageChanged,
+                      bottomBanners: bottomBanners,
+                      bottomBannerController: bottomBannerController,
+                      bottomBannerPage: bottomBannerPage,
+                      onBottomBannerPageChanged: onBottomBannerPageChanged,
+                      onMiddleBannerTap: onMiddleBannerTap,
+                      onBottomBannerTap: onBottomBannerTap,
+                      onSpinTap: onSpinTap,
+                      onFaqTap: onFaqTap,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HomeTopSliverAppBar extends StatelessWidget {
+  const _HomeTopSliverAppBar({
+    required this.gradient,
+    required this.bannerAreaHeight,
+    required this.topBanners,
+    required this.topBannerController,
+    required this.topBannerPage,
+    required this.onTopBannerPageChanged,
+    required this.showBannerPlaceholder,
+    required this.topBannerHeight,
+    required this.initials,
+    required this.walletBalance,
+    required this.isWalletLoading,
+    required this.hasWalletError,
+    required this.onSearchTap,
+    required this.onReferTap,
+    required this.onProfileTap,
+  });
+
+  final Gradient gradient;
+  final double bannerAreaHeight;
+  final List<BannerModel> topBanners;
+  final PageController topBannerController;
+  final int topBannerPage;
+  final ValueChanged<int> onTopBannerPageChanged;
+  final bool showBannerPlaceholder;
+  final double topBannerHeight;
+  final String initials;
+  final double? walletBalance;
+  final bool isWalletLoading;
+  final bool hasWalletError;
+  final VoidCallback onSearchTap;
+  final VoidCallback onReferTap;
+  final VoidCallback onProfileTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverAppBar(
+      pinned: true,
+      floating: false,
+      automaticallyImplyLeading: false,
+      centerTitle: false,
+      titleSpacing: 0,
+      backgroundColor: const Color(0xffD66D4D),
+      elevation: 0,
+      toolbarHeight: 54.h,
+      expandedHeight: MediaQuery.of(context).padding.top +
+          36.h +
+          14.h +
+          bannerAreaHeight +
+          (topBanners.length > 1 ? 16.h : 0.h),
+      flexibleSpace: FlexibleSpaceBar(
+        collapseMode: CollapseMode.none,
+        background: Container(
+          decoration: BoxDecoration(gradient: gradient),
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: 16.w,
+              right: 16.w,
+              top: MediaQuery.of(context).padding.top + 58.h + 10.h,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(height: 6.h),
+                if (showBannerPlaceholder)
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 4.w),
+                    child: AppNetworkImage(
+                      url: '',
+                      width: double.infinity,
+                      height: topBannerHeight,
+                      borderRadius: BorderRadius.circular(14.r),
+                    ),
+                  )
+                else if (topBanners.isNotEmpty)
+                  SizedBox(
+                    height: topBannerHeight,
+                    child: PageView.builder(
+                      controller: topBannerController,
+                      onPageChanged: onTopBannerPageChanged,
+                      itemCount: topBanners.length,
+                      itemBuilder: (_, index) {
+                        final banner = topBanners[index];
+                        return Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 4.w),
+                          child: GestureDetector(
+                            onTap: () => BannerRedirectMapper.handle(
+                              context,
+                              banner.redirectUrl,
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                SizedBox(height: 6.h),
-                                if (showBannerPlaceholder)
-                                  Padding(
-                                    padding:
-                                        EdgeInsets.symmetric(horizontal: 4.w),
-                                    child: AppNetworkImage(
-                                      url: '',
-                                      width: double.infinity,
-                                      height: topBannerHeight,
-                                      borderRadius: BorderRadius.circular(14.r),
-                                    ),
-                                  )
-                                else if (topBanners.isNotEmpty)
-                                  SizedBox(
-                                    height: topBannerHeight,
-                                    child: PageView.builder(
-                                      controller: topBannerController,
-                                      onPageChanged: (page) =>
-                                          topBannerPage.value = page,
-                                      itemCount: topBanners.length,
-                                      itemBuilder: (_, index) {
-                                        final banner = topBanners[index];
-                                        return Padding(
-                                          padding: EdgeInsets.symmetric(
-                                              horizontal: 4.w),
-                                          child: GestureDetector(
-                                            onTap: () {
-                                              BannerRedirectMapper.handle(
-                                                context,
-                                                banner.redirectUrl,
-                                              );
-                                            },
-                                            child: ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(14.r),
-                                              child: AppNetworkImage(
-                                                url: banner
-                                                    .image, // Access API url
-                                                width: double.infinity,
-                                                height: topBannerHeight,
-                                                fit: BoxFit.contain,
-                                                placeholder: AppNetworkImage(
-                                                  url: '',
-                                                  width: double.infinity,
-                                                  height: topBannerHeight,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                SizedBox(height: 4.h),
-                                if (topBanners.length > 1)
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: List.generate(
-                                      topBanners.length,
-                                      (index) => Padding(
-                                        padding: EdgeInsets.symmetric(
-                                            horizontal: 3.w),
-                                        child: _Dot(
-                                            active:
-                                                topBannerPage.value == index),
-                                      ),
-                                    ),
-                                  ),
-                              ],
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(14.r),
+                              child: AppNetworkImage(
+                                url: banner.image,
+                                width: double.infinity,
+                                height: topBannerHeight,
+                                fit: BoxFit.contain,
+                                placeholder: AppNetworkImage(
+                                  url: '',
+                                  width: double.infinity,
+                                  height: topBannerHeight,
+                                ),
+                              ),
                             ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                SizedBox(height: 4.h),
+                if (topBanners.length > 1)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(
+                      topBanners.length,
+                      (index) => Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 3.w),
+                        child: _Dot(active: topBannerPage == index),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      title: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16.w),
+        child: _HomeTopBar(
+          initials: initials,
+          walletBalance: walletBalance,
+          isWalletLoading: isWalletLoading,
+          hasWalletError: hasWalletError,
+          compact: true,
+          onSearchTap: onSearchTap,
+          onReferTap: onReferTap,
+          onProfileTap: onProfileTap,
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeMainSections extends StatelessWidget {
+  const _HomeMainSections({
+    required this.payBillsServices,
+    required this.educationServices,
+    required this.insuranceServices,
+    required this.onServiceTap,
+    required this.onMyBillsTap,
+    required this.onExploreUtilitiesTap,
+    required this.onGoldTap,
+    required this.onSilverTap,
+    required this.bankingInvestmentBanners,
+    required this.bankingBannerController,
+    required this.bankingBannerPage,
+    required this.onBankingBannerPageChanged,
+    required this.onBankingBannerTap,
+    required this.middleBanners,
+    required this.middleBannerController,
+    required this.middleBannerPage,
+    required this.onMiddleBannerPageChanged,
+    required this.bottomBanners,
+    required this.bottomBannerController,
+    required this.bottomBannerPage,
+    required this.onBottomBannerPageChanged,
+    required this.onMiddleBannerTap,
+    required this.onBottomBannerTap,
+    required this.onSpinTap,
+    required this.onFaqTap,
+  });
+
+  final List<QuickActionService> payBillsServices;
+  final List<QuickActionService> educationServices;
+  final List<QuickActionService> insuranceServices;
+  final Future<void> Function(String serviceName) onServiceTap;
+  final VoidCallback onMyBillsTap;
+  final VoidCallback onExploreUtilitiesTap;
+  final VoidCallback onGoldTap;
+  final VoidCallback onSilverTap;
+  final List<BannerModel> bankingInvestmentBanners;
+  final PageController bankingBannerController;
+  final int bankingBannerPage;
+  final ValueChanged<int> onBankingBannerPageChanged;
+  final VoidCallback onBankingBannerTap;
+  final List<BannerModel> middleBanners;
+  final PageController middleBannerController;
+  final int middleBannerPage;
+  final ValueChanged<int> onMiddleBannerPageChanged;
+  final List<BannerModel> bottomBanners;
+  final PageController bottomBannerController;
+  final int bottomBannerPage;
+  final ValueChanged<int> onBottomBannerPageChanged;
+  final ValueChanged<int> onMiddleBannerTap;
+  final ValueChanged<int> onBottomBannerTap;
+  final VoidCallback onSpinTap;
+  final VoidCallback onFaqTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.only(
+        topLeft: Radius.circular(18.r),
+        topRight: Radius.circular(18.r),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(18.r),
+            topRight: Radius.circular(18.r),
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: AppColors.cardShadow,
+              blurRadius: 20,
+              offset: Offset(0, -10),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _SectionHeader(
+                    title: 'Pay Bills & Expenses',
+                    actionLabel: 'My Bills',
+                    onAction: onMyBillsTap,
+                  ),
+                  SizedBox(height: 14.h),
+                  _PayBillsCard(
+                    services: payBillsServices,
+                    onTap: onServiceTap,
+                    onExploreTap: onExploreUtilitiesTap,
+                  ),
+                  SizedBox(height: 12.h),
+                  const _SectionHeader(title: 'Banking & Investments'),
+                  SizedBox(height: 10.h),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: onGoldTap,
+                          child: _InvestmentTile(
+                            label: 'Buy Gold',
+                            iconAsset: FileConstants.digitalGoldGif,
+                            arrowAsset: FileConstants.goldArrow,
+                            borderColor: const Color(0xFFE0C46A),
+                            textColor: const Color(0xFF8B6B12),
                           ),
                         ),
                       ),
-                      title: Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16.w),
-                        child: _HomeTopBar(
-                          initials: initials,
-                          walletBalance: walletBalance,
-                          isWalletLoading: isWalletLoading,
-                          hasWalletError: hasWalletError,
-                          compact: true,
-                          onSearchTap: () {
-                            PersistentNavBarNavigator.pushNewScreen(
-                              context,
-                              screen: const HomeSearchView(),
-                              withNavBar: false,
-                            );
-                          },
-                          onReferTap: () {
-                            PersistentNavBarNavigator.pushNewScreen(
-                              context,
-                              screen: const ReferAndEarnView(),
-                              withNavBar: false,
-                            );
-                          },
-                          onProfileTap: () {
-                            PersistentNavBarNavigator.pushNewScreen(
-                              context,
-                              screen: const ProfileView(),
-                              withNavBar: false,
-                            );
-                          },
+                      SizedBox(width: 12.w),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: onSilverTap,
+                          child: _InvestmentTile(
+                            label: 'Buy Silver',
+                            iconAsset: FileConstants.digitalSilverGif,
+                            arrowAsset: FileConstants.silverArrow,
+                            borderColor: const Color(0xFFE1E1E1),
+                            textColor: const Color(0xFF6B6B6B),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            if (bankingInvestmentBanners.isNotEmpty) ...[
+              SizedBox(height: 18.h),
+              InkWell(
+                onTap: onBankingBannerTap,
+                child: SizedBox(
+                  height: 60.h,
+                  width: double.infinity,
+                  child: PageView.builder(
+                    controller: bankingBannerController,
+                    onPageChanged: onBankingBannerPageChanged,
+                    itemCount: bankingInvestmentBanners.length,
+                    itemBuilder: (_, index) => AppNetworkImage(
+                      url: bankingInvestmentBanners[index].image,
+                      width: double.infinity,
+                      height: 60.h,
+                      fit: BoxFit.contain,
+                      placeholder: AppNetworkImage(
+                        url: '',
+                        width: double.infinity,
+                        height: 60.h,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+            Padding(
+              padding: EdgeInsets.fromLTRB(16.w, 18.h, 16.w, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _SectionHeader(title: 'Education & Lifestyle'),
+                  SizedBox(height: 12.h),
+                  _CurvedIconGrid(
+                    services: educationServices,
+                    onTap: onServiceTap,
+                  ),
+                  SizedBox(height: middleBanners.isNotEmpty ? 0.h : 18.h),
+                ],
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.w),
+              child: Column(
+                children: [
+                  if (middleBanners.isNotEmpty) SizedBox(height: 18.h),
+                  if (middleBanners.isNotEmpty)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12.r),
+                      child: SizedBox(
+                        height: 110.h,
+                        child: PageView.builder(
+                          controller: middleBannerController,
+                          onPageChanged: onMiddleBannerPageChanged,
+                          itemCount: middleBanners.length,
+                          itemBuilder: (_, index) => GestureDetector(
+                            onTap: () => onMiddleBannerTap(index),
+                            child: AppNetworkImage(
+                              url: middleBanners[index].image,
+                              width: double.infinity,
+                              height: 110.h,
+                              fit: BoxFit.contain,
+                              placeholder: AppNetworkImage(
+                                url: '',
+                                width: double.infinity,
+                                height: 110.h,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                    if (quickActions == null && homeState.errorMessage == null)
-                      const HomeShimmer()
-                    else if (homeState.errorMessage != null &&
-                        quickActions == null)
-                      SliverToBoxAdapter(
-                        child: _HomeErrorState(
-                          onRetry: () => ref
-                              .read(homeControllerProvider.notifier)
-                              .fetchQuickActions(),
-                          onRestart: () => context.go(RouteConstants.splash),
-                        ),
-                      )
-                    else if (quickActions != null)
-                      SliverToBoxAdapter(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.only(
-                            topLeft: Radius.circular(18.r),
-                            topRight: Radius.circular(18.r),
-                          ),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.only(
-                                topLeft: Radius.circular(18.r),
-                                topRight: Radius.circular(18.r),
-                              ),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: AppColors.cardShadow,
-                                  blurRadius: 20,
-                                  offset: Offset(0, -10),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              children: [
-                                Padding(
-                                  padding:
-                                      const EdgeInsets.fromLTRB(16, 16, 16, 2),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      _SectionHeader(
-                                        title: 'Pay Bills & Expenses',
-                                        actionLabel: 'My Bills',
-                                        onAction: () => context
-                                            .push(RouteConstants.quickActions),
-                                      ),
-                                      SizedBox(height: 14.h),
-                                      _PayBillsCard(
-                                        services: payBillsCategory?.services ??
-                                            const [],
-                                        onTap: handleServiceTap,
-                                        onExploreTap: () {
-                                          context.push(
-                                              RouteConstants.homeSearchView);
-                                        },
-                                      ),
-                                      SizedBox(height: 12.h),
-                                      const _SectionHeader(
-                                          title: 'Banking & Investments'),
-                                      SizedBox(height: 10.h),
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: GestureDetector(
-                                              onTap: () {
-                                                context.push(
-                                                  '${RouteConstants.digitalGold}?entry=home',
-                                                );
-                                              },
-                                              child: _InvestmentTile(
-                                                label: 'Buy Gold',
-                                                iconAsset: FileConstants
-                                                    .digitalGoldGif,
-                                                arrowAsset:
-                                                    FileConstants.goldArrow,
-                                                borderColor:
-                                                    const Color(0xFFE0C46A),
-                                                textColor:
-                                                    const Color(0xFF8B6B12),
-                                                // backgroundGradient:
-                                                //     const LinearGradient(
-                                                //   begin: Alignment.centerLeft,
-                                                //   end: Alignment.centerRight,
-                                                //   colors: [
-                                                //     Color(0xFFFFFFFF),
-                                                //     Color(0xFFFFF4D5),
-                                                //   ],
-                                                // ),
-                                              ),
-                                            ),
-                                          ),
-                                          SizedBox(width: 12.w),
-                                          Expanded(
-                                            child: GestureDetector(
-                                              onTap: () {
-                                                context.push(
-                                                  '${RouteConstants.digitalGold}?metal=silver&entry=home',
-                                                );
-                                              },
-                                              child: _InvestmentTile(
-                                                label: 'Buy Silver',
-                                                iconAsset: FileConstants
-                                                    .digitalSilverGif,
-                                                arrowAsset:
-                                                    FileConstants.silverArrow,
-                                                borderColor:
-                                                    const Color(0xFFE1E1E1),
-                                                textColor:
-                                                    const Color(0xFF6B6B6B),
-                                                // backgroundGradient:
-                                                //     const LinearGradient(
-                                                //   begin: Alignment.centerLeft,
-                                                //   end: Alignment.centerRight,
-                                                //   colors: [
-                                                //     Color(0xFFFFFFFF),
-                                                //     Color(0xFFF5F5F5),
-                                                //   ],
-                                                // ),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                if (bankingInvestmentBanners.isNotEmpty) ...[
-                                  SizedBox(height: 18.h),
-                                  InkWell(
-                                    onTap: () {
-                                      final index = bankingBannerPage.value;
-                                      final banner = index >= 0 &&
-                                              index <
-                                                  bankingInvestmentBanners
-                                                      .length
-                                          ? bankingInvestmentBanners[index]
-                                          : null;
-                                      final redirectUrl = banner?.redirectUrl;
-                                      if (redirectUrl != null &&
-                                          redirectUrl.trim().isNotEmpty) {
-                                        BannerRedirectMapper.handle(
-                                          context,
-                                          redirectUrl,
-                                        );
-                                        return;
-                                      }
-                                      context.push(
-                                        '${RouteConstants.digitalGold}?entry=home',
-                                      );
-                                    },
-                                    child: SizedBox(
-                                      height: 60.h,
-                                      width: double.infinity,
-                                      child: PageView.builder(
-                                        controller: bankingBannerController,
-                                        onPageChanged: (page) =>
-                                            bankingBannerPage.value = page,
-                                        itemCount:
-                                            bankingInvestmentBanners.length,
-                                        itemBuilder: (_, index) =>
-                                            AppNetworkImage(
-                                          url: bankingInvestmentBanners[index]
-                                              .image,
-                                          width: double.infinity,
-                                          height: 60.h,
-                                          fit: BoxFit.contain,
-                                          placeholder: AppNetworkImage(
-                                            url: '',
-                                            width: double.infinity,
-                                            height: 60.h,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                                Padding(
-                                  padding:
-                                      EdgeInsets.fromLTRB(16.w, 18.h, 16.w, 0),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const _SectionHeader(
-                                        title: 'Education & Lifestyle',
-                                      ),
-                                      SizedBox(height: 12.h),
-                                      _CurvedIconGrid(
-                                        services: educationCategory?.services ??
-                                            const [],
-                                        onTap: handleServiceTap,
-                                      ),
-                                      SizedBox(
-                                        height: middleBanners.isNotEmpty
-                                            ? 0.h
-                                            : 18.h,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Padding(
-                                  padding:
-                                      EdgeInsets.symmetric(horizontal: 16.w),
-                                  child: Column(
-                                    children: [
-                                      if (middleBanners.isNotEmpty)
-                                        SizedBox(height: 18.h),
-                                      if (middleBanners.isNotEmpty)
-                                        ClipRRect(
-                                          borderRadius:
-                                              BorderRadius.circular(12.r),
-                                          child: SizedBox(
-                                            height: 110.h,
-                                            child: PageView.builder(
-                                              controller:
-                                                  middleBannerController,
-                                              onPageChanged: (page) =>
-                                                  middleBannerPage.value = page,
-                                              itemCount: middleBanners.length,
-                                              itemBuilder: (_, index) =>
-                                                  GestureDetector(
-                                                onTap: () =>
-                                                    BannerRedirectMapper.handle(
-                                                  context,
-                                                  middleBanners[index]
-                                                      .redirectUrl,
-                                                ),
-                                                child: AppNetworkImage(
-                                                  url: middleBanners[index]
-                                                      .image,
-                                                  width: double.infinity,
-                                                  height: 110.h,
-                                                  fit: BoxFit.contain,
-                                                  placeholder: AppNetworkImage(
-                                                    url: '',
-                                                    width: double.infinity,
-                                                    height: 110.h,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      if (middleBanners.isNotEmpty)
-                                        SizedBox(height: 6.h),
-                                      if (middleBanners.length > 1)
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: List.generate(
-                                            middleBanners.length,
-                                            (index) => Padding(
-                                              padding: EdgeInsets.symmetric(
-                                                  horizontal: 3.w),
-                                              child: _Dot(
-                                                active:
-                                                    middleBannerPage.value ==
-                                                        index,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      if (middleBanners.isNotEmpty)
-                                        SizedBox(height: 18.h),
-                                    ],
-                                  ),
-                                ),
-                                Padding(
-                                  padding: EdgeInsets.fromLTRB(
-                                      16.w, 0.h, 16.w, 12.h),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      _SectionHeader(
-                                        title: 'Insurance & Rent',
-                                        // actionLabel: 'View All',
-                                        onAction: () => context
-                                            .push(RouteConstants.quickActions),
-                                      ),
-                                      SizedBox(height: 12.h),
-                                      _CurvedIconGrid(
-                                        services: insuranceCategory?.services ??
-                                            const [],
-                                        onTap: handleServiceTap,
-                                        labelBuilder: (service) {
-                                          final name = service.name.trim();
-                                          final lower = name.toLowerCase();
-                                          if (lower.contains('insurance')) {
-                                            return name;
-                                          }
-                                          if (lower == 'general' ||
-                                              lower == 'health' ||
-                                              lower == 'life') {
-                                            return '$name Insurance';
-                                          }
-                                          return name;
-                                        },
-                                      ),
-                                      SizedBox(height: 14.h),
-                                    ],
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: _ImageBanner(
-                                    asset: FileConstants.homeBanner9,
-                                    height: 60.h,
-                                  ),
-                                ),
-                                Padding(
-                                  padding:
-                                      EdgeInsets.fromLTRB(16.w, 20.h, 16.w, 0),
-                                  child: Column(
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: _MiniActionCard(
-                                              title: 'Gift card',
-                                              subtitle: 'Gift your friends',
-                                              asset: FileConstants.giftGif,
-                                              backgroundColor:
-                                                  const Color(0xFFFFF3EE),
-                                              gradientBorder:
-                                                  const LinearGradient(
-                                                begin: Alignment.centerLeft,
-                                                end: Alignment.centerRight,
-                                                colors: [
-                                                  Color(0xFFFF9776),
-                                                  Color(0xFFDD5428),
-                                                ],
-                                              ),
-                                              onTap: () {},
-                                            ),
-                                          ),
-                                          SizedBox(width: 8.w),
-                                          Expanded(
-                                            child: _MiniActionCard(
-                                              title: 'Spin & Win',
-                                              subtitle: 'Win big prizes',
-                                              asset: FileConstants.spinIcon,
-                                              backgroundColor:
-                                                  const Color(0xFFEAF2FF),
-                                              borderColor:
-                                                  const Color(0xFF002352),
-                                              onTap: () => context.push(
-                                                  RouteConstants.spinAndWin),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      SizedBox(height: 12.h),
-                                      _SupportTile(
-                                        title: 'FAQ & Support',
-                                        onTap: () => context.push(
-                                          RouteConstants.faq,
-                                        ),
-                                      ),
-                                      SizedBox(height: 16.h),
-                                    ],
-                                  ),
-                                ),
-                                if (bottomBanners.isNotEmpty) ...[
-                                  SizedBox(
-                                    width: double.infinity,
-                                    height: 130.h,
-                                    child: PageView.builder(
-                                      controller: bottomBannerController,
-                                      onPageChanged: (page) =>
-                                          bottomBannerPage.value = page,
-                                      itemCount: bottomBanners.length,
-                                      itemBuilder: (_, index) =>
-                                          GestureDetector(
-                                        onTap: () =>
-                                            BannerRedirectMapper.handle(
-                                          context,
-                                          bottomBanners[index].redirectUrl,
-                                        ),
-                                        child: AppNetworkImage(
-                                          url: bottomBanners[index].image,
-                                          width: double.infinity,
-                                          height: 130.h,
-                                          fit: BoxFit.cover,
-                                          placeholder: AppNetworkImage(
-                                            url: '',
-                                            width: double.infinity,
-                                            height: 130.h,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  SizedBox(height: 6.h),
-                                  if (bottomBanners.length > 1)
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: List.generate(
-                                        bottomBanners.length,
-                                        (index) => Padding(
-                                          padding: EdgeInsets.symmetric(
-                                            horizontal: 3.w,
-                                          ),
-                                          child: _Dot(
-                                            active:
-                                                bottomBannerPage.value == index,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                                Container(
-                                  decoration: const BoxDecoration(
-                                    color: Color(0XFFFDFDFD),
-                                  ),
-                                  child: Padding(
-                                    padding: EdgeInsets.fromLTRB(
-                                        16.w, 20.h, 16.w, 24.h),
-                                    child: Row(
-                                      children: [
-                                        Text(
-                                          'Powered by',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall
-                                              ?.copyWith(
-                                                color: AppColors.textPrimary,
-                                              ),
-                                        ),
-                                        SizedBox(width: 6.w),
-                                        Image.asset(
-                                          FileConstants.bharatConnectColor,
-                                          height: 25.h,
-                                          fit: BoxFit.contain,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                  if (middleBanners.isNotEmpty) SizedBox(height: 6.h),
+                  if (middleBanners.length > 1)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        middleBanners.length,
+                        (index) => Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 3.w),
+                          child: _Dot(active: middleBannerPage == index),
                         ),
                       ),
-                  ])),
-        ],
+                    ),
+                  if (middleBanners.isNotEmpty) SizedBox(height: 18.h),
+                ],
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(16.w, 0.h, 16.w, 12.h),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _SectionHeader(
+                      title: 'Insurance & Rent', onAction: onMyBillsTap),
+                  SizedBox(height: 12.h),
+                  _CurvedIconGrid(
+                    services: insuranceServices,
+                    onTap: onServiceTap,
+                    labelBuilder: (service) {
+                      final name = service.name.trim();
+                      final lower = name.toLowerCase();
+                      if (lower.contains('insurance')) return name;
+                      if (lower == 'general' ||
+                          lower == 'health' ||
+                          lower == 'life') {
+                        return '$name Insurance';
+                      }
+                      return name;
+                    },
+                  ),
+                  SizedBox(height: 14.h),
+                ],
+              ),
+            ),
+            SizedBox(
+              width: double.infinity,
+              child: _ImageBanner(
+                asset: FileConstants.homeBanner9,
+                height: 60.h,
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(16.w, 20.h, 16.w, 0),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _MiniActionCard(
+                          title: 'Gift card',
+                          subtitle: 'Gift your friends',
+                          asset: FileConstants.giftGif,
+                          backgroundColor: const Color(0xFFFFF3EE),
+                          gradientBorder: const LinearGradient(
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                            colors: [
+                              Color(0xFFFF9776),
+                              Color(0xFFDD5428),
+                            ],
+                          ),
+                          onTap: () {},
+                        ),
+                      ),
+                      SizedBox(width: 8.w),
+                      Expanded(
+                        child: _MiniActionCard(
+                          title: 'Spin & Win',
+                          subtitle: 'Win big prizes',
+                          asset: FileConstants.spinIcon,
+                          backgroundColor: const Color(0xFFEAF2FF),
+                          borderColor: const Color(0xFF002352),
+                          onTap: onSpinTap,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 12.h),
+                  _SupportTile(
+                    title: 'FAQ & Support',
+                    onTap: onFaqTap,
+                  ),
+                  SizedBox(height: 16.h),
+                ],
+              ),
+            ),
+            if (bottomBanners.isNotEmpty) ...[
+              SizedBox(
+                width: double.infinity,
+                height: 130.h,
+                child: PageView.builder(
+                  controller: bottomBannerController,
+                  onPageChanged: onBottomBannerPageChanged,
+                  itemCount: bottomBanners.length,
+                  itemBuilder: (_, index) => GestureDetector(
+                    onTap: () => onBottomBannerTap(index),
+                    child: AppNetworkImage(
+                      url: bottomBanners[index].image,
+                      width: double.infinity,
+                      height: 130.h,
+                      fit: BoxFit.cover,
+                      placeholder: AppNetworkImage(
+                        url: '',
+                        width: double.infinity,
+                        height: 130.h,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(height: 6.h),
+              if (bottomBanners.length > 1)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(
+                    bottomBanners.length,
+                    (index) => Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 3.w),
+                      child: _Dot(active: bottomBannerPage == index),
+                    ),
+                  ),
+                ),
+            ],
+            Container(
+              decoration: const BoxDecoration(color: Color(0XFFFDFDFD)),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(16.w, 20.h, 16.w, 24.h),
+                child: Row(
+                  children: [
+                    Text(
+                      'Powered by',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.textPrimary,
+                          ),
+                    ),
+                    SizedBox(width: 6.w),
+                    Image.asset(
+                      FileConstants.bharatConnectColor,
+                      height: 25.h,
+                      fit: BoxFit.contain,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2553,15 +2792,82 @@ TemporaryBlockFlowType? _resolveTemporaryBlockFlow(ProfileModel? profile) {
 
 class _HomeErrorState extends StatelessWidget {
   const _HomeErrorState({
+    this.isServerUnavailable = false,
     required this.onRetry,
     required this.onRestart,
   });
 
+  final bool isServerUnavailable;
   final VoidCallback onRetry;
   final VoidCallback onRestart;
 
   @override
   Widget build(BuildContext context) {
+    if (isServerUnavailable) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(20.w, 8.h, 20.w, 24.h),
+        child: Column(
+          children: [
+            Text(
+              'Opps!',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            SizedBox(height: 20.h),
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(horizontal: 18.w, vertical: 18.h),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF1ED),
+                borderRadius: BorderRadius.circular(22.r),
+              ),
+              child: Image.asset(
+                FileConstants.serverDown,
+                height: 160.h,
+                fit: BoxFit.contain,
+              ),
+            ),
+            SizedBox(height: 28.h),
+            Text(
+              'Something Went Wrong',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            SizedBox(height: 10.h),
+            Text(
+              'We’re currently facing a temporary server issue.\nYour account and funds remain safe and secure.\nPlease try again after a few minutes.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textPrimary.withOpacity(0.8),
+                    height: 1.55,
+                  ),
+            ),
+            SizedBox(height: 18.h),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 18.w, vertical: 8.h),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFE5DE),
+                borderRadius: BorderRadius.circular(999.r),
+              ),
+              child: Text(
+                'Error Code: ERU-SRV-503',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Padding(
       padding: EdgeInsets.fromLTRB(24.w, 32.h, 24.w, 32.h),
       child: Column(
@@ -2619,4 +2925,211 @@ class _HomeErrorState extends StatelessWidget {
       ),
     );
   }
+}
+
+class _HomeReminderDialog extends StatelessWidget {
+  const _HomeReminderDialog({
+    required this.data,
+    this.onPrimaryTap,
+  });
+
+  final BillReminderItem data;
+  final VoidCallback? onPrimaryTap;
+
+  void _close(BuildContext context) {
+    Navigator.of(context, rootNavigator: true).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: EdgeInsets.symmetric(horizontal: 24.w),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.fromLTRB(22.w, 22.h, 22.w, 20.h),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(28.r),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _billReminderTitle(data.paymentType),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: Colors.black,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                SizedBox(height: 18.h),
+                Container(
+                  width: 92.w,
+                  height: 92.w,
+                  padding: EdgeInsets.all(16.r),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.lightBorder),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: (data.billerIcon.trim().isNotEmpty)
+                      ? ClipOval(
+                          child: AppNetworkImage(
+                            url: data.billerIcon,
+                            fit: BoxFit.contain,
+                            showShimmer: false,
+                          ),
+                        )
+                      : Image.asset(
+                          FileConstants.bharatConnectColor,
+                          fit: BoxFit.contain,
+                        ),
+                ),
+                SizedBox(height: 14.h),
+                Text(
+                  'Last Bill Amount: ${_formatReminderAmount(data.lastBillAmount)}',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.black,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                SizedBox(height: 4.h),
+                Text(
+                  'Due Date: ${_formatReminderDate(data.dueDate)}',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.black,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                SizedBox(height: 14.h),
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 16.w,
+                    vertical: 12.h,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFEFE8),
+                    borderRadius: BorderRadius.circular(14.r),
+                  ),
+                  child: Text(
+                    _billReminderMessage(data),
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.black.withOpacity(0.8),
+                          height: 1.45,
+                        ),
+                  ),
+                ),
+                SizedBox(height: 18.h),
+                Row(
+                  children: [
+                    Expanded(
+                      child: CustomElevatedButton(
+                        onPressed: () => _close(context),
+                        label: 'Later',
+                        uppercaseLabel: false,
+                        height: 42.h,
+                        isBorder: true,
+                        backgroundColor: Colors.white,
+                        borderColor: AppColors.primary,
+                        labelColor: AppColors.primary,
+                      ),
+                    ),
+                    SizedBox(width: 16.w),
+                    Expanded(
+                      child: CustomElevatedButton(
+                        onPressed: onPrimaryTap,
+                        label: 'Pay Now',
+                        uppercaseLabel: false,
+                        height: 42.h,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            top: -18.h,
+            right: 6.w,
+            child: GestureDetector(
+              onTap: () => _close(context),
+              child: Container(
+                width: 38.w,
+                height: 38.w,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6C5248),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 1.5),
+                ),
+                child: const Icon(
+                  Icons.close_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _billReminderTitle(String paymentType) {
+  final trimmed = paymentType.trim();
+  if (trimmed.isEmpty) return 'Bill Reminder';
+  if (trimmed.toLowerCase() == 'recharge') return 'Recharge Reminder';
+  return '$trimmed Bill Reminder';
+}
+
+String _billReminderMessage(BillReminderItem data) {
+  final description = data.description?.trim() ?? '';
+  if (description.isNotEmpty) return description;
+  final note = data.note.trim();
+  if (note.isNotEmpty) return note;
+  return 'Your bill is due soon. Please complete the payment on time.';
+}
+
+String _formatReminderAmount(double amount) {
+  final absolute = amount.abs();
+  final isWhole = absolute == absolute.truncateToDouble();
+  final value = isWhole
+      ? absolute.toStringAsFixed(0)
+      : absolute.toStringAsFixed(2);
+  return '₹$value';
+}
+
+String _formatReminderDate(String raw) {
+  final parsed = DateTime.tryParse(raw);
+  if (parsed == null) return raw;
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return '${parsed.day.toString().padLeft(2, '0')} ${months[parsed.month - 1]} ${parsed.year}';
 }

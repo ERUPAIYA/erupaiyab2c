@@ -125,10 +125,11 @@ class _RecentRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 124.h,
+      height: 126.h,
       child: recentTransactions.when(
         loading: () => ListView.separated(
-          padding: EdgeInsets.symmetric(horizontal: 16.w),
+          padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 10.h),
+          clipBehavior: Clip.none,
           scrollDirection: Axis.horizontal,
           itemCount: 2,
           separatorBuilder: (_, __) => SizedBox(width: 12.w),
@@ -139,7 +140,8 @@ class _RecentRow extends StatelessWidget {
           if (items.isEmpty) return const SizedBox.shrink();
           final display = items.take(10).toList();
           return ListView.separated(
-            padding: EdgeInsets.symmetric(horizontal: 16.w),
+            padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 10.h),
+            clipBehavior: Clip.none,
             scrollDirection: Axis.horizontal,
             itemCount: display.length,
             separatorBuilder: (_, __) => SizedBox(width: 12.w),
@@ -165,7 +167,13 @@ class _RecentCardShimmer extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16.r),
-          border: Border.all(color: const Color(0xFFE2E2E2)),
+          boxShadow: const [
+            BoxShadow(
+              color: AppColors.cardShadow,
+              blurRadius: 12,
+              offset: Offset(0, 6),
+            ),
+          ],
         ),
         child: Column(
           children: [
@@ -177,7 +185,7 @@ class _RecentCardShimmer extends StatelessWidget {
                     height: 38.w,
                     width: 38.w,
                     decoration: BoxDecoration(
-                      color: AppColors.lightBorder.withOpacity(0.25),
+                      color: AppColors.lightBorder.withValues(alpha: 0.25),
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -190,7 +198,8 @@ class _RecentCardShimmer extends StatelessWidget {
                           height: 12.h,
                           width: 160.w,
                           decoration: BoxDecoration(
-                            color: AppColors.lightBorder.withOpacity(0.25),
+                            color:
+                                AppColors.lightBorder.withValues(alpha: 0.25),
                             borderRadius: BorderRadius.circular(8.r),
                           ),
                         ),
@@ -199,7 +208,8 @@ class _RecentCardShimmer extends StatelessWidget {
                           height: 10.h,
                           width: 110.w,
                           decoration: BoxDecoration(
-                            color: AppColors.lightBorder.withOpacity(0.25),
+                            color:
+                                AppColors.lightBorder.withValues(alpha: 0.25),
                             borderRadius: BorderRadius.circular(8.r),
                           ),
                         ),
@@ -211,14 +221,15 @@ class _RecentCardShimmer extends StatelessWidget {
                     height: 18.h,
                     width: 18.h,
                     decoration: BoxDecoration(
-                      color: AppColors.lightBorder.withOpacity(0.25),
+                      color: AppColors.lightBorder.withValues(alpha: 0.25),
                       shape: BoxShape.circle,
                     ),
                   ),
                 ],
               ),
             ),
-            Divider(height: 1, color: AppColors.lightBorder.withOpacity(0.7)),
+            Divider(
+                height: 1, color: AppColors.lightBorder.withValues(alpha: 0.7)),
             Padding(
               padding: EdgeInsets.all(14.w),
               child: Row(
@@ -231,7 +242,8 @@ class _RecentCardShimmer extends StatelessWidget {
                           height: 16.h,
                           width: 120.w,
                           decoration: BoxDecoration(
-                            color: AppColors.lightBorder.withOpacity(0.25),
+                            color:
+                                AppColors.lightBorder.withValues(alpha: 0.25),
                             borderRadius: BorderRadius.circular(8.r),
                           ),
                         ),
@@ -240,7 +252,8 @@ class _RecentCardShimmer extends StatelessWidget {
                           height: 10.h,
                           width: 130.w,
                           decoration: BoxDecoration(
-                            color: AppColors.lightBorder.withOpacity(0.25),
+                            color:
+                                AppColors.lightBorder.withValues(alpha: 0.25),
                             borderRadius: BorderRadius.circular(8.r),
                           ),
                         ),
@@ -252,7 +265,7 @@ class _RecentCardShimmer extends StatelessWidget {
                     height: 30.h,
                     width: 78.w,
                     decoration: BoxDecoration(
-                      color: AppColors.lightBorder.withOpacity(0.25),
+                      color: AppColors.lightBorder.withValues(alpha: 0.25),
                       borderRadius: BorderRadius.circular(22.r),
                     ),
                   ),
@@ -286,12 +299,18 @@ class _RecentCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: const Color(0xFFE2E2E2)),
+        boxShadow: const [
+          BoxShadow(
+            color: AppColors.cardShadow,
+            blurRadius: 12,
+            offset: Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         children: [
           Padding(
-            padding: EdgeInsets.all(14.w),
+            padding: EdgeInsets.all(13.w),
             child: Row(
               children: [
                 Container(
@@ -300,7 +319,8 @@ class _RecentCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.black.withOpacity(0.08)),
+                    border:
+                        Border.all(color: Colors.black.withValues(alpha: 0.08)),
                   ),
                   child: ClipOval(
                     child: txn.icon.trim().isEmpty
@@ -336,7 +356,8 @@ class _RecentCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.textPrimary.withOpacity(0.6),
+                              color:
+                                  AppColors.textPrimary.withValues(alpha: 0.6),
                               fontWeight: FontWeight.w600,
                             ),
                       ),
@@ -345,12 +366,13 @@ class _RecentCard extends StatelessWidget {
                 ),
                 Icon(
                   Icons.more_vert,
-                  color: AppColors.textPrimary.withOpacity(0.45),
+                  color: AppColors.textPrimary.withValues(alpha: 0.45),
                 ),
               ],
             ),
           ),
-          Divider(height: 1, color: AppColors.lightBorder.withOpacity(0.7)),
+          Divider(
+              height: 1, color: AppColors.lightBorder.withValues(alpha: 0.7)),
           Padding(
             padding: EdgeInsets.all(14.w),
             child: Row(
@@ -361,19 +383,21 @@ class _RecentCard extends StatelessWidget {
                     children: [
                       Text(
                         '₹${amount.toStringAsFixed(2)}',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w900,
-                              color: AppColors.textPrimary,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                  color: AppColors.textPrimary,
+                                ),
                       ),
                       if (dueLabel.isNotEmpty) ...[
                         SizedBox(height: 4.h),
                         Text(
                           dueLabel,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Colors.red.shade600,
-                                fontWeight: FontWeight.w700,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Colors.red.shade600,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                         ),
                       ],
                     ],
@@ -443,7 +467,8 @@ class _Shimmer extends StatefulWidget {
   State<_Shimmer> createState() => _ShimmerState();
 }
 
-class _ShimmerState extends State<_Shimmer> with SingleTickerProviderStateMixin {
+class _ShimmerState extends State<_Shimmer>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
   @override
@@ -471,9 +496,9 @@ class _ShimmerState extends State<_Shimmer> with SingleTickerProviderStateMixin 
           shaderCallback: (rect) {
             return LinearGradient(
               colors: [
-                AppColors.lightBorder.withOpacity(0.2),
-                AppColors.lightBorder.withOpacity(0.6),
-                AppColors.lightBorder.withOpacity(0.2),
+                AppColors.lightBorder.withValues(alpha: 0.2),
+                AppColors.lightBorder.withValues(alpha: 0.6),
+                AppColors.lightBorder.withValues(alpha: 0.2),
               ],
               stops: const [0.25, 0.5, 0.75],
               begin: const Alignment(-1, -0.3),
@@ -498,4 +523,3 @@ class _SlidingGradientTransform extends GradientTransform {
     return Matrix4.translationValues(bounds.width * slidePercent, 0.0, 0.0);
   }
 }
-

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../../../services/secure_storage_service.dart';
 import '../models/banner_model.dart';
 import '../models/quick_action_model.dart';
 
@@ -22,7 +23,7 @@ class HomeQuickActionsCachePayload {
 
 class HomeQuickActionsCache {
   HomeQuickActionsCache({FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage();
+      : _storage = storage ?? SecureStorageService.instance;
 
   static const _keyPayload = 'home_quick_actions_payload_v1';
 
@@ -139,4 +140,3 @@ class HomeQuickActionsCache {
     return color.value.toRadixString(16).padLeft(8, '0').toUpperCase();
   }
 }
-

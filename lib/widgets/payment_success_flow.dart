@@ -32,6 +32,7 @@ class PaymentThankYouScreen extends StatefulWidget {
     super.key,
     required this.title,
     required this.subtitle,
+    this.highlightedSubtitleText,
     this.gifPath = 'assets/gif/success.gif',
     this.poweredByText = 'Powered by',
     this.poweredByLogo = '',
@@ -42,6 +43,7 @@ class PaymentThankYouScreen extends StatefulWidget {
 
   final String title;
   final String subtitle;
+  final String? highlightedSubtitleText;
   final String gifPath;
   final String poweredByText;
   final String poweredByLogo;
@@ -98,60 +100,104 @@ class _PaymentThankYouScreenState extends State<PaymentThankYouScreen>
 
   @override
   Widget build(BuildContext context) {
+    final subtitleStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.w400,
+          fontSize: 16.sp,
+          height: 1.35,
+        );
     return SlideTransition(
-        position: _slideAnimation,
-        child: Scaffold(
-          backgroundColor: const Color(0xFFFFF4EF),
-          body: SafeArea(
+      position: _slideAnimation,
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24.w),
             child: Column(
               children: [
-                const Spacer(flex: 2),
+                const Spacer(flex: 5),
                 Image.asset(
                   widget.gifPath,
-                  height: 140,
+                  height: 84.h,
+                  width: 84.w,
                   fit: BoxFit.contain,
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 24.h),
                 Text(
                   widget.title,
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 28.sp,
+                        height: 1.1,
                       ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 12.h),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Text(
-                    widget.subtitle,
+                  padding: EdgeInsets.symmetric(horizontal: 8.w),
+                  child: Text.rich(
+                    _buildSubtitleSpan(subtitleStyle),
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.textPrimary.withOpacity(0.75),
-                          height: 1.4,
-                        ),
                   ),
                 ),
-                const Spacer(flex: 3),
-                Text(
-                  widget.poweredByText,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textPrimary.withOpacity(0.65),
-                      ),
+                const Spacer(flex: 6),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      widget.poweredByText,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w400,
+                            fontSize: 13.sp,
+                            height: 1,
+                          ),
+                    ),
+                    SizedBox(width: 6.w),
+                    Image.asset(
+                      widget.poweredByLogo.isEmpty
+                          ? FileConstants.bharatConnect
+                          : widget.poweredByLogo,
+                      height: 18.h,
+                      fit: BoxFit.contain,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                Image.asset(
-                  widget.poweredByLogo.isEmpty
-                      ? FileConstants.bharatConnect
-                      : widget.poweredByLogo,
-                  height: 40,
-                  fit: BoxFit.contain,
-                ),
-                const SizedBox(height: 24),
+                SizedBox(height: 26.h),
               ],
             ),
           ),
-        ));
+        ),
+      ),
+    );
+  }
+
+  TextSpan _buildSubtitleSpan(TextStyle? baseStyle) {
+    final highlight = widget.highlightedSubtitleText?.trim() ?? '';
+    if (highlight.isEmpty) {
+      return TextSpan(text: widget.subtitle, style: baseStyle);
+    }
+
+    final fullText = widget.subtitle;
+    final start = fullText.indexOf(highlight);
+    if (start < 0) {
+      return TextSpan(text: fullText, style: baseStyle);
+    }
+
+    final end = start + highlight.length;
+    return TextSpan(
+      style: baseStyle,
+      children: [
+        if (start > 0) TextSpan(text: fullText.substring(0, start)),
+        TextSpan(
+          text: fullText.substring(start, end),
+          style: baseStyle?.copyWith(fontWeight: FontWeight.w800),
+        ),
+        if (end < fullText.length) TextSpan(text: fullText.substring(end)),
+      ],
+    );
   }
 }
 

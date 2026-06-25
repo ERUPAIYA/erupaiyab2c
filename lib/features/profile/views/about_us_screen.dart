@@ -22,7 +22,7 @@ class AboutUsScreen extends HookWidget {
           MyAppBar(title: t('About E-Rupaiya', 'About E-Rupaiya')),
           Expanded(
             child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 24.h),
+              padding: EdgeInsets.fromLTRB(16.w, 10.h, 16.w, 24.h),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -33,8 +33,8 @@ class AboutUsScreen extends HookWidget {
                           t('About e-Rupaiya', 'About e-Rupaiya'),
                           style:
                               Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    color: AppColors.textPrimary,
-                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.bold,
                                   ),
                         ),
                       ),
@@ -107,7 +107,8 @@ class AboutUsScreen extends HookWidget {
                   ),
                   SizedBox(height: 8.h),
                   _Bullet(
-                    t('Quick and hassle-free payments', 'तेज़ और बिना झंझट भुगतान'),
+                    t('Quick and hassle-free payments',
+                        'तेज़ और बिना झंझट भुगतान'),
                   ),
                   _Bullet(
                     t('Rewards on every transaction', 'हर लेन‑देन पर रिवॉर्ड'),
@@ -139,7 +140,7 @@ class _AboutParagraph extends StatelessWidget {
       child: Text(
         text,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.textPrimary.withOpacity(0.75),
+              color: AppColors.textPrimary.withValues(alpha: 0.75),
               height: 1.5,
             ),
       ),
@@ -173,7 +174,7 @@ class _Bullet extends StatelessWidget {
             child: Text(
               text,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textPrimary.withOpacity(0.75),
+                    color: AppColors.textPrimary.withValues(alpha: 0.75),
                     height: 1.4,
                   ),
             ),

@@ -3,9 +3,9 @@
 import 'package:e_rupaiya/constants/file_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 import '../../../constants/app_colors.dart';
 import '../../../constants/routes_constant.dart';
@@ -51,7 +51,8 @@ class CreditCardListingView extends HookConsumerWidget {
     final billers = listingState.billers;
     final isSearching = searchController.text.trim().isNotEmpty;
     final topPicks = isSearching ? <Biller>[] : billers.take(6).toList();
-    final remaining = isSearching ? <Biller>[] : billers.skip(topPicks.length).toList();
+    final remaining =
+        isSearching ? <Biller>[] : billers.skip(topPicks.length).toList();
 
     void openBillerFromRecent(LatestTransaction txn) {
       final normalizedBiller = txn.billerName.trim().toLowerCase();
@@ -113,188 +114,188 @@ class CreditCardListingView extends HookConsumerWidget {
             ),
           ),
           Expanded(
-            child: ScreenWrapper(
-              isFetching: listingState.isFetching,
-              isEmpty: billers.isEmpty,
-              emptyMessage: 'No providers found',
-              errorMessage: listingState.errorMessage,
-              actions: listingState.errorMessage != null
-                  ? [
-                      TextButton(
-                        onPressed: () => ref
-                            .read(billerListingControllerProvider.notifier)
-                            .fetchBillers(categoryName: _categoryName),
-                        child: const Text('Retry'),
-                      ),
-                    ]
-                  : null,
-              child: InfiniteScrollListener(
-                isLoading: listingState.isFetchingMore,
-                hasMore: listingState.hasMore,
-                onEndReached: () => ref
-                    .read(billerListingControllerProvider.notifier)
-                    .fetchNextPage(),
-                child: isSearching
-                    ? ListView.builder(
-                        primary: false,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount:
-                            billers.length + (listingState.isFetchingMore ? 1 : 0),
-                        itemBuilder: (context, index) {
-                          if (index >= billers.length) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 16),
-                              child: Center(
-                                child: SpinKitCircle(
-                                  color: AppColors.primary,
-                                  size: 48,
-                                ),
-                              ),
-                            );
-                          }
-                          final biller = billers[index];
-                          return _BillerListTile(
-                            biller: biller,
-                            onTap: () {
-                              ref
+            child: listingState.isFetching &&
+                    billers.isEmpty &&
+                    listingState.errorMessage == null
+                ? _CreditCardListingSkeleton(isSearching: isSearching)
+                : ScreenWrapper(
+                    isFetching: false,
+                    isEmpty: billers.isEmpty,
+                    emptyMessage: 'No providers found',
+                    errorMessage: listingState.errorMessage,
+                    actions: listingState.errorMessage != null
+                        ? [
+                            TextButton(
+                              onPressed: () => ref
                                   .read(
-                                    billerDetailControllerProvider.notifier,
-                                  )
-                                  .selectBiller(biller);
-                              context.push(
-                                RouteConstants.billerDetail,
-                                extra: BillerDetailArgs(
-                                  biller: biller,
-                                  isCreditCard: true,
-                                  paymentType: 'Credit card',
-                                ),
-                              );
-                            },
-                          );
-                        },
-                      )
-                    : SingleChildScrollView(
-                        primary: false,
-                        padding: EdgeInsets.zero,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            ServiceRecentSection(
-                              recentTransactions: recentTransactions,
-                              onPayNow: openBillerFromRecent,
-                              onAction: () {},
+                                      billerListingControllerProvider.notifier)
+                                  .fetchBillers(categoryName: _categoryName),
+                              child: const Text('Retry'),
                             ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                          ]
+                        : null,
+                    child: InfiniteScrollListener(
+                      isLoading: listingState.isFetchingMore,
+                      hasMore: listingState.hasMore,
+                      onEndReached: () => ref
+                          .read(billerListingControllerProvider.notifier)
+                          .fetchNextPage(),
+                      child: isSearching
+                          ? ListView.builder(
+                              primary: false,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              itemCount: billers.length +
+                                  (listingState.isFetchingMore ? 1 : 0),
+                              itemBuilder: (context, index) {
+                                if (index >= billers.length) {
+                                  return const _CreditCardListingFooterSkeleton();
+                                }
+                                final biller = billers[index];
+                                return _BillerListTile(
+                                  biller: biller,
+                                  onTap: () {
+                                    ref
+                                        .read(
+                                          billerDetailControllerProvider
+                                              .notifier,
+                                        )
+                                        .selectBiller(biller);
+                                    context.push(
+                                      RouteConstants.billerDetail,
+                                      extra: BillerDetailArgs(
+                                        biller: biller,
+                                        isCreditCard: true,
+                                        paymentType: 'Credit card',
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            )
+                          : SingleChildScrollView(
+                              primary: false,
+                              padding: EdgeInsets.zero,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    'Popular Banks',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.w800,
-                                          color: AppColors.textPrimary,
-                                        ),
+                                  ServiceRecentSection(
+                                    recentTransactions: recentTransactions,
+                                    onPayNow: openBillerFromRecent,
+                                    onAction: () {},
                                   ),
-                                  const SizedBox(height: 12),
-                                  LayoutBuilder(
-                                    builder: (context, constraints) {
-                                      const spacing = 12.0;
-                                      const columns = 3;
-                                      final tileWidth = (constraints.maxWidth -
-                                              (spacing * (columns - 1))) /
-                                          columns;
-                                      return Wrap(
-                                        spacing: spacing,
-                                        runSpacing: spacing,
-                                        children: [
-                                          for (final biller in topPicks)
-                                            SizedBox(
-                                              width: tileWidth,
-                                              child: _BillerGridTile(
-                                                biller: biller,
-                                                onTap: () {
-                                                  ref
-                                                      .read(
-                                                        billerDetailControllerProvider
-                                                            .notifier,
-                                                      )
-                                                      .selectBiller(biller);
-                                                  context.push(
-                                                    RouteConstants.billerDetail,
-                                                    extra: BillerDetailArgs(
-                                                      biller: biller,
-                                                      isCreditCard: true,
-                                                      paymentType: 'Credit card',
-                                                    ),
-                                                  );
-                                                },
-                                              ),
-                                            ),
-                                        ],
-                                      );
-                                    },
-                                  ),
-                                  if (remaining.isNotEmpty) ...[
-                                    const SizedBox(height: 18),
-                                    Text(
-                                      'All Banks',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w800,
-                                            color: AppColors.textPrimary,
-                                          ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Column(
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        for (final biller in remaining)
-                                          _BillerListTile(
-                                            biller: biller,
-                                            onTap: () {
-                                              ref
-                                                  .read(
-                                                    billerDetailControllerProvider
-                                                        .notifier,
-                                                  )
-                                                  .selectBiller(biller);
-                                              context.push(
-                                                RouteConstants.billerDetail,
-                                                extra: BillerDetailArgs(
-                                                  biller: biller,
-                                                  isCreditCard: true,
-                                                  paymentType: 'Credit card',
+                                        Text(
+                                          'Popular Banks',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w800,
+                                                color: AppColors.textPrimary,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        LayoutBuilder(
+                                          builder: (context, constraints) {
+                                            const spacing = 12.0;
+                                            const columns = 3;
+                                            final tileWidth = (constraints
+                                                        .maxWidth -
+                                                    (spacing * (columns - 1))) /
+                                                columns;
+                                            return Wrap(
+                                              spacing: spacing,
+                                              runSpacing: spacing,
+                                              children: [
+                                                for (final biller in topPicks)
+                                                  SizedBox(
+                                                    width: tileWidth,
+                                                    child: _BillerGridTile(
+                                                      biller: biller,
+                                                      onTap: () {
+                                                        ref
+                                                            .read(
+                                                              billerDetailControllerProvider
+                                                                  .notifier,
+                                                            )
+                                                            .selectBiller(
+                                                                biller);
+                                                        context.push(
+                                                          RouteConstants
+                                                              .billerDetail,
+                                                          extra:
+                                                              BillerDetailArgs(
+                                                            biller: biller,
+                                                            isCreditCard: true,
+                                                            paymentType:
+                                                                'Credit card',
+                                                          ),
+                                                        );
+                                                      },
+                                                    ),
+                                                  ),
+                                              ],
+                                            );
+                                          },
+                                        ),
+                                        if (remaining.isNotEmpty) ...[
+                                          const SizedBox(height: 18),
+                                          Text(
+                                            'All Banks',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleMedium
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w800,
+                                                  color: AppColors.textPrimary,
                                                 ),
-                                              );
-                                            },
                                           ),
+                                          const SizedBox(height: 12),
+                                          Column(
+                                            children: [
+                                              for (final biller in remaining)
+                                                _BillerListTile(
+                                                  biller: biller,
+                                                  onTap: () {
+                                                    ref
+                                                        .read(
+                                                          billerDetailControllerProvider
+                                                              .notifier,
+                                                        )
+                                                        .selectBiller(biller);
+                                                    context.push(
+                                                      RouteConstants
+                                                          .billerDetail,
+                                                      extra: BillerDetailArgs(
+                                                        biller: biller,
+                                                        isCreditCard: true,
+                                                        paymentType:
+                                                            'Credit card',
+                                                      ),
+                                                    );
+                                                  },
+                                                ),
+                                            ],
+                                          ),
+                                        ],
+                                        if (listingState.isFetchingMore)
+                                          const _CreditCardListingFooterSkeleton(),
+                                        const SizedBox(height: 12),
                                       ],
                                     ),
-                                  ],
-                                  if (listingState.isFetchingMore)
-                                    const Padding(
-                                      padding: EdgeInsets.symmetric(vertical: 16),
-                                      child: Center(
-                                        child: SpinKitCircle(
-                                          color: AppColors.primary,
-                                          size: 48,
-                                        ),
-                                      ),
-                                    ),
-                                  const SizedBox(height: 12),
+                                  ),
                                 ],
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-              ),
-            ),
+                    ),
+                  ),
           ),
         ],
       ),
@@ -456,6 +457,147 @@ class _BillerIcon extends StatelessWidget {
       borderRadius: borderRadius,
       placeholder: fallback,
       errorWidget: fallback,
+    );
+  }
+}
+
+class _CreditCardListingSkeleton extends StatelessWidget {
+  const _CreditCardListingSkeleton({required this.isSearching});
+
+  final bool isSearching;
+
+  static const _mockBillers = [
+    Biller(billerId: '1', billerName: 'IndusInd Credit Card'),
+    Biller(billerId: '2', billerName: 'HDFC Credit Card'),
+    Biller(billerId: '3', billerName: 'SBI Credit Card'),
+    Biller(billerId: '4', billerName: 'Axis Credit Card'),
+    Biller(billerId: '5', billerName: 'ICICI Credit Card'),
+    Biller(billerId: '6', billerName: 'Kotak Credit Card'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Skeletonizer(
+      enabled: true,
+      child: IgnorePointer(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Container(
+                height: 52,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.lightBorder),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Row(
+                  children: [
+                    const Icon(Icons.search, color: AppColors.textPrimary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Search bank name',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppColors.textPrimary,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: isSearching
+                  ? ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: _mockBillers.length,
+                      itemBuilder: (_, index) => _BillerListTile(
+                        biller: _mockBillers[index],
+                        onTap: () {},
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Popular Banks',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.textPrimary,
+                                ),
+                          ),
+                          const SizedBox(height: 12),
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              const spacing = 12.0;
+                              const columns = 3;
+                              final tileWidth = (constraints.maxWidth -
+                                      (spacing * (columns - 1))) /
+                                  columns;
+                              return Wrap(
+                                spacing: spacing,
+                                runSpacing: spacing,
+                                children: [
+                                  for (final biller in _mockBillers.take(6))
+                                    SizedBox(
+                                      width: tileWidth,
+                                      child: _BillerGridTile(
+                                        biller: biller,
+                                        onTap: () {},
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 18),
+                          Text(
+                            'All Banks',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.textPrimary,
+                                ),
+                          ),
+                          const SizedBox(height: 12),
+                          for (final biller in _mockBillers)
+                            _BillerListTile(biller: biller, onTap: () {}),
+                        ],
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CreditCardListingFooterSkeleton extends StatelessWidget {
+  const _CreditCardListingFooterSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Skeletonizer(
+      enabled: true,
+      child: IgnorePointer(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: _BillerListTile(
+            biller: Biller(billerId: '1', billerName: 'Loading Credit Card'),
+            onTap: null,
+          ),
+        ),
+      ),
     );
   }
 }

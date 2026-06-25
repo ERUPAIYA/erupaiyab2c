@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:dio/dio.dart';
 
@@ -21,6 +22,7 @@ class MobilePrepaidRepository {
       : _dio = dio ?? DioService.instance.client;
 
   final Dio _dio;
+  final Random _random = Random.secure();
 
   Never _throwApiMessage(DioException e, {String fallback = 'Request failed'}) {
     final data = e.response?.data;
@@ -281,6 +283,7 @@ class MobilePrepaidRepository {
           'operator': operatorName,
           'use_wallet': useWallet ? 1 : 0,
           'desc': desc,
+          'idempotency_key': _generateUuid(),
         },
         options: Options(
           contentType: Headers.formUrlEncodedContentType,
@@ -307,6 +310,21 @@ class MobilePrepaidRepository {
       );
       rethrow;
     }
+  }
+
+  String _generateUuid() {
+    final bytes = List<int>.generate(16, (_) => _random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+    String toHex(int value) => value.toRadixString(16).padLeft(2, '0');
+    final hex = bytes.map(toHex).toList();
+
+    return '${hex.sublist(0, 4).join()}'
+        '${hex.sublist(4, 6).join()}-'
+        '${hex.sublist(6, 8).join()}-'
+        '${hex.sublist(8, 10).join()}-'
+        '${hex.sublist(10, 16).join()}';
   }
 
   Future<PrepaidTransactionStatus> fetchTransactionStatus({

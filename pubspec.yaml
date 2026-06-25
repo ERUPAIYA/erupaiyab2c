@@ -17,7 +17,7 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
 
-version: 1.0.46+47
+version: 1.0.47+48
 
 environment:
   sdk: ^3.5.4
@@ -55,7 +55,6 @@ dependencies:
   firebase_auth:
   google_sign_in:
   flutter_local_notifications:
-  # qr_code_scanner:
   image_picker: ^1.1.2
   # google_mlkit_barcode_scanning: ^0.13.0
   permission_handler: ^11.3.1
@@ -150,7 +149,3 @@ flutter_native_splash:
   android_12:
     color: "#FFFFFF"
     image: assets/images/png/appLogo.png
-
-# dependency_overrides:
-#   qr_code_scanner:
-#     path: third_party/qr_code_scanner

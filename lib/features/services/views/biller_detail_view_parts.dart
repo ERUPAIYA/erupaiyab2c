@@ -18,7 +18,7 @@ class _InfoNoteCard extends StatelessWidget {
         color: Colors.grey.shade100,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: AppColors.lightBorder.withOpacity(0.7),
+          color: AppColors.lightBorder.withValues(alpha: 0.7),
         ),
       ),
       child: Row(
@@ -60,7 +60,7 @@ class _GasPolicyBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 12,
             offset: const Offset(0, 8),
           ),
@@ -93,7 +93,7 @@ class _GasErrorBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 12,
             offset: const Offset(0, 8),
           ),
@@ -156,7 +156,7 @@ class _SubscriptionSummaryCard extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.textPrimary.withOpacity(0.7),
+                  color: AppColors.textPrimary.withValues(alpha: 0.7),
                   fontWeight: FontWeight.w600,
                 ),
           ),
@@ -179,7 +179,7 @@ class _SubscriptionSummaryCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.lightBorder.withOpacity(0.7)),
+        border: Border.all(color: AppColors.lightBorder.withValues(alpha: 0.7)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -345,14 +345,14 @@ class _MaskedPrefix extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.05),
+        color: Colors.black.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         '\u2022\u2022\u2022\u2022  \u2022\u2022\u2022\u2022  \u2022\u2022\u2022\u2022',
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               letterSpacing: 1.2,
-              color: AppColors.textPrimary.withOpacity(0.6),
+              color: AppColors.textPrimary.withValues(alpha: 0.6),
               fontWeight: FontWeight.w600,
             ),
       ),
@@ -378,6 +378,7 @@ class _NoBillDueDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      backgroundColor: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
@@ -411,7 +412,7 @@ class _NoBillDueDialog extends StatelessWidget {
               message,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textPrimary.withOpacity(0.75),
+                    color: AppColors.textPrimary.withValues(alpha: 0.75),
                   ),
             ),
             const SizedBox(height: 22),
@@ -456,6 +457,7 @@ class _BillFetchFailedDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      backgroundColor: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
@@ -492,31 +494,16 @@ class _BillFetchFailedDialog extends StatelessWidget {
                   : message.trim(),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textPrimary.withOpacity(0.75),
+                    color: AppColors.textPrimary.withValues(alpha: 0.75),
                   ),
             ),
             const SizedBox(height: 22),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
+              child: CustomElevatedButton(
                 onPressed: onContinue,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Text(
-                    'Got it',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.white,
-                    ),
-                  ),
-                ),
+                label: 'Got it',
+                uppercaseLabel: false,
               ),
             ),
           ],
@@ -776,7 +763,7 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
                     child: Text(
                       'No contacts found',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.textPrimary.withOpacity(0.6),
+                            color: AppColors.textPrimary.withValues(alpha: 0.6),
                           ),
                     ),
                   )
@@ -784,7 +771,7 @@ class _ContactPickerSheetState extends State<_ContactPickerSheet> {
                     itemCount: filtered.length,
                     separatorBuilder: (_, __) => Divider(
                       height: 1,
-                      color: AppColors.textPrimary.withOpacity(0.1),
+                      color: AppColors.textPrimary.withValues(alpha: 0.1),
                     ),
                     itemBuilder: (context, index) {
                       final contact = filtered[index];
@@ -1001,7 +988,7 @@ class _CompactBillSection extends StatelessWidget {
           Text(
             'Payments made after ${bill.dueDate} will incur an additional charge of ${_additionalCharge()}.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.textPrimary.withOpacity(0.7),
+                  color: AppColors.textPrimary.withValues(alpha: 0.7),
                   height: 1.5,
                 ),
           ),
@@ -1117,7 +1104,7 @@ class _CompactBillSection extends StatelessWidget {
                 'Maximum recharge amount: ₹${_formatAmountForInput(maximumCustomAmount!)}',
             ].join('  •  '),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.textPrimary.withOpacity(0.6),
+                  color: AppColors.textPrimary.withValues(alpha: 0.6),
                 ),
           ),
         ],
@@ -1155,7 +1142,7 @@ class _AmountDisplayCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.primary.withOpacity(0.35),
+          color: AppColors.primary.withValues(alpha: 0.35),
           width: 1.5,
         ),
       ),
@@ -1496,7 +1483,7 @@ class _ColonInfoRow extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textPrimary.withOpacity(0.75),
+                    color: AppColors.textPrimary.withValues(alpha: 0.75),
                     fontWeight: FontWeight.w600,
                   ),
             ),
@@ -1505,7 +1492,7 @@ class _ColonInfoRow extends StatelessWidget {
           Text(
             ':',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textPrimary.withOpacity(0.75),
+                  color: AppColors.textPrimary.withValues(alpha: 0.75),
                   fontWeight: FontWeight.w700,
                 ),
           ),
@@ -1539,7 +1526,8 @@ class _AdditionalNoteCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFFFF7F4),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE85A2C).withOpacity(0.4)),
+        border:
+            Border.all(color: const Color(0xFFE85A2C).withValues(alpha: 0.4)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1558,7 +1546,7 @@ class _AdditionalNoteCard extends StatelessWidget {
               text,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textPrimary.withOpacity(0.8),
+                    color: AppColors.textPrimary.withValues(alpha: 0.8),
                     fontWeight: FontWeight.w600,
                     height: 1.35,
                   ),
@@ -1593,7 +1581,7 @@ class _InfoRow extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textPrimary.withOpacity(0.6),
+                    color: AppColors.textPrimary.withValues(alpha: 0.6),
                   ),
             ),
           ),

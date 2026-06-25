@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../constants/app_colors.dart';
+import '../../../widgets/custom_elevated_button.dart';
 import '../../../widgets/my_app_bar.dart';
 import '../components/support_transaction_card.dart';
 import '../controllers/recent_payment_help_controller.dart';
@@ -51,29 +52,20 @@ class RecentPaymentHelpScreen extends HookConsumerWidget {
         top: false,
         child: Padding(
           padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 12.h),
-          child: SizedBox(
-            width: double.infinity,
+          child: CustomElevatedButton(
             height: bottomButtonHeight,
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => CreateSupportTicketScreen(
-                      transaction: transaction,
-                    ),
+            label: 'Still need help?',
+            uppercaseLabel: false,
+            showArrow: false,
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => CreateSupportTicketScreen(
+                    transaction: transaction,
                   ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEA5A30),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(28.r),
                 ),
-                elevation: 0,
-              ),
-              child: const Text('Still need help?'),
-            ),
+              );
+            },
           ),
         ),
       ),

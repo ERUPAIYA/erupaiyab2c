@@ -269,6 +269,7 @@ class GoldPaymentSummarySheet extends HookConsumerWidget {
                           amount: payable,
                           name: '${theme.label} Purchase',
                           description: '${theme.label} buy',
+                          keyOverride: '',
                           onSuccess: (_) async {
                             // Call buy API only after Razorpay success
                             try {

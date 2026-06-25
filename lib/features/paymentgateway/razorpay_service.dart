@@ -1,4 +1,3 @@
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 
 typedef RazorpaySuccessCallback = void Function(String paymentId);
@@ -22,19 +21,13 @@ class RazorpayService {
     required String name,
     String? description,
     String? orderId,
-    String? keyOverride,
+    required String keyOverride,
     RazorpaySuccessCallback? onSuccess,
     RazorpayFailureCallback? onFailure,
     RazorpayExternalWalletCallback? onExternalWallet,
     Map<String, String>? prefill,
   }) async {
-    if (!dotenv.isInitialized) {
-      await dotenv.load(fileName: '.env');
-    }
-
-    final key = (keyOverride ?? '').trim().isNotEmpty
-        ? keyOverride!.trim()
-        : (dotenv.env['RAZORPAY_KEY'] ?? '');
+    final key = keyOverride.trim();
     if (key.isEmpty) {
       onFailure?.call('Razorpay key is missing.');
       return;

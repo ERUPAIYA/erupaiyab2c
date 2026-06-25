@@ -160,13 +160,14 @@ class EducationPaymentSummarySheet extends HookConsumerWidget {
   });
 
   final double amount;
-  final void Function(double payable) onPayNow;
+  final Future<void> Function(double payable) onPayNow;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repository = ref.read(educationFeesRepositoryProvider);
     final summary = useState<EducationPaymentSummaryData?>(null);
     final isLoading = useState(false);
+    final isPaying = useState(false);
     final error = useState<String?>(null);
     final walletController = useTextEditingController();
     final walletUsedInput = useState<int>(0);
@@ -383,11 +384,17 @@ class EducationPaymentSummarySheet extends HookConsumerWidget {
             ),
             SizedBox(height: 14.h),
             CustomElevatedButton(
-              onPressed: () {
-                Navigator.of(context).maybePop();
-                onPayNow(payable);
-              },
-              label: 'Pay ₹${payable.toStringAsFixed(2)}',
+              onPressed: (isLoading.value || isPaying.value)
+                  ? null
+                  : () {
+                      if (isPaying.value) return;
+                      isPaying.value = true;
+                      Navigator.of(context).maybePop();
+                      onPayNow(payable);
+                    },
+              label: isPaying.value
+                  ? 'Processing...'
+                  : 'Pay ₹${payable.toStringAsFixed(2)}',
               uppercaseLabel: false,
               showArrow: false,
               height: 48.h,

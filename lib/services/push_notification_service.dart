@@ -6,7 +6,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 
 import '../constants/routes_constant.dart';
@@ -18,6 +17,7 @@ import '../utils/utils.dart';
 import '../widgets/k_dialog.dart';
 import 'logger_service.dart';
 import 'notification_badge_service.dart';
+import 'secure_storage_service.dart';
 
 const String _defaultChannelId = 'default_notifications';
 const String _defaultChannelName = 'General Notifications';
@@ -27,7 +27,7 @@ final FlutterLocalNotificationsPlugin _localNotifications =
     FlutterLocalNotificationsPlugin();
 
 void _debugLog(String message) {
-  if (!AppEnv.enableLogs) return;
+  if (!AppEnv.enableLogs || !kDebugMode) return;
   debugPrint(message);
 }
 
@@ -49,7 +49,7 @@ class PushNotificationService {
   PushNotificationService._();
 
   static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
-  static const FlutterSecureStorage _storage = FlutterSecureStorage();
+  static const _storage = SecureStorageService.instance;
   static String? _latestToken;
   static String? _lastSyncedToken;
   static bool _initialized = false;

@@ -8,6 +8,7 @@ import '../../../constants/app_colors.dart';
 import '../../../constants/file_constants.dart';
 import '../components/refer_and_earn_app_bar.dart';
 import '../components/referral_share_actions.dart';
+import '../components/referral_youtube_embed_card.dart';
 
 class ReferralWorksView extends HookWidget {
   const ReferralWorksView({super.key});
@@ -26,7 +27,7 @@ class ReferralWorksView extends HookWidget {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            const ReferAndEarnAppBar(title: 'How It Works', height: 200),
+            const ReferAndEarnAppBar(title: 'How It Works', height: 160),
             Transform.translate(
               offset: Offset(0, -26.h),
               child: Container(
@@ -53,7 +54,7 @@ class ReferralWorksView extends HookWidget {
                             ),
                       ),
                       SizedBox(height: 10.h),
-                      _VideoPreviewCard(),
+                      const ReferralYoutubeEmbedCard(),
                       // SizedBox(height: 16.h),
                       // _ExampleFlowCard(),
                       SizedBox(height: 12.h),
@@ -169,38 +170,6 @@ List<Widget> _buildEarnBullets(BuildContext context) {
         ),
       )
       .toList();
-}
-
-class _VideoPreviewCard extends HookWidget {
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16.r),
-      child: Stack(
-        children: [
-          Image.asset(
-            FileConstants.referralsWorks,
-            width: double.infinity,
-            height: 160.h,
-            fit: BoxFit.cover,
-          ),
-          Positioned.fill(
-            child: Center(
-              child: Container(
-                width: 44.w,
-                height: 44.w,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.play_arrow, color: AppColors.textPrimary),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _ExampleFlowCard extends HookWidget {

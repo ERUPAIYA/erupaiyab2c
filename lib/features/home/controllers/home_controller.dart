@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:e_rupaiya/utils/utils.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
@@ -43,6 +44,7 @@ class HomeController extends StateNotifier<HomeState> {
       quickActions: cached.categories,
       banners: cached.banners,
       isNameEmailExist: cached.isNameEmailExist,
+      isServerUnavailable: false,
       errorMessage: null,
     );
   }
@@ -82,6 +84,7 @@ class HomeController extends StateNotifier<HomeState> {
         quickActions: result.categories,
         banners: result.banners,
         isNameEmailExist: result.isNameEmailExist,
+        isServerUnavailable: false,
         errorMessage: null,
       );
       await _quickActionsCache.write(
@@ -106,14 +109,17 @@ class HomeController extends StateNotifier<HomeState> {
           quickActions: cached.categories,
           banners: cached.banners,
           isNameEmailExist: cached.isNameEmailExist,
+          isServerUnavailable: false,
           errorMessage: null,
         );
         return;
       }
 
+      final isServerUnavailable = _isServerUnavailableError(e);
       if (showLoading || state.quickActions == null) {
         state = state.copyWith(
           isFetching: false,
+          isServerUnavailable: isServerUnavailable,
           errorMessage: 'Failed to fetch services. Please try again.',
         );
         return;
@@ -146,7 +152,11 @@ class HomeController extends StateNotifier<HomeState> {
 
   Future<void> _fetchAllQuickActions({required bool showLoading}) async {
     if (showLoading) {
-      state = state.copyWith(isFetching: true, errorMessage: null);
+      state = state.copyWith(
+        isFetching: true,
+        isServerUnavailable: false,
+        errorMessage: null,
+      );
     }
     try {
       final userId = await Utils.getUserId() ?? '';
@@ -155,6 +165,7 @@ class HomeController extends StateNotifier<HomeState> {
       state = state.copyWith(
         isFetching: showLoading ? false : state.isFetching,
         allQuickActions: data.data,
+        isServerUnavailable: false,
         errorMessage: null,
       );
     } catch (e, stackTrace) {
@@ -163,9 +174,11 @@ class HomeController extends StateNotifier<HomeState> {
         error: e,
         stackTrace: stackTrace,
       );
+      final isServerUnavailable = _isServerUnavailableError(e);
       if (showLoading || state.allQuickActions == null) {
         state = state.copyWith(
           isFetching: false,
+          isServerUnavailable: isServerUnavailable,
           errorMessage: 'Failed to fetch services. Please try again.',
         );
       } else {
@@ -224,6 +237,15 @@ class HomeController extends StateNotifier<HomeState> {
     }
   }
 
+  void showServerUnavailable() {
+    state = state.copyWith(
+      isFetching: false,
+      isServerUnavailable: true,
+      errorMessage: 'Server unavailable',
+      quickActions: null,
+    );
+  }
+
   Future<bool> removeCreditCard(String maskedIdentifier) async {
     if (maskedIdentifier.trim().isEmpty) return false;
     state = state.copyWith(isFetchingCreditCards: true);
@@ -250,4 +272,8 @@ class HomeController extends StateNotifier<HomeState> {
       return false;
     }
   }
+}
+
+bool _isServerUnavailableError(Object error) {
+  return error is DioException && error.response?.statusCode == 503;
 }

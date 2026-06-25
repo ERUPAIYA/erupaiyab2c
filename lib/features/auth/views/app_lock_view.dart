@@ -4,11 +4,11 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:e_rupaiya/widgets/custom_elevated_button.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -20,12 +20,13 @@ import '../../../constants/file_constants.dart';
 import '../../../constants/routes_constant.dart';
 import '../../../config/app_env.dart';
 import '../../../services/logger_service.dart';
+import '../../../services/secure_storage_service.dart';
 import '../../../widgets/app_snackbar.dart';
 import '../../profile/controllers/profile_controller.dart';
 import '../controllers/auth_controller.dart';
 
 void _debugLog(String message) {
-  if (!AppEnv.enableLogs) return;
+  if (!AppEnv.enableLogs || !kDebugMode) return;
   debugPrint(message);
 }
 
@@ -66,7 +67,7 @@ class AppLockView extends HookConsumerWidget {
 
     useEffect(() {
       Future.microtask(() async {
-        const storage = FlutterSecureStorage();
+        const storage = SecureStorageService.instance;
         final storedMobile = await storage.read(key: 'mobile');
         final canCheck = await localAuth.canCheckBiometrics;
         final isDeviceSupported = await localAuth.isDeviceSupported();

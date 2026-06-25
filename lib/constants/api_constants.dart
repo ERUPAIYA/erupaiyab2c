@@ -26,6 +26,7 @@ class ApiConstants {
   static const String quickActionsEndpoint = '$baseUrl/api/quick-actions';
   static const String quickActionsDueEndpoint =
       '$baseUrl/api/quick-actions/due';
+  static const String billRemindersEndpoint = '$baseUrl/api/bill-reminders';
   static const String myCardsEndpoint = '$baseUrl/api/my-cards';
   static const String removeCardEndpoint = '$baseUrl/api/remove-card';
   static const String creditCardTransactionsEndpoint =
@@ -130,7 +131,7 @@ class ApiConstants {
   static const String referralMilestonesEndpoint =
       '$baseUrl/api/referral/milestones';
   static const String withdrawEcoinsEndpoint =
-      '$baseUrl/api/wallet/withdraw-ecoins';
+      '$baseUrl/api/wallet/ecoins-withdraw-amount';
   static const String bankVerifyEndpoint = '$baseUrl/api/bank/verify';
   static const String bankListEndpoint = '$baseUrl/api/banks';
   static const String bankAddEndpoint = '$baseUrl/api/bank/add';

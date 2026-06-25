@@ -544,10 +544,19 @@ class _WithdrawConfirmSheet extends HookConsumerWidget {
         AppSnackbar.show('Enter a valid amount to withdraw.');
         return;
       }
+      final selectedAccount = accounts[selectedIndex.value];
+      final bankId = selectedAccount.id;
+      if (bankId == null) {
+        AppSnackbar.show('Selected bank account is invalid. Please try again.');
+        return;
+      }
       if (isSubmitting.value) return;
       try {
         isSubmitting.value = true;
-        final response = await repository.withdrawEcoins(ecoins: amount);
+        final response = await repository.withdrawEcoins(
+          bankId: bankId,
+          ecoins: amount,
+        );
         if (!response.success) {
           _closeTopRoute();
           await _openWithdrawStatusDialog(

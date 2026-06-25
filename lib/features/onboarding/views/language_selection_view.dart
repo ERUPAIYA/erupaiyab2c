@@ -42,13 +42,13 @@ class LanguageSelectionView extends HookConsumerWidget {
         title: 'Choose Language',
         onBack: () => context.pop(),
         onHelp: () {},
-        trailing: TextButton(
-          onPressed: handleContinue,
-          child: const Text(
-            'Skip',
-            style: TextStyle(color: AppColors.primary),
-          ),
-        ),
+        // trailing: TextButton(
+        //   onPressed: handleContinue,
+        //   child: const Text(
+        //     'Skip',
+        //     style: TextStyle(color: AppColors.primary),
+        //   ),
+        // ),
       ),
       body: SafeArea(
         child: Padding(

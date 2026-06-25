@@ -8,6 +8,7 @@ class HomeState {
     this.isFetching = false,
     this.isFetchingCreditCards = false,
     this.isFetchingRecharge = false,
+    this.isServerUnavailable = false,
     this.errorMessage,
     this.allQuickActions,
     this.quickActions,
@@ -20,6 +21,7 @@ class HomeState {
   final bool isFetching;
   final bool isFetchingCreditCards;
   final bool isFetchingRecharge;
+  final bool isServerUnavailable;
   final String? errorMessage;
   final List<Data>? allQuickActions;
   final List<QuickActionCategory>? quickActions;
@@ -35,6 +37,7 @@ class HomeState {
     bool? isFetching,
     bool? isFetchingCreditCards,
     bool? isFetchingRecharge,
+    bool? isServerUnavailable,
     Object? errorMessage = _sentinel,
     List<Data>? allQuickActions,
     Object? quickActions = _sentinel,
@@ -48,6 +51,8 @@ class HomeState {
       isFetchingCreditCards:
           isFetchingCreditCards ?? this.isFetchingCreditCards,
       isFetchingRecharge: isFetchingRecharge ?? this.isFetchingRecharge,
+      isServerUnavailable:
+          isServerUnavailable ?? this.isServerUnavailable,
       errorMessage: errorMessage == _sentinel
           ? this.errorMessage
           : errorMessage as String?,

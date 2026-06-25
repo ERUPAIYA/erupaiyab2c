@@ -2,6 +2,7 @@
 
 import 'package:dio/dio.dart';
 import 'package:e_rupaiya/core/barrel_file.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../constants/api_constants.dart';
 import '../models/digital_gold_dashboard.dart';
@@ -300,12 +301,16 @@ class DigitalGoldRepo {
   }
 
   Future<RecentPurchasesResponse> fetchRecentPurchases() async {
-    debugPrint('Fetching recent purchases...');
+    if (kDebugMode) {
+      debugPrint('Fetching recent purchases...');
+    }
     try {
       final response = await _dio.get(
         ApiConstants.digitalGoldRecentPurchasesEndpoint,
       );
-      debugPrint('Response received: ${response.data}');
+      if (kDebugMode) {
+        debugPrint('Response received: ${response.data}');
+      }
       final data = response.data as Map<String, dynamic>? ?? {};
       if (data['status'] == true && data['data'] is List) {
         return RecentPurchasesResponse.fromJson(data);
@@ -316,7 +321,9 @@ class DigitalGoldRepo {
       }
       throw Exception(data['message'] ?? 'Unable to fetch recent purchases');
     } on DioException catch (e) {
-      debugPrint('DioException: ${e.message}');
+      if (kDebugMode) {
+        debugPrint('DioException: ${e.message}');
+      }
       final message = e.response?.data is Map<String, dynamic>
           ? (e.response?.data['message']?.toString())
           : null;

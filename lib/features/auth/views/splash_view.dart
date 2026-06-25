@@ -22,7 +22,7 @@ class SplashView extends HookConsumerWidget {
   final Duration duration;
 
   static void _debugLog(String message) {
-    if (!AppEnv.enableLogs) return;
+    if (!AppEnv.enableLogs || !kDebugMode) return;
     debugPrint(message);
   }
 

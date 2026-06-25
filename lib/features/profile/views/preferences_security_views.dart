@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
@@ -12,6 +11,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../constants/app_colors.dart';
 import '../../../constants/routes_constant.dart';
 import '../../../services/location_access_service.dart';
+import '../../../services/secure_storage_service.dart';
 import '../../../widgets/app_snackbar.dart';
 import '../../../widgets/my_app_bar.dart';
 import '../../auth/controllers/auth_controller.dart';
@@ -131,10 +131,18 @@ class PreferencesView extends HookConsumerWidget {
           _SettingsListRow(
             icon: Icons.notifications_none_outlined,
             title: 'Bill Notification',
-            trailing: Switch(
-              value: isBillEnabled.value,
-              activeColor: AppColors.primary,
-              onChanged: isBillLoading.value ? null : toggleBillNotifications,
+            trailing: Transform.scale(
+              scale: 0.78,
+              child: Switch(
+                value: isBillEnabled.value,
+                activeColor: Colors.white,
+                activeTrackColor: const Color(0xFFDD5428),
+                inactiveThumbColor: Colors.white,
+                inactiveTrackColor: const Color(0xFFD9D9D9),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                onChanged:
+                    isBillLoading.value ? null : toggleBillNotifications,
+              ),
             ),
           ),
           _SettingsListRow(
@@ -142,20 +150,21 @@ class PreferencesView extends HookConsumerWidget {
             title: 'Permissions',
             onTap: () => context.push(RouteConstants.profilePermissions),
           ),
-          _SettingsListRow(
-            icon: Icons.alarm_outlined,
-            title: 'Reminders',
-            onTap: () => context.push(RouteConstants.notifications),
-          ),
-          _SettingsListRow(
-            icon: Icons.contrast_outlined,
-            title: 'Theme',
-            subtitle: _themeLabel(themeMode),
-            onTap: () => _showThemeSheet(context, ref, themeMode),
-          ),
+          // _SettingsListRow(
+          //   icon: Icons.alarm_outlined,
+          //   title: 'Reminders',
+          //   onTap: () => context.push(RouteConstants.notifications),
+          // ),
+          // _SettingsListRow(
+          //   icon: Icons.contrast_outlined,
+          //   title: 'Theme',
+          //   subtitle: _themeLabel(themeMode),
+          //   onTap: () => _showThemeSheet(context, ref, themeMode),
+          // ),
           _SettingsListRow(
             icon: Icons.delete_outline,
             title: 'Delete Account',
+            showDivider: false,
             onTap: () async {
               final confirmed = await showDialog<bool>(
                     context: context,
@@ -276,6 +285,7 @@ class SecurityView extends StatelessWidget {
           _SettingsListRow(
             icon: Icons.location_on_outlined,
             title: 'Location Access',
+            showDivider: false,
             onTap: () => context.push(RouteConstants.locationAccess),
           ),
         ],
@@ -287,7 +297,7 @@ class SecurityView extends StatelessWidget {
 class PermissionsView extends HookWidget {
   const PermissionsView({super.key});
 
-  static const FlutterSecureStorage _storage = FlutterSecureStorage();
+  static const _storage = SecureStorageService.instance;
 
   @override
   Widget build(BuildContext context) {
@@ -580,6 +590,7 @@ class _SettingsListRow extends StatelessWidget {
     this.subtitle,
     this.trailing,
     this.onTap,
+    this.showDivider = true,
   });
 
   final IconData icon;
@@ -587,6 +598,7 @@ class _SettingsListRow extends StatelessWidget {
   final String? subtitle;
   final Widget? trailing;
   final VoidCallback? onTap;
+  final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
@@ -638,8 +650,10 @@ class _SettingsListRow extends StatelessWidget {
                         : const SizedBox.shrink()),
               ],
             ),
-            const SizedBox(height: 10),
-            const Divider(height: 1, color: AppColors.lightBorder),
+            if (showDivider) ...[
+              const SizedBox(height: 10),
+              const Divider(height: 1, color: AppColors.lightBorder),
+            ],
           ],
         ),
       ),
@@ -954,22 +968,60 @@ class _DisableNotificationsDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Disable Notifications?'),
-      content: const Text(
-        'If you disable notifications, you may miss important updates and reminders.',
+    return Dialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(22.w, 22.h, 22.w, 16.h),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Disable Notifications',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+            ),
+            SizedBox(height: 10.h),
+            Text(
+              'If you disable notifications, you may miss important updates and reminders.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textPrimary.withOpacity(0.75),
+                    height: 1.35,
+                  ),
+            ),
+            SizedBox(height: 18.h),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(color: AppColors.textPrimary),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 10.w),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                    ),
+                    child: const Text(
+                      'Disable',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-          child: const Text('Disable'),
-        ),
-      ],
     );
   }
 }

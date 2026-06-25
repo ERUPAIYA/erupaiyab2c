@@ -16,6 +16,7 @@ class FileConstants {
   static String bharatConnectColor =
       'assets/images/png/home_icon/bharatconnect_color.png';
   static String npci = 'assets/images/png/npci.png';
+  static String serverDown = 'assets/images/png/serverDown.png';
   static String upi = 'assets/images/png/upi.png';
   static String ellipse14 = 'assets/images/png/Ellipse 14.png';
   static String ellipse7 = 'assets/images/png/Ellipse 7.png';

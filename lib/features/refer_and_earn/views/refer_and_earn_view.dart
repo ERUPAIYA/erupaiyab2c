@@ -13,6 +13,7 @@ import '../../../constants/app_colors.dart';
 import '../../../constants/file_constants.dart';
 import '../../../constants/routes_constant.dart';
 import '../../../services/permission_service.dart';
+import '../../educationFees/components/education_contact_sheet.dart';
 import '../../mobile_prepaid/controllers/contacts_cache_controller.dart';
 import '../components/refer_and_earn_app_bar.dart';
 import '../components/referral_share_actions.dart';
@@ -29,6 +30,8 @@ class ReferAndEarnView extends HookConsumerWidget {
         ref.read(contactsCacheControllerProvider.notifier);
     final permissionService = useMemoized(() => const PermissionService());
     final hasPermission = useState<bool?>(null);
+    final showInviteContacts =
+        hasPermission.value == true && contactsState.contacts.isNotEmpty;
 
     useEffect(() {
       Future<void> load() async {
@@ -125,13 +128,62 @@ class ReferAndEarnView extends HookConsumerWidget {
                           ),
                         ],
                       ),
-                      SizedBox(height: 18.h),
-                      const _SectionTitle('Invite Contacts'),
-                      SizedBox(height: 10.h),
-                      _ContactsStrip(
-                        hasPermission: hasPermission.value == true,
-                        contacts: contactsState.contacts,
-                      ),
+                      if (showInviteContacts) ...[
+                        SizedBox(height: 18.h),
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: _SectionTitle('Invite Contacts'),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                showModalBottomSheet<void>(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  backgroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.vertical(
+                                      top: Radius.circular(20.r),
+                                    ),
+                                  ),
+                                  builder: (_) => FractionallySizedBox(
+                                    heightFactor: 0.9,
+                                    child: EducationContactSheet(
+                                      onSelect: (phone) {
+                                        ReferralShareService.shareSMS(
+                                          context,
+                                          phone: phone,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                );
+                              },
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.primary,
+                                padding: EdgeInsets.symmetric(horizontal: 4.w),
+                                minimumSize: const Size(0, 0),
+                                tapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: Text(
+                                'View all',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 10.h),
+                        _ContactsStrip(
+                          contacts: contactsState.contacts,
+                        ),
+                      ],
                       SizedBox(height: 16.h),
                       _ReferForeverCard(),
                       SizedBox(height: 2.h),
@@ -186,23 +238,14 @@ class _ReferSummarySection extends HookWidget {
 
 class _ContactsStrip extends HookWidget {
   const _ContactsStrip({
-    required this.hasPermission,
     required this.contacts,
   });
 
-  final bool hasPermission;
   final List<Contact> contacts;
 
   @override
   Widget build(BuildContext context) {
-    final displayContacts = hasPermission && contacts.isNotEmpty
-        ? contacts.take(6).toList()
-        : const <Contact>[];
-    final items = displayContacts.isNotEmpty
-        ? displayContacts
-        : const [
-            _PlaceholderContact('...'),
-          ];
+    final items = contacts.take(6).toList();
     return SizedBox(
       height: 84.h,
       child: ListView.separated(
@@ -232,23 +275,11 @@ class _ContactsStrip extends HookWidget {
               ),
             );
           }
-
-          // Placeholder case (no click)
-          final placeholder = item as _PlaceholderContact;
-
-          return _ContactAvatar(
-            item: _ContactItem(name: placeholder.name),
-          );
+          return const SizedBox.shrink();
         },
       ),
     );
   }
-}
-
-class _PlaceholderContact {
-  const _PlaceholderContact(this.name);
-
-  final String name;
 }
 
 class _PrimaryPillButton extends HookWidget {

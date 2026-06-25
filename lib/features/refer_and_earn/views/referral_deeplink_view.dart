@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../constants/routes_constant.dart';
 import '../../../constants/storage_keys.dart';
+import '../../../services/secure_storage_service.dart';
 import '../../../utils/utils.dart';
 import '../../../widgets/app_snackbar.dart';
 import '../../auth/controllers/auth_controller.dart';
@@ -19,7 +19,7 @@ class ReferralDeepLinkView extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final storage = useMemoized(() => const FlutterSecureStorage());
+    final storage = useMemoized(() => SecureStorageService.instance);
 
     useEffect(() {
       Future.microtask(() async {

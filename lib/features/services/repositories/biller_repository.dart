@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 
@@ -15,6 +17,7 @@ class BillerRepository {
   BillerRepository({Dio? dio}) : _dio = dio ?? DioService.instance.client;
 
   final Dio _dio;
+  final Random _random = Random.secure();
 
   Never _throwApiMessage(DioException e, {String fallback = 'Request failed'}) {
     final data = e.response?.data;
@@ -150,6 +153,7 @@ class BillerRepository {
         'arr_bill_payment_modes': paymentModes.join(','),
         'masked_identifier': maskedIdentifier,
         'use_wallet': useWallet ? 1 : 0,
+        'idempotency_key': _generateUuid(),
         ...deviceContext,
       };
 
@@ -192,6 +196,21 @@ class BillerRepository {
       );
       rethrow;
     }
+  }
+
+  String _generateUuid() {
+    final bytes = List<int>.generate(16, (_) => _random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+    String toHex(int value) => value.toRadixString(16).padLeft(2, '0');
+    final hex = bytes.map(toHex).toList();
+
+    return '${hex.sublist(0, 4).join()}'
+        '${hex.sublist(4, 6).join()}-'
+        '${hex.sublist(6, 8).join()}-'
+        '${hex.sublist(8, 10).join()}-'
+        '${hex.sublist(10, 16).join()}';
   }
 
   Future<RechargeStatusResult> fetchRechargeStatus({

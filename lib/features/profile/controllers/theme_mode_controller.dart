@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../constants/storage_keys.dart';
+import '../../../services/secure_storage_service.dart';
 
 final themeModeControllerProvider =
     NotifierProvider<ThemeModeController, ThemeMode>(ThemeModeController.new);
 
 class ThemeModeController extends Notifier<ThemeMode> {
-  static const FlutterSecureStorage _storage = FlutterSecureStorage();
+  static const _storage = SecureStorageService.instance;
 
   @override
   ThemeMode build() {

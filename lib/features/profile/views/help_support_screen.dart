@@ -77,16 +77,6 @@ class HelpSupportScreen extends HookConsumerWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  'Help & Support',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.copyWith(
-                                        color: AppColors.textPrimary,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                ),
                                 SizedBox(height: 12.h),
                                 _TicketsCard(
                                   onTap: () => context

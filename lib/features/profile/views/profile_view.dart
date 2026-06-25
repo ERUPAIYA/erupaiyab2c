@@ -364,24 +364,13 @@ class _InviteEarnCard extends StatelessWidget {
           SizedBox(width: 8.w),
           SizedBox(
             height: 34.h,
-            child: ElevatedButton(
+            child: CustomElevatedButton(
               onPressed: onInvite,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18.r),
-                ),
-                padding: EdgeInsets.symmetric(horizontal: 14.w),
-                elevation: 0,
-              ),
-              child: Text(
-                'Invite Now',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
+              label: 'Invite Now',
+              uppercaseLabel: false,
+              width: 120.w,
+              height: 34.h,
+              showArrow: false,
             ),
           ),
         ],

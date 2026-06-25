@@ -7,6 +7,7 @@ import '../../../services/dio_service.dart';
 import '../../../services/logger_service.dart';
 import '../../../services/login_device_context_service.dart';
 import '../../../services/push_notification_service.dart';
+import '../../../services/secure_storage_service.dart';
 import '../models/auth_login_result.dart';
 import '../models/auth_flow.dart';
 
@@ -15,7 +16,7 @@ class AuthRepository {
     Dio? dio,
     FlutterSecureStorage? secureStorage,
   })  : _dio = dio ?? DioService.instance.client,
-        _secureStorage = secureStorage ?? const FlutterSecureStorage();
+        _secureStorage = secureStorage ?? SecureStorageService.instance;
 
   final Dio _dio;
   final FlutterSecureStorage _secureStorage;
@@ -51,12 +52,11 @@ class AuthRepository {
     try {
       final deviceToken =
           (await PushNotificationService.ensureTokenReady())?.trim();
-      if (deviceToken == null ||
-          deviceToken.isEmpty ||
-          deviceToken.toLowerCase() == 'null') {
-        throw Exception(
-          'Unable to fetch device token. Please try again in a moment.',
-        );
+      final hasDeviceToken = deviceToken != null &&
+          deviceToken.isNotEmpty &&
+          deviceToken.toLowerCase() != 'null';
+      if (!hasDeviceToken) {
+        logger.error('FCM token unavailable for check-login; continuing without device_token');
       }
 
       final deviceContext = await const LoginDeviceContextService().collect();
@@ -73,7 +73,7 @@ class AuthRepository {
           'mobile': mobile,
           if (appHash != null && appHash.trim().isNotEmpty)
             'appHash': appHash.trim(),
-          'device_token': deviceToken,
+          if (hasDeviceToken) 'device_token': deviceToken,
           ...deviceContext,
         },
       );
@@ -212,12 +212,11 @@ class AuthRepository {
     try {
       final deviceToken =
           (await PushNotificationService.ensureTokenReady())?.trim();
-      if (deviceToken == null ||
-          deviceToken.isEmpty ||
-          deviceToken.toLowerCase() == 'null') {
-        throw Exception(
-          'Unable to fetch device token. Please try again in a moment.',
-        );
+      final hasDeviceToken = deviceToken != null &&
+          deviceToken.isNotEmpty &&
+          deviceToken.toLowerCase() != 'null';
+      if (!hasDeviceToken) {
+        logger.error('FCM token unavailable for login; continuing without device_token');
       }
 
       final deviceContext = await const LoginDeviceContextService().collect();
@@ -235,7 +234,7 @@ class AuthRepository {
         data: {
           'mobile': mobile,
           'pin': pin,
-          'device_token': deviceToken,
+          if (hasDeviceToken) 'device_token': deviceToken,
           ...deviceContext,
         },
       );
@@ -706,16 +705,15 @@ class AuthRepository {
         return false;
       }
 
-      final dio = Dio(
-        BaseOptions(
-          baseUrl: ApiConstants.baseUrl,
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 10),
-        ),
-      );
-
-      final response = await dio.post(
+      final response = await _dio.post(
         ApiConstants.refreshTokenEndpoint,
+        options: Options(
+          extra: const {
+            'skipAuth': true,
+            'skipAuthRefresh': true,
+            'isRefresh': true,
+          },
+        ),
         data: {'refresh_token': refreshToken},
       );
 
@@ -727,6 +725,7 @@ class AuthRepository {
 
       final data = payload?['data'] as Map<String, dynamic>? ?? {};
       final accessToken = data['access_token'] as String?;
+      final nextRefreshToken = data['refresh_token'] as String?;
       final tokenType = data['token_type'] as String?;
       final expiresIn = data['expires_in'] as int?;
 
@@ -739,6 +738,9 @@ class AuthRepository {
       final refreshExpiry = _resolveRefreshExpiry(data);
 
       await _secureStorage.write(key: 'accessToken', value: accessToken);
+      if (nextRefreshToken != null && nextRefreshToken.isNotEmpty) {
+        await _secureStorage.write(key: 'refreshToken', value: nextRefreshToken);
+      }
       await _secureStorage.write(
         key: 'tokenType',
         value: tokenType ?? 'Bearer',

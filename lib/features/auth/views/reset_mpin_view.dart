@@ -114,14 +114,12 @@ class ResetMpinView extends HookConsumerWidget {
           .requestForgotPinOtp(mobile: mobile);
       isRequestingOtp.value = false;
       if (!context.mounted) return;
-
       if (message != null) {
         if (showToastOnSuccess) AppSnackbar.show(message);
         remainingSeconds.value = 60;
         startTimer();
         return;
       }
-
       AppSnackbar.show(_genericErrorMessage);
     }
 
@@ -271,7 +269,7 @@ class ResetMpinView extends HookConsumerWidget {
                     children: [
                       Image.asset(
                         FileConstants.resetPinIcon,
-                        height: 70.h,
+                        height: 50.h,
                         fit: BoxFit.contain,
                       ),
                       SizedBox(height: 16.h),

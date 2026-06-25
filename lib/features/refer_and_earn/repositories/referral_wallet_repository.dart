@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:dio/dio.dart';
 
@@ -7,13 +8,16 @@ import '../../../services/dio_service.dart';
 import '../../../services/logger_service.dart';
 
 class ReferralWalletRepository {
-  ReferralWalletRepository({Dio? dio}) : _dio = dio ?? DioService.instance.client;
+  ReferralWalletRepository({Dio? dio})
+      : _dio = dio ?? DioService.instance.client;
 
   final Dio _dio;
+  final Random _random = Random.secure();
 
   Future<ReferralWalletSummary> fetchSummary() async {
     try {
-      final response = await _dio.get(ApiConstants.referralWalletSummaryEndpoint);
+      final response =
+          await _dio.get(ApiConstants.referralWalletSummaryEndpoint);
       final payload = _asMap(response.data);
       return ReferralWalletSummary.fromJson(payload);
     } catch (e, stackTrace) {
@@ -27,13 +31,17 @@ class ReferralWalletRepository {
   }
 
   Future<WithdrawEcoinsResponse> withdrawEcoins({
+    required int bankId,
     required int ecoins,
   }) async {
     try {
       final response = await _dio.post(
         ApiConstants.withdrawEcoinsEndpoint,
         data: {
+          'bank_id': bankId,
           'ecoins': ecoins,
+          'idempotency_key': _generateUuid(),
+          'operation': 'ECOINS_WITHDRAW',
         },
       );
       final payload = _asMap(response.data);
@@ -46,6 +54,21 @@ class ReferralWalletRepository {
       );
       rethrow;
     }
+  }
+
+  String _generateUuid() {
+    final bytes = List<int>.generate(16, (_) => _random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+    String toHex(int value) => value.toRadixString(16).padLeft(2, '0');
+    final hex = bytes.map(toHex).toList();
+
+    return '${hex.sublist(0, 4).join()}'
+        '${hex.sublist(4, 6).join()}-'
+        '${hex.sublist(6, 8).join()}-'
+        '${hex.sublist(8, 10).join()}-'
+        '${hex.sublist(10, 16).join()}';
   }
 }
 
@@ -69,7 +92,8 @@ class ReferralWalletSummary {
     final milestonesRaw = root['milestones'];
     final myTeamRaw = root['my_team'];
     final recentRaw = root['recent_referrals'];
-    final milestones = milestonesRaw is List ? milestonesRaw : const <dynamic>[];
+    final milestones =
+        milestonesRaw is List ? milestonesRaw : const <dynamic>[];
     final myTeam = myTeamRaw is List ? myTeamRaw : const <dynamic>[];
     final recent = recentRaw is List ? recentRaw : const <dynamic>[];
     return ReferralWalletSummary(
@@ -82,22 +106,15 @@ class ReferralWalletSummary {
               '')
           .toString(),
       totalEarnings: _parseInt(root['total_earnings'] ?? root['totalEarnings']),
-      milestones: milestones
-          .whereType<Map>()
-          .map(ReferralMilestone.fromJson)
-          .toList(),
+      milestones:
+          milestones.whereType<Map>().map(ReferralMilestone.fromJson).toList(),
       teamCount: _parseInt(root['team_count'] ?? root['teamCount']),
       totalTeamEarnings: _parseInt(
         root['total_team_earnings'] ?? root['totalTeamEarnings'],
       ),
-      myTeam: myTeam
-          .whereType<Map>()
-          .map(TeamMember.fromJson)
-          .toList(),
-      recentReferrals: recent
-          .whereType<Map>()
-          .map(RecentReferral.fromJson)
-          .toList(),
+      myTeam: myTeam.whereType<Map>().map(TeamMember.fromJson).toList(),
+      recentReferrals:
+          recent.whereType<Map>().map(RecentReferral.fromJson).toList(),
     );
   }
 

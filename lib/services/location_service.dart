@@ -7,7 +7,7 @@ import '../config/app_env.dart';
 import 'logger_service.dart';
 
 void _debugLog(String message) {
-  if (!AppEnv.enableLogs) return;
+  if (!AppEnv.enableLogs || !kDebugMode) return;
   debugPrint(message);
 }
 

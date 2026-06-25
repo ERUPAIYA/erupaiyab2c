@@ -404,6 +404,7 @@ class _TransactionTile extends StatelessWidget {
                 SizedBox(height: 1.h),
                 _StatusChip(
                   status: status,
+                  rawStatus: item.paymentStatus,
                   methodIcon: item.methodIcon,
                   method: item.method,
                 ),
@@ -419,11 +420,13 @@ class _TransactionTile extends StatelessWidget {
 class _StatusChip extends StatelessWidget {
   const _StatusChip({
     required this.status,
+    required this.rawStatus,
     required this.methodIcon,
     required this.method,
   });
 
   final _TxnStatus status;
+  final String rawStatus;
   final String methodIcon;
   final String method;
 
@@ -484,11 +487,13 @@ class _StatusChip extends StatelessWidget {
           ],
         );
       case _TxnStatus.processing:
+        final value = rawStatus.trim().toUpperCase();
+        final label = value == 'REFUND_PENDING' ? 'Refund Pending' : 'Pending';
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Pending',
+              label,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Colors.orange,
                     fontWeight: FontWeight.w700,
@@ -533,7 +538,9 @@ enum _TxnStatus { success, failed, processing }
 _TxnStatus _resolveStatus(String raw) {
   final value = raw.trim().toLowerCase();
   if (value.contains('fail')) return _TxnStatus.failed;
-  if (value.contains('process') || value.contains('pending')) {
+  if (value.contains('process') ||
+      value.contains('pending') ||
+      value.contains('refund_pending')) {
     return _TxnStatus.processing;
   }
   return _TxnStatus.success;

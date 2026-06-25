@@ -4,11 +4,11 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:pinput/pinput.dart';
@@ -21,6 +21,7 @@ import '../../../constants/routes_constant.dart';
 import '../../../constants/storage_keys.dart';
 import '../../../services/logger_service.dart';
 import '../../../services/phone_hint_service.dart';
+import '../../../services/secure_storage_service.dart';
 import '../../../widgets/app_snackbar.dart';
 import '../../../widgets/grey_text_form_field.dart';
 import '../../profile/controllers/profile_controller.dart';
@@ -39,7 +40,7 @@ enum _LoginStep {
 }
 
 void _debugLog(String message) {
-  if (!AppEnv.enableLogs) return;
+  if (!AppEnv.enableLogs || !kDebugMode) return;
   debugPrint(message);
 }
 
@@ -57,7 +58,7 @@ class LoginView extends HookConsumerWidget {
     final phoneController = useTextEditingController();
     final allowConsent = useState(false);
     final referralCode = useState<String?>(null);
-    final storage = useMemoized(() => const FlutterSecureStorage());
+    final storage = useMemoized(() => SecureStorageService.instance);
 
     final pinController = useTextEditingController();
     final pinFocusNode = useFocusNode();

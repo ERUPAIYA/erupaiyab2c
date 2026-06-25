@@ -20,7 +20,7 @@ import '../views/receipt_html_viewer_screen.dart';
 import '../views/receipt_viewer_screen.dart';
 
 void _debugLog(String message) {
-  if (!AppEnv.enableLogs) return;
+  if (!AppEnv.enableLogs || !kDebugMode) return;
   debugPrint(message);
 }
 

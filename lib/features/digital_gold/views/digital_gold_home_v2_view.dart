@@ -15,10 +15,10 @@ import '../components/digital_gold_title_live_bar.dart';
 import '../models/digital_gold_dashboard.dart';
 import '../repo/digital_gold_repo.dart';
 
+part 'home_v2_tabs/gold_alerts_tab.dart';
 part 'home_v2_tabs/gold_history_tab.dart';
 part 'home_v2_tabs/gold_home_tab.dart';
 part 'home_v2_tabs/gold_portfolio_tab.dart';
-part 'home_v2_tabs/gold_alerts_tab.dart';
 part 'home_v2_tabs/gold_sip_tab.dart';
 
 enum _GoldDashTab { home, gold, sip, portfolio, alerts, history }

@@ -146,9 +146,29 @@ class EducationFeesTutorsView extends HookConsumerWidget {
                   );
                 }
               },
-              onFailure: (message) {
+              onFailure: (message) async {
+                final verified = await _verifyEducationPaymentStatus(
+                  repository: repository,
+                  transactionRefId: order.transactionRefId,
+                );
+                if (verified != null && verified.isSuccess) {
+                  if (!context.mounted) return;
+                  context.push(
+                    RouteConstants.transactionDetail,
+                    extra: _buildEducationSuccessEntry(
+                      recipientName: tutor.name,
+                      maskedAccount: tutor.accountMasked,
+                      amount: order.amount > 0 ? order.amount : payable,
+                      paymentId: order.transactionRefId,
+                    ),
+                  );
+                  return;
+                }
+                if (!context.mounted) return;
                 AppSnackbar.show(
-                  message,
+                  (verified?.message.isNotEmpty ?? false)
+                      ? verified!.message
+                      : message,
                   backgroundColor: Colors.red,
                   textColor: Colors.white,
                 );

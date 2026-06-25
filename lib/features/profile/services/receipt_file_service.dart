@@ -57,9 +57,11 @@ class ReceiptFileService {
     final preparedHtml = await _inlineAssetImages(normalizedHtml);
     final timeout = Platform.isAndroid ? _androidTimeout : _defaultTimeout;
     Future<Uint8List> attempt() {
-      debugPrint(
-        'Receipt HTML->PDF attempt (timeout ${timeout.inSeconds}s, html=${preparedHtml.length} chars)',
-      );
+      if (kDebugMode) {
+        debugPrint(
+          'Receipt HTML->PDF attempt (timeout ${timeout.inSeconds}s, html=${preparedHtml.length} chars)',
+        );
+      }
       return Printing.convertHtml(html: preparedHtml).timeout(
         timeout,
         onTimeout: () {
@@ -73,17 +75,21 @@ class ReceiptFileService {
     try {
       return await attempt();
     } catch (e, stackTrace) {
-      debugPrint(
-        'Receipt HTML->PDF failed (attempt 1): $e\n$stackTrace',
-      );
+      if (kDebugMode) {
+        debugPrint(
+          'Receipt HTML->PDF failed (attempt 1): $e\n$stackTrace',
+        );
+      }
       if (!Platform.isAndroid) rethrow;
       await Future.delayed(const Duration(milliseconds: 400));
       try {
         return await attempt();
       } catch (e, stackTrace) {
-        debugPrint(
-          'Receipt HTML->PDF failed (attempt 2): $e\n$stackTrace',
-        );
+        if (kDebugMode) {
+          debugPrint(
+            'Receipt HTML->PDF failed (attempt 2): $e\n$stackTrace',
+          );
+        }
         return _buildFallbackPdf(html);
       }
     }

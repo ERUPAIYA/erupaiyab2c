@@ -4,6 +4,7 @@ import 'package:e_rupaiya/features/mobile_prepaid/components/recharge_quick_acti
 import 'package:e_rupaiya/features/paymentgateway/razorpay_guard.dart';
 import 'package:e_rupaiya/features/paymentgateway/razorpay_service.dart';
 import 'package:e_rupaiya/features/services/models/biller_detail_state.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
@@ -42,7 +43,7 @@ import '../models/biller_detail_model.dart';
 part 'biller_detail_view_parts.dart';
 
 void _debugLog(String message) {
-  if (!AppEnv.enableLogs) return;
+  if (!AppEnv.enableLogs || !kDebugMode) return;
   debugPrint(message);
 }
 
@@ -87,6 +88,7 @@ class BillerDetailView extends HookConsumerWidget {
       [args?.paymentType],
     );
     final showBillSample = useState(false);
+    final isHandlingPayAction = useState(false);
     final fieldErrors = useState<Map<String, String?>>({});
     final gasPolicyMessage = useState<String?>(null);
     final pipedGasErrorMessage = useState<String?>(null);
@@ -972,9 +974,17 @@ class BillerDetailView extends HookConsumerWidget {
                                                       PipedGasBillSection
                                                           .maxAmount))));
                               return CustomElevatedButton(
-                                onPressed: shouldDisablePay
+                                onPressed: shouldDisablePay ||
+                                        detailState.isPayingBill ||
+                                        isHandlingPayAction.value
                                     ? null
                                     : () async {
+                                        if (isHandlingPayAction.value ||
+                                            detailState.isPayingBill) {
+                                          return;
+                                        }
+                                        isHandlingPayAction.value = true;
+                                        try {
                                         if (showSubscriptionSummary) {
                                           final amountToPay =
                                               subscriptionAmount ?? 0;
@@ -1258,8 +1268,14 @@ class BillerDetailView extends HookConsumerWidget {
                                                 bill.ecoinsRestrictionsPercent,
                                           );
                                         }
+                                        } finally {
+                                          isHandlingPayAction.value = false;
+                                        }
                                       },
-                                label: payLabel,
+                                label: detailState.isPayingBill ||
+                                        isHandlingPayAction.value
+                                    ? 'Processing...'
+                                    : payLabel,
                                 showArrow: false,
                                 uppercaseLabel: false,
                                 height: 38.h,

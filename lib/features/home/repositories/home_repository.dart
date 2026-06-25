@@ -7,6 +7,7 @@ import '../../../constants/api_constants.dart';
 import '../../../services/dio_service.dart';
 import '../../../services/logger_service.dart';
 import '../models/banner_model.dart';
+import '../models/bill_reminder_model.dart';
 import '../models/credit_card_item.dart';
 import '../models/quick_action_model.dart';
 
@@ -192,6 +193,34 @@ class HomeRepository {
       return json['success'] == true;
     } catch (e) {
       logger.error('Failed to remove credit card: $e', error: e);
+      rethrow;
+    }
+  }
+
+  Future<BillReminderResponse> fetchBillReminders({
+    int page = 1,
+    int limit = 20,
+  }) async {
+    try {
+      final response = await _dio.get(
+        ApiConstants.billRemindersEndpoint,
+        queryParameters: {
+          'page': page,
+          'limit': limit,
+        },
+      );
+      final payload = response.data;
+      Map<String, dynamic> json;
+      if (payload is String) {
+        json = jsonDecode(payload) as Map<String, dynamic>;
+      } else if (payload is Map<String, dynamic>) {
+        json = payload;
+      } else {
+        json = Map<String, dynamic>.from(payload as Map);
+      }
+      return BillReminderResponse.fromJson(json);
+    } catch (e) {
+      logger.error('Failed to fetch bill reminders: $e', error: e);
       rethrow;
     }
   }
