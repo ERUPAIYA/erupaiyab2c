@@ -363,13 +363,13 @@ class _InviteEarnCard extends StatelessWidget {
           ),
           SizedBox(width: 8.w),
           SizedBox(
-            height: 34.h,
+            height: 32.h,
             child: CustomElevatedButton(
               onPressed: onInvite,
               label: 'Invite Now',
               uppercaseLabel: false,
-              width: 120.w,
-              height: 34.h,
+              width: 100.w,
+              height: 32.h,
               showArrow: false,
             ),
           ),

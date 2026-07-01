@@ -1,5 +1,5 @@
 import 'package:e_rupaiya/constants/app_colors.dart';
-import 'package:e_rupaiya/services/screen_security_service.dart';
+// import 'package:e_rupaiya/services/screen_security_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -83,7 +83,7 @@ class MyApp extends HookConsumerWidget {
     }, const []);
     useEffect(() {
       appLockService.init();
-      ScreenSecurityService.enableSecure();
+      // ScreenSecurityService.enableSecure();
       return appLockService.dispose;
     }, const []);
     useEffect(() {

@@ -13,6 +13,7 @@ import '../../../constants/routes_constant.dart';
 import '../../../services/location_access_service.dart';
 import '../../../services/secure_storage_service.dart';
 import '../../../widgets/app_snackbar.dart';
+import '../../../widgets/custom_elevated_button.dart';
 import '../../../widgets/my_app_bar.dart';
 import '../../auth/controllers/auth_controller.dart';
 import '../../auth/views/reset_mpin_view.dart';
@@ -140,8 +141,7 @@ class PreferencesView extends HookConsumerWidget {
                 inactiveThumbColor: Colors.white,
                 inactiveTrackColor: const Color(0xFFD9D9D9),
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                onChanged:
-                    isBillLoading.value ? null : toggleBillNotifications,
+                onChanged: isBillLoading.value ? null : toggleBillNotifications,
               ),
             ),
           ),
@@ -509,20 +509,12 @@ class LocationAccessView extends HookWidget {
                       ),
                 ),
                 SizedBox(height: 12.h),
-                OutlinedButton(
+                CustomElevatedButton(
                   onPressed: openAppSettings,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.textPrimary,
-                    side: BorderSide(
-                      color: AppColors.textPrimary.withOpacity(0.15),
-                    ),
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12.r),
-                    ),
-                  ),
-                  child: const Text('Open App Settings'),
+                  label: 'Open App Settings',
+                  uppercaseLabel: false,
+                  height: 34.h,
+                  width: 180.w,
                 ),
               ],
             ),

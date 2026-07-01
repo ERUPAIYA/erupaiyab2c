@@ -7,13 +7,15 @@ class ReferralShareActions extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
+    final buttonHeight = 40.h;
+
     return Row(
       children: [
         Expanded(
           child: GestureDetector(
             onTap: () => ReferralShareService.shareWhatsApp(context),
             child: Container(
-              height: 44.h,
+              height: buttonHeight,
               decoration: BoxDecoration(
                 color: const Color(0xFFE85A2C),
                 borderRadius: BorderRadius.circular(24.r),
@@ -44,11 +46,11 @@ class ReferralShareActions extends HookWidget {
         GestureDetector(
           onTap: () => ReferralShareService.shareAny(context),
           child: Container(
-            height: 44.h,
-            width: 54.w,
+            height: buttonHeight,
+            width: buttonHeight,
             decoration: BoxDecoration(
               color: const Color(0xFFF7DCD2),
-              borderRadius: BorderRadius.circular(22.r),
+              borderRadius: BorderRadius.circular(20.r),
             ),
             child: const Icon(Icons.share_outlined, color: Color(0xFFB44B2F)),
           ),

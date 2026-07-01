@@ -35,6 +35,7 @@ class RouteConstants {
   static const String refundPolicy = '/refund-policy';
   static const String grievance = '/grievance';
   static const String aboutUs = '/about-us';
+  static const String aboutApp = '/about-app';
   static const String termsPrivacy = '/terms-privacy';
   static const String privacyPolicy = '/privacy-policy';
   static const String helpSupport = '/help-support';

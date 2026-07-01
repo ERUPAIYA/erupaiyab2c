@@ -39,9 +39,14 @@ String normalizeEducationMobile(String input) {
 }
 
 class EducationContactSheet extends HookConsumerWidget {
-  const EducationContactSheet({super.key, required this.onSelect});
+  const EducationContactSheet({
+    super.key,
+    required this.onSelect,
+    this.matchInviteContactAvatarStyle = false,
+  });
 
   final ValueChanged<String> onSelect;
+  final bool matchInviteContactAvatarStyle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -145,6 +150,7 @@ class EducationContactSheet extends HookConsumerWidget {
                   onSelect(value);
                   Navigator.of(context).maybePop();
                 },
+                matchInviteContactAvatarStyle: matchInviteContactAvatarStyle,
               )
             : _PermissionEmptyState(onAllow: handleRequestPermission),
       ),
@@ -230,6 +236,7 @@ class _ContactsListSection extends StatelessWidget {
     required this.onQueryChange,
     required this.onLoadMore,
     required this.onSelect,
+    required this.matchInviteContactAvatarStyle,
   });
 
   final bool isLoading;
@@ -239,6 +246,7 @@ class _ContactsListSection extends StatelessWidget {
   final ValueChanged<String> onQueryChange;
   final VoidCallback onLoadMore;
   final ValueChanged<String> onSelect;
+  final bool matchInviteContactAvatarStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -294,6 +302,7 @@ class _ContactsListSection extends StatelessWidget {
               contacts: contacts,
               visibleCount: visibleCount,
               onSelect: onSelect,
+              matchInviteContactAvatarStyle: matchInviteContactAvatarStyle,
             ),
         ],
       ),
@@ -306,11 +315,13 @@ class _ContactsList extends StatelessWidget {
     required this.contacts,
     required this.visibleCount,
     required this.onSelect,
+    required this.matchInviteContactAvatarStyle,
   });
 
   final List<Contact> contacts;
   final int visibleCount;
   final ValueChanged<String> onSelect;
+  final bool matchInviteContactAvatarStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -348,14 +359,21 @@ class _ContactsList extends StatelessWidget {
             child: Row(
               children: [
                 CircleAvatar(
-                  radius: 18.r,
-                  backgroundColor: AppColors.primary.withOpacity(0.1),
+                  radius: matchInviteContactAvatarStyle ? 22.r : 18.r,
+                  backgroundColor: matchInviteContactAvatarStyle
+                      ? const Color(0xFFD9D9D9)
+                      : AppColors.primary.withOpacity(0.1),
                   child: Text(
-                    initials,
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w700,
-                        ),
+                    initials.toUpperCase(),
+                    style: (matchInviteContactAvatarStyle
+                            ? Theme.of(context).textTheme.bodySmall
+                            : Theme.of(context).textTheme.labelMedium)
+                        ?.copyWith(
+                      color: matchInviteContactAvatarStyle
+                          ? AppColors.textPrimary
+                          : AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
                 SizedBox(width: 12.w),

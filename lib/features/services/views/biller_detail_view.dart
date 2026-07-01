@@ -47,6 +47,23 @@ void _debugLog(String message) {
   debugPrint(message);
 }
 
+class _UpperCaseTextFormatter extends TextInputFormatter {
+  const _UpperCaseTextFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final upperText = newValue.text.toUpperCase();
+    return newValue.copyWith(
+      text: upperText,
+      selection: TextSelection.collapsed(offset: upperText.length),
+      composing: TextRange.empty,
+    );
+  }
+}
+
 class BillerDetailView extends HookConsumerWidget {
   const BillerDetailView({super.key, this.args});
 
@@ -611,6 +628,9 @@ class BillerDetailView extends HookConsumerWidget {
                                   isGasCylinder && isMobile;
                               final isDate =
                                   DateFormatHelper.isDateParam(param.paramName);
+                              final isAlphaNumeric =
+                                  param.dataType.toUpperCase() ==
+                                      'ALPHANUMERIC';
                               final dateFormat = isDate
                                   ? DateFormatHelper.extractFormat(
                                       param.paramName)
@@ -704,6 +724,9 @@ class BillerDetailView extends HookConsumerWidget {
                                             param.dataType == 'NUMERIC'
                                                 ? TextInputType.number
                                                 : TextInputType.text,
+                                        inputFormatters: isAlphaNumeric
+                                            ? const [_UpperCaseTextFormatter()]
+                                            : null,
                                         maxLength:
                                             isLastFour ? 4 : param.maxLength,
                                         onChanged: (_) {
@@ -985,289 +1008,296 @@ class BillerDetailView extends HookConsumerWidget {
                                         }
                                         isHandlingPayAction.value = true;
                                         try {
-                                        if (showSubscriptionSummary) {
-                                          final amountToPay =
-                                              subscriptionAmount ?? 0;
-                                          final mobile =
-                                              _resolveSubscriptionMobile(
-                                            customerParamsInput,
-                                          );
-                                          final name = biller.billerName
-                                                  .trim()
-                                                  .isNotEmpty
-                                              ? biller.billerName.trim()
-                                              : 'Subscription';
-                                          if (!await RazorpayGuard
-                                              .ensureProfileReadyAndNotPaused(
-                                            ref,
-                                          )) {
-                                            return;
-                                          }
-                                          final paymentType =
-                                              (args?.paymentType ?? '')
-                                                      .trim()
-                                                      .isNotEmpty
-                                                  ? args!.paymentType!.trim()
-                                                  : 'Subscription';
-                                          final order = await controller
-                                              .createPayAllServicesOrder(
-                                            amount: amountToPay,
-                                            paymentType: paymentType,
-                                            useWallet: false,
-                                            isCreditCardFlow: isCreditCardFlow,
-                                          );
-                                          if (!context.mounted) return;
-                                          if (order == null ||
-                                              order.orderId.isEmpty ||
-                                              order.key.isEmpty ||
-                                              order.transactionRef.isEmpty) {
-                                            AppSnackbar.show(
-                                              ref
-                                                      .read(
-                                                        billerDetailControllerProvider,
-                                                      )
-                                                      .payErrorMessage ??
-                                                  'Unable to start payment. Please try again.',
-                                              type: AppSnackbarType.error,
+                                          if (showSubscriptionSummary) {
+                                            final amountToPay =
+                                                subscriptionAmount ?? 0;
+                                            final mobile =
+                                                _resolveSubscriptionMobile(
+                                              customerParamsInput,
                                             );
-                                            return;
-                                          }
-
-                                          Future<void> verifyAndShowResult({
-                                            required String fallbackMessage,
-                                          }) async {
+                                            final name = biller.billerName
+                                                    .trim()
+                                                    .isNotEmpty
+                                                ? biller.billerName.trim()
+                                                : 'Subscription';
+                                            if (!await RazorpayGuard
+                                                .ensureProfileReadyAndNotPaused(
+                                              ref,
+                                            )) {
+                                              return;
+                                            }
+                                            final paymentType =
+                                                (args?.paymentType ?? '')
+                                                        .trim()
+                                                        .isNotEmpty
+                                                    ? args!.paymentType!.trim()
+                                                    : 'Subscription';
+                                            final order = await controller
+                                                .createPayAllServicesOrder(
+                                              amount: amountToPay,
+                                              paymentType: paymentType,
+                                              useWallet: false,
+                                              isCreditCardFlow:
+                                                  isCreditCardFlow,
+                                            );
                                             if (!context.mounted) return;
-                                            showDialog<void>(
-                                              context: context,
-                                              barrierDismissible: false,
-                                              builder: (dialogContext) {
-                                                return const PopScope(
-                                                  canPop: false,
-                                                  child: Center(
-                                                    child:
-                                                        CircularProgressIndicator(),
+                                            if (order == null ||
+                                                order.orderId.isEmpty ||
+                                                order.key.isEmpty ||
+                                                order.transactionRef.isEmpty) {
+                                              AppSnackbar.show(
+                                                ref
+                                                        .read(
+                                                          billerDetailControllerProvider,
+                                                        )
+                                                        .payErrorMessage ??
+                                                    'Unable to start payment. Please try again.',
+                                                type: AppSnackbarType.error,
+                                              );
+                                              return;
+                                            }
+
+                                            Future<void> verifyAndShowResult({
+                                              required String fallbackMessage,
+                                            }) async {
+                                              if (!context.mounted) return;
+                                              showDialog<void>(
+                                                context: context,
+                                                barrierDismissible: false,
+                                                builder: (dialogContext) {
+                                                  return const PopScope(
+                                                    canPop: false,
+                                                    child: Center(
+                                                      child:
+                                                          CircularProgressIndicator(),
+                                                    ),
+                                                  );
+                                                },
+                                              );
+                                              final status = await controller
+                                                  .verifyPayAllServicesStatus(
+                                                transactionRef:
+                                                    order.transactionRef,
+                                              );
+                                              if (context.mounted) {
+                                                Navigator.of(
+                                                  context,
+                                                  rootNavigator: true,
+                                                ).pop();
+                                              }
+                                              if (!context.mounted) return;
+                                              final normalized = (status?.status
+                                                      .trim()
+                                                      .toUpperCase() ??
+                                                  '');
+                                              final isSuccess =
+                                                  normalized == 'SUCCESS';
+                                              final isPending = normalized ==
+                                                      'PENDING' ||
+                                                  normalized == 'PROCESSING';
+                                              final title = isSuccess
+                                                  ? 'Payment Successful!'
+                                                  : (isPending
+                                                      ? 'Payment Pending'
+                                                      : 'Payment Failed!');
+                                              final subtitle = status?.message
+                                                          .trim()
+                                                          .isNotEmpty ==
+                                                      true
+                                                  ? status!.message
+                                                  : fallbackMessage;
+                                              final txId = status?.transactionId
+                                                          .trim()
+                                                          .isNotEmpty ==
+                                                      true
+                                                  ? status!.transactionId.trim()
+                                                  : order.transactionRef;
+
+                                              Navigator.of(context).push(
+                                                MaterialPageRoute(
+                                                  builder: (_) =>
+                                                      PaymentResultScreen(
+                                                    title: title,
+                                                    subtitle: subtitle,
+                                                    details: [
+                                                      PaymentDetailItem(
+                                                        label: 'Amount',
+                                                        value:
+                                                            '₹ ${amountToPay.toStringAsFixed(2)}',
+                                                      ),
+                                                      PaymentDetailItem(
+                                                        label: 'To',
+                                                        value: name,
+                                                      ),
+                                                      PaymentDetailItem(
+                                                        label: 'Transaction ID',
+                                                        value: '#$txId',
+                                                        copyable: true,
+                                                      ),
+                                                    ],
+                                                    continueText: 'Continue',
+                                                    onContinue: (c) =>
+                                                        Navigator.of(c).pop(),
+                                                    showFailureActions:
+                                                        !isSuccess,
+                                                    showBackButton: !isSuccess,
+                                                    statusIcon: isSuccess
+                                                        ? Icons.check
+                                                        : (isPending
+                                                            ? Icons
+                                                                .hourglass_top
+                                                            : Icons.close),
+                                                    statusIconColor:
+                                                        Colors.white,
+                                                    statusIconBorderColor:
+                                                        Colors.white,
+                                                    headerGradientColors:
+                                                        isSuccess
+                                                            ? const [
+                                                                Color(
+                                                                  0xFF0D5C32,
+                                                                ),
+                                                                Color(
+                                                                  0xFF0E7340,
+                                                                )
+                                                              ]
+                                                            : (isPending
+                                                                ? const [
+                                                                    Color(
+                                                                      0xFFF59E0B,
+                                                                    ),
+                                                                    Color(
+                                                                      0xFFD97706,
+                                                                    )
+                                                                  ]
+                                                                : const [
+                                                                    Color(
+                                                                      0xFFB91C1C,
+                                                                    ),
+                                                                    Color(
+                                                                      0xFFDC2626,
+                                                                    )
+                                                                  ]),
                                                   ),
+                                                ),
+                                              );
+                                            }
+
+                                            await RazorpayService.instance
+                                                .openCheckout(
+                                              amount: amountToPay,
+                                              name: name,
+                                              description:
+                                                  'Subscription bill payment',
+                                              orderId: order.orderId,
+                                              keyOverride: order.key,
+                                              prefill: {
+                                                if (mobile.isNotEmpty)
+                                                  'contact': mobile,
+                                              },
+                                              onSuccess: (_) async {
+                                                await verifyAndShowResult(
+                                                  fallbackMessage:
+                                                      'Your payment was completed successfully.',
+                                                );
+                                              },
+                                              onFailure: (message) async {
+                                                await verifyAndShowResult(
+                                                  fallbackMessage: message
+                                                          .isEmpty
+                                                      ? 'Payment failed. Please try again.'
+                                                      : message,
+                                                );
+                                              },
+                                              onExternalWallet: (_) async {
+                                                await verifyAndShowResult(
+                                                  fallbackMessage:
+                                                      'We are verifying your payment. Please wait a moment.',
                                                 );
                                               },
                                             );
-                                            final status = await controller
-                                                .verifyPayAllServicesStatus(
-                                              transactionRef:
-                                                  order.transactionRef,
-                                            );
-                                            if (context.mounted) {
-                                              Navigator.of(
-                                                context,
-                                                rootNavigator: true,
-                                              ).pop();
-                                            }
-                                            if (!context.mounted) return;
-                                            final normalized = (status?.status
-                                                    .trim()
-                                                    .toUpperCase() ??
-                                                '');
-                                            final isSuccess =
-                                                normalized == 'SUCCESS';
-                                            final isPending =
-                                                normalized == 'PENDING' ||
-                                                    normalized == 'PROCESSING';
-                                            final title = isSuccess
-                                                ? 'Payment Successful!'
-                                                : (isPending
-                                                    ? 'Payment Pending'
-                                                    : 'Payment Failed!');
-                                            final subtitle = status?.message
-                                                        .trim()
-                                                        .isNotEmpty ==
-                                                    true
-                                                ? status!.message
-                                                : fallbackMessage;
-                                            final txId = status?.transactionId
-                                                        .trim()
-                                                        .isNotEmpty ==
-                                                    true
-                                                ? status!.transactionId.trim()
-                                                : order.transactionRef;
-
-                                            Navigator.of(context).push(
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    PaymentResultScreen(
-                                                  title: title,
-                                                  subtitle: subtitle,
-                                                  details: [
-                                                    PaymentDetailItem(
-                                                      label: 'Amount',
-                                                      value:
-                                                          '₹ ${amountToPay.toStringAsFixed(2)}',
-                                                    ),
-                                                    PaymentDetailItem(
-                                                      label: 'To',
-                                                      value: name,
-                                                    ),
-                                                    PaymentDetailItem(
-                                                      label: 'Transaction ID',
-                                                      value: '#$txId',
-                                                      copyable: true,
-                                                    ),
-                                                  ],
-                                                  continueText: 'Continue',
-                                                  onContinue: (c) =>
-                                                      Navigator.of(c).pop(),
-                                                  showFailureActions:
-                                                      !isSuccess,
-                                                  showBackButton: !isSuccess,
-                                                  statusIcon: isSuccess
-                                                      ? Icons.check
-                                                      : (isPending
-                                                          ? Icons.hourglass_top
-                                                          : Icons.close),
-                                                  statusIconColor: Colors.white,
-                                                  statusIconBorderColor:
-                                                      Colors.white,
-                                                  headerGradientColors:
-                                                      isSuccess
-                                                          ? const [
-                                                              Color(
-                                                                0xFF0D5C32,
-                                                              ),
-                                                              Color(
-                                                                0xFF0E7340,
-                                                              )
-                                                            ]
-                                                          : (isPending
-                                                              ? const [
-                                                                  Color(
-                                                                    0xFFF59E0B,
-                                                                  ),
-                                                                  Color(
-                                                                    0xFFD97706,
-                                                                  )
-                                                                ]
-                                                              : const [
-                                                                  Color(
-                                                                    0xFFB91C1C,
-                                                                  ),
-                                                                  Color(
-                                                                    0xFFDC2626,
-                                                                  )
-                                                                ]),
-                                                ),
-                                              ),
-                                            );
-                                          }
-
-                                          await RazorpayService.instance
-                                              .openCheckout(
-                                            amount: amountToPay,
-                                            name: name,
-                                            description:
-                                                'Subscription bill payment',
-                                            orderId: order.orderId,
-                                            keyOverride: order.key,
-                                            prefill: {
-                                              if (mobile.isNotEmpty)
-                                                'contact': mobile,
-                                            },
-                                            onSuccess: (_) async {
-                                              await verifyAndShowResult(
-                                                fallbackMessage:
-                                                    'Your payment was completed successfully.',
-                                              );
-                                            },
-                                            onFailure: (message) async {
-                                              await verifyAndShowResult(
-                                                fallbackMessage: message.isEmpty
-                                                    ? 'Payment failed. Please try again.'
-                                                    : message,
-                                              );
-                                            },
-                                            onExternalWallet: (_) async {
-                                              await verifyAndShowResult(
-                                                fallbackMessage:
-                                                    'We are verifying your payment. Please wait a moment.',
-                                              );
-                                            },
-                                          );
-                                          return;
-                                        }
-                                        if (bill == null) {
-                                          // Validate all visible params
-                                          final visibleParams = detail
-                                              .customerParams
-                                              .where((p) => p.visibility)
-                                              .toList();
-                                          if (visibleParams.isEmpty) return;
-
-                                          final errors = <String, String?>{};
-                                          final values = <String, String>{};
-                                          for (final param in visibleParams) {
-                                            final value = inputControllers[
-                                                        param.paramName]
-                                                    ?.text
-                                                    .trim() ??
-                                                '';
-                                            final error =
-                                                _validateParam(param, value);
-                                            if (error != null) {
-                                              errors[param.paramName] = error;
-                                            } else if (value.isNotEmpty) {
-                                              values[param.paramName] = value;
-                                            }
-                                          }
-
-                                          if (errors.isNotEmpty) {
-                                            fieldErrors.value = errors;
                                             return;
                                           }
-                                          fieldErrors.value = {};
+                                          if (bill == null) {
+                                            // Validate all visible params
+                                            final visibleParams = detail
+                                                .customerParams
+                                                .where((p) => p.visibility)
+                                                .toList();
+                                            if (visibleParams.isEmpty) return;
 
-                                          if (isGasCylinder &&
-                                              visibleParams.isNotEmpty &&
-                                              values.isEmpty) {
-                                            fieldErrors.value =
-                                                gasCylinderInlineErrors(detail);
-                                            return;
-                                          }
-
-                                          if (values.isNotEmpty) {
-                                            if (gasPolicyMessage.value !=
-                                                null) {
-                                              gasPolicyMessage.value = null;
+                                            final errors = <String, String?>{};
+                                            final values = <String, String>{};
+                                            for (final param in visibleParams) {
+                                              final value = inputControllers[
+                                                          param.paramName]
+                                                      ?.text
+                                                      .trim() ??
+                                                  '';
+                                              final error =
+                                                  _validateParam(param, value);
+                                              if (error != null) {
+                                                errors[param.paramName] = error;
+                                              } else if (value.isNotEmpty) {
+                                                values[param.paramName] = value;
+                                              }
                                             }
-                                            controller.fetchBill(
-                                              customerParams: values,
+
+                                            if (errors.isNotEmpty) {
+                                              fieldErrors.value = errors;
+                                              return;
+                                            }
+                                            fieldErrors.value = {};
+
+                                            if (isGasCylinder &&
+                                                visibleParams.isNotEmpty &&
+                                                values.isEmpty) {
+                                              fieldErrors.value =
+                                                  gasCylinderInlineErrors(
+                                                      detail);
+                                              return;
+                                            }
+
+                                            if (values.isNotEmpty) {
+                                              if (gasPolicyMessage.value !=
+                                                  null) {
+                                                gasPolicyMessage.value = null;
+                                              }
+                                              controller.fetchBill(
+                                                customerParams: values,
+                                              );
+                                            }
+                                          } else if (!detailState
+                                              .showFullDetails) {
+                                            // Open payment bottom sheet (details expansion is via the
+                                            // down-arrow in the bill card, not the pay CTA).
+                                            final amountToPay = enteredAmount ??
+                                                bill.amountInRupees;
+                                            _showPaymentSheet(
+                                              context,
+                                              amountToPay,
+                                              isCreditCardFlow:
+                                                  isCreditCardFlow,
+                                              paymentTypeOverride:
+                                                  args?.paymentType,
+                                              ecoinsRestrictionsPercent: bill
+                                                  .ecoinsRestrictionsPercent,
+                                            );
+                                          } else {
+                                            // Open payment bottom sheet
+                                            final amountToPay = enteredAmount ??
+                                                bill.amountInRupees;
+                                            _showPaymentSheet(
+                                              context,
+                                              amountToPay,
+                                              isCreditCardFlow:
+                                                  isCreditCardFlow,
+                                              paymentTypeOverride:
+                                                  args?.paymentType,
+                                              ecoinsRestrictionsPercent: bill
+                                                  .ecoinsRestrictionsPercent,
                                             );
                                           }
-                                        } else if (!detailState
-                                            .showFullDetails) {
-                                          // Open payment bottom sheet (details expansion is via the
-                                          // down-arrow in the bill card, not the pay CTA).
-                                          final amountToPay = enteredAmount ??
-                                              bill.amountInRupees;
-                                          _showPaymentSheet(
-                                            context,
-                                            amountToPay,
-                                            isCreditCardFlow: isCreditCardFlow,
-                                            paymentTypeOverride:
-                                                args?.paymentType,
-                                            ecoinsRestrictionsPercent:
-                                                bill.ecoinsRestrictionsPercent,
-                                          );
-                                        } else {
-                                          // Open payment bottom sheet
-                                          final amountToPay = enteredAmount ??
-                                              bill.amountInRupees;
-                                          _showPaymentSheet(
-                                            context,
-                                            amountToPay,
-                                            isCreditCardFlow: isCreditCardFlow,
-                                            paymentTypeOverride:
-                                                args?.paymentType,
-                                            ecoinsRestrictionsPercent:
-                                                bill.ecoinsRestrictionsPercent,
-                                          );
-                                        }
                                         } finally {
                                           isHandlingPayAction.value = false;
                                         }

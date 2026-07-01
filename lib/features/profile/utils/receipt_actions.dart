@@ -6,7 +6,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../constants/app_colors.dart';
@@ -67,8 +66,8 @@ class ReceiptActions {
         _debugLog('[Receipt] Android flow start: $transactionId');
         final html = await _fetchReceiptHtml(transactionId);
         _debugLog('[Receipt] HTML fetched (${html.length} chars)');
-        _hideLoading(dialogContext);
         if (action == ReceiptAction.share) {
+          _hideLoading(dialogContext);
           _debugLog('[Receipt] Converting HTML to PDF for sharing');
           File pdfFile;
           try {
@@ -109,7 +108,23 @@ class ReceiptActions {
             pdfBytes: pdfBytes,
             transactionId: transactionId,
           );
-          AppSnackbar.show('Receipt saved to ${file.path}');
+          _hideLoading(dialogContext);
+          if (!context.mounted) return;
+          await _showDownloadSuccessDialog(
+            context,
+            transactionId: transactionId,
+            file: file,
+            onOpen: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ReceiptViewerScreen(
+                    pdfBytes: pdfBytes,
+                    transactionId: transactionId,
+                  ),
+                ),
+              );
+            },
+          );
         }
         return;
       }
@@ -117,8 +132,8 @@ class ReceiptActions {
       _debugLog('[Receipt] Non-Android flow start: $transactionId');
       final pdfBytes = await _fetchReceiptPdfBytes(transactionId);
       _debugLog('[Receipt] PDF bytes generated (${pdfBytes.length} bytes)');
-      _hideLoading(dialogContext);
       if (action == ReceiptAction.share) {
+        _hideLoading(dialogContext);
         final pdfFile = await ReceiptFileService.savePdfToTemp(
           pdfBytes: pdfBytes,
           transactionId: transactionId,
@@ -140,7 +155,23 @@ class ReceiptActions {
           bytes: pdfBytes,
           transactionId: transactionId,
         );
-        AppSnackbar.show('Receipt saved to ${file.path}');
+        _hideLoading(dialogContext);
+        if (!context.mounted) return;
+        await _showDownloadSuccessDialog(
+          context,
+          transactionId: transactionId,
+          file: file,
+          onOpen: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ReceiptViewerScreen(
+                  pdfBytes: pdfBytes,
+                  transactionId: transactionId,
+                ),
+              ),
+            );
+          },
+        );
       }
     } catch (e, t) {
       _debugLog('Receipt generation error: $e');
@@ -266,12 +297,10 @@ class ReceiptActions {
     required List<int> bytes,
     required String transactionId,
   }) async {
-    final directory = Platform.isAndroid
-        ? await getExternalStorageDirectory()
-        : await getApplicationDocumentsDirectory();
-    final resolvedDir = directory ?? await getApplicationDocumentsDirectory();
-    final file = File('${resolvedDir.path}/receipt_$transactionId.pdf');
-    return file.writeAsBytes(bytes, flush: true);
+    return ReceiptFileService.savePdfToDownloads(
+      pdfBytes: Uint8List.fromList(bytes),
+      transactionId: transactionId,
+    );
   }
 
   static void _hideLoading(BuildContext? dialogContext) {
@@ -279,6 +308,51 @@ class ReceiptActions {
     if (Navigator.of(dialogContext).canPop()) {
       Navigator.of(dialogContext).pop();
     }
+  }
+
+  static Future<void> _showDownloadSuccessDialog(
+    BuildContext context, {
+    required String transactionId,
+    required File file,
+    required Future<void> Function() onOpen,
+  }) async {
+    final savedToDownloads = file.path.contains('/Download/');
+    final locationLabel = savedToDownloads
+        ? 'Downloads'
+        : (Platform.isIOS ? 'Files' : 'device storage');
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: const Text('Receipt Downloaded'),
+          content: Text(
+            'Your receipt has been saved to $locationLabel. You can open it now.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Done'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.of(dialogContext).pop();
+                await onOpen();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Open'),
+            ),
+          ],
+        );
+      },
+    );
+    _debugLog('[Receipt] Saved file path: ${file.path} for $transactionId');
   }
 }
 

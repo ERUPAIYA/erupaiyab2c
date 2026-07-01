@@ -44,7 +44,9 @@ void main() {
           mobile: '9552529513',
           otp: '1234',
         ),
-      ).thenAnswer((_) async {});
+      ).thenAnswer((_) async {
+        return null;
+      });
 
       final success = await controller.verifyOtp(otp: '1234');
 

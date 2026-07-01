@@ -33,7 +33,8 @@ class EducationFeesPaymentView extends HookConsumerWidget {
     final repository = ref.read(educationFeesRepositoryProvider);
     useEffect(() {
       Future.microtask(
-        () => ref.read(profileControllerProvider.notifier).fetchProfileIfNeeded(),
+        () =>
+            ref.read(profileControllerProvider.notifier).fetchProfileIfNeeded(),
       );
       return null;
     }, const []);
@@ -73,9 +74,7 @@ class EducationFeesPaymentView extends HookConsumerWidget {
               return;
             }
 
-            if (!order.status ||
-                order.orderId.isEmpty ||
-                order.key.isEmpty) {
+            if (!order.status || order.orderId.isEmpty || order.key.isEmpty) {
               AppSnackbar.show(
                 order.message.isNotEmpty
                     ? order.message
@@ -598,6 +597,8 @@ TransactionHistoryEntry _buildEducationSuccessEntry({
     totalAmountCharged: amount.toStringAsFixed(2),
     customerMobile: '',
     iconUrl: '',
+    pgTransactionId: paymentId,
+    ecoinsTransactionId: '',
     transactionId: paymentId,
     bankReferenceId: '',
     referenceId: paymentId,

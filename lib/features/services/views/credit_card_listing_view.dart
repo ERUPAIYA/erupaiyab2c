@@ -35,8 +35,9 @@ class CreditCardListingView extends HookConsumerWidget {
     final searchController = useTextEditingController();
     useListenable(searchController);
     final profileState = ref.watch(profileControllerProvider);
-    final recentTransactions =
-        ref.watch(serviceLatestTransactionsProvider('Credit Card'));
+    final recentTransactions = ref.watch(
+      serviceLatestTransactionsProvider(_categoryName),
+    );
 
     useEffect(() {
       Future.microtask(() {

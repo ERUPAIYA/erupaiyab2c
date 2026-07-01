@@ -9,6 +9,8 @@ class TransactionHistoryEntry {
     required this.totalAmountCharged,
     required this.customerMobile,
     required this.iconUrl,
+    required this.pgTransactionId,
+    required this.ecoinsTransactionId,
     required this.transactionId,
     required this.bankReferenceId,
     required this.referenceId,
@@ -32,6 +34,8 @@ class TransactionHistoryEntry {
   final String totalAmountCharged;
   final String customerMobile;
   final String iconUrl;
+  final String pgTransactionId;
+  final String ecoinsTransactionId;
   final String transactionId;
   final String bankReferenceId;
   final String referenceId;
@@ -84,8 +88,16 @@ class TransactionHistoryEntry {
       totalAmountCharged: _stringOrEmpty(json['total_amount_charged']),
       customerMobile: _stringOrEmpty(json['customer_mobile']),
       iconUrl: _stringOrEmpty(json['icon']),
+      pgTransactionId: _stringOrEmpty(
+        json['pg_transaction_id'] ??
+            json['payment_transaction_id'] ??
+            json['transaction_id'],
+      ),
+      ecoinsTransactionId: _stringOrEmpty(json['ecoins_transaction_id']),
       transactionId: _stringOrEmpty(
-        json['payment_transaction_id'] ?? json['transaction_id'],
+        json['pg_transaction_id'] ??
+            json['payment_transaction_id'] ??
+            json['transaction_id'],
       ),
       bankReferenceId: _stringOrEmpty(
         json['bank_reference_id'] ?? json['bank_referenceId'],

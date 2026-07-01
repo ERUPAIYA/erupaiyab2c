@@ -115,6 +115,9 @@ class BillerListingView extends HookConsumerWidget {
 
   final String categoryName;
 
+  static String _latestTransactionService(String categoryName) =>
+      categoryName.trim();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final listingState = ref.watch(billerListingControllerProvider);
@@ -153,8 +156,12 @@ class BillerListingView extends HookConsumerWidget {
           ),
         _BillerListingVariant.figmaBannerRecents => _BillerListingFigmaLayout(
             bannerAsset: uiConfig.bannerAsset,
-            recentTransactions: categoryName.trim().toLowerCase() == 'dth'
-                ? ref.watch(serviceLatestTransactionsProvider('dth'))
+            recentTransactions: categoryName.trim().isNotEmpty
+                ? ref.watch(
+                    serviceLatestTransactionsProvider(
+                      _latestTransactionService(categoryName),
+                    ),
+                  )
                 : null,
             isFetching: listingState.isFetching,
             errorMessage: listingState.errorMessage,
@@ -289,7 +296,7 @@ class _ElectricityFlow extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final listingState = ref.watch(billerListingControllerProvider);
     final recentTransactions =
-        ref.watch(serviceLatestTransactionsProvider('Electricity'));
+        ref.watch(serviceLatestTransactionsProvider(categoryName.trim()));
 
     final billers = listingState.billers;
     final showRecentSection = recentTransactions.maybeWhen(
@@ -463,8 +470,9 @@ class _MobilePostpaidFlow extends HookConsumerWidget {
     final contactsController =
         ref.read(contactsCacheControllerProvider.notifier);
     final banners = ref.watch(servicePageBannersProvider('mobile-postpaid'));
-    final recentTransactions =
-        ref.watch(serviceLatestTransactionsProvider('mobile postpaid'));
+    final recentTransactions = ref.watch(
+      serviceLatestTransactionsProvider(categoryName.trim()),
+    );
     final permissionService = useMemoized(() => const PermissionService());
     final hasPermission = useState(false);
     final isMounted = useIsMounted();

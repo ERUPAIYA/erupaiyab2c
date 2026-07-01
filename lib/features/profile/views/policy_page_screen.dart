@@ -7,6 +7,7 @@ import 'package:shimmer/shimmer.dart';
 import '../../../constants/app_colors.dart';
 import '../../../widgets/my_app_bar.dart';
 import '../../../widgets/app_html.dart';
+import '../components/language_chip.dart';
 import '../controllers/policy_page_controller.dart';
 import '../models/policy_page.dart';
 
@@ -15,10 +16,12 @@ class PolicyPageScreen extends HookConsumerWidget {
     super.key,
     required this.slug,
     required this.title,
+    this.showEnglishOnlyChip = false,
   });
 
   final String slug;
   final String title;
+  final bool showEnglishOnlyChip;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -68,12 +71,23 @@ class PolicyPageScreen extends HookConsumerWidget {
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 24.h),
                   children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w700,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.w700,
+                                ),
                           ),
+                        ),
+                        if (showEnglishOnlyChip)
+                          const LanguageChip.englishOnly(),
+                      ],
                     ),
                     SizedBox(height: 12.h),
                     if (page.banners.isNotEmpty) ...[

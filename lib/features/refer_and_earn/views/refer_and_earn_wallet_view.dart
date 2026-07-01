@@ -124,7 +124,7 @@ class ReferAndEarnWalletView extends HookWidget {
                   child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     child: Padding(
-                      padding: EdgeInsets.fromLTRB(16.w, 18.h, 16.w, 24.h),
+                      padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 24.h),
                       child: _buildBody(
                         context,
                         snapshot,

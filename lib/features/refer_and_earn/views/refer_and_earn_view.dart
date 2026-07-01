@@ -163,8 +163,7 @@ class ReferAndEarnView extends HookConsumerWidget {
                                 foregroundColor: AppColors.primary,
                                 padding: EdgeInsets.symmetric(horizontal: 4.w),
                                 minimumSize: const Size(0, 0),
-                                tapTargetSize:
-                                    MaterialTapTargetSize.shrinkWrap,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
                               child: Text(
                                 'View all',
@@ -413,12 +412,12 @@ class _ContactAvatar extends HookWidget {
       children: [
         CircleAvatar(
           radius: 26.r,
-          backgroundColor: const Color(0xFFD9D9D9),
+          backgroundColor: AppColors.primary.withOpacity(0.1),
           child: Text(
             initials.toUpperCase(),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+                  color: AppColors.primary,
                 ),
           ),
         ),

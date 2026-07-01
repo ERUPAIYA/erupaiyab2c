@@ -53,7 +53,7 @@ class PoliciesScreen extends StatelessWidget {
                 PolicyListTile(
                   title: 'About App',
                   icon: Icons.apps_outlined,
-                  onTap: () => context.push(RouteConstants.aboutUs),
+                  onTap: () => context.push(RouteConstants.aboutApp),
                 ),
               ],
             ),

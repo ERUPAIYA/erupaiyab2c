@@ -23,7 +23,7 @@ import '../utils/banner_redirect_mapper.dart';
 class HomeSearchView extends HookConsumerWidget {
   const HomeSearchView({super.key});
 
-  static const double _bannerHeight = 100;
+  static const double _bannerHeight = 80;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -146,7 +146,7 @@ class HomeSearchView extends HookConsumerWidget {
                         url: banner.image,
                         width: double.infinity,
                         height: _bannerHeight,
-                        fit: BoxFit.cover,
+                        fit: BoxFit.contain,
                       ),
                     );
                   },

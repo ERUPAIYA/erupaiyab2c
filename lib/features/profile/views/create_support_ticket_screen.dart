@@ -9,6 +9,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../constants/app_colors.dart';
+import '../../../widgets/custom_elevated_button.dart';
 import '../../../widgets/my_app_bar.dart';
 import '../components/support_transaction_card.dart';
 import '../controllers/support_ticket_controller.dart';
@@ -36,6 +37,21 @@ class CreateSupportTicketScreen extends HookConsumerWidget {
       orElse: () => _serviceOptions.first,
     ));
     final issueType = useState(_issueTypes.first);
+    final sectionTitleStyle = Theme.of(context).textTheme.titleSmall?.copyWith(
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.w700,
+          fontSize: 14.sp,
+        );
+    final fieldTextStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.w600,
+          fontSize: 13.sp,
+        );
+    final helperTextStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: AppColors.textPrimary.withOpacity(0.6),
+          fontSize: 11.sp,
+          height: 1.35,
+        );
 
     final lastError = useRef<String?>(null);
     useEffect(() {
@@ -119,14 +135,12 @@ class CreateSupportTicketScreen extends HookConsumerWidget {
                 children: [
                   Text(
                     'Select Transaction',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w700,
-                        ),
+                    style: sectionTitleStyle,
                   ),
                   SizedBox(height: 8.h),
                   _DisabledField(
                     value: 'Transaction ID: ${transaction.transactionId}',
+                    textStyle: fieldTextStyle,
                   ),
                   SizedBox(height: 14.h),
                   SupportTransactionCard(
@@ -136,16 +150,14 @@ class CreateSupportTicketScreen extends HookConsumerWidget {
                   SizedBox(height: 18.h),
                   Text(
                     'Services',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w700,
-                        ),
+                    style: sectionTitleStyle,
                   ),
                   SizedBox(height: 8.h),
                   _DropdownField<_ServiceOption>(
                     value: service.value,
                     items: _serviceOptions,
                     itemLabel: (e) => e.label,
+                    textStyle: fieldTextStyle,
                     onChanged: (v) {
                       if (v == null) return;
                       service.value = v;
@@ -154,16 +166,14 @@ class CreateSupportTicketScreen extends HookConsumerWidget {
                   SizedBox(height: 14.h),
                   Text(
                     'Select Issue Type',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w700,
-                        ),
+                    style: sectionTitleStyle,
                   ),
                   SizedBox(height: 8.h),
                   _DropdownField<String>(
                     value: issueType.value,
                     items: _issueTypes,
                     itemLabel: (e) => e,
+                    textStyle: fieldTextStyle,
                     onChanged: (v) {
                       if (v == null) return;
                       issueType.value = v;
@@ -172,10 +182,7 @@ class CreateSupportTicketScreen extends HookConsumerWidget {
                   SizedBox(height: 14.h),
                   Text(
                     'Is your query transaction related?',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w700,
-                        ),
+                    style: sectionTitleStyle,
                   ),
                   SizedBox(height: 10.h),
                   Row(
@@ -184,6 +191,7 @@ class CreateSupportTicketScreen extends HookConsumerWidget {
                         child: _ChoiceChipButton(
                           selected: isRelated.value,
                           text: "Yes, It's Related",
+                          textStyle: fieldTextStyle,
                           onTap: () => isRelated.value = true,
                         ),
                       ),
@@ -192,6 +200,7 @@ class CreateSupportTicketScreen extends HookConsumerWidget {
                         child: _ChoiceChipButton(
                           selected: !isRelated.value,
                           text: "No, It's Not",
+                          textStyle: fieldTextStyle,
                           onTap: () => isRelated.value = false,
                         ),
                       ),
@@ -221,13 +230,7 @@ class CreateSupportTicketScreen extends HookConsumerWidget {
                                       ? 'Screenshot selected'
                                       : screenshot
                                           .value!.uri.pathSegments.last),
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: AppColors.textPrimary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                              style: fieldTextStyle,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -242,18 +245,18 @@ class CreateSupportTicketScreen extends HookConsumerWidget {
                   SizedBox(height: 6.h),
                   Text(
                     'Please note: File size should be lesser than 20MB',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: AppColors.textPrimary.withOpacity(0.6),
-                        ),
+                    style: helperTextStyle,
                   ),
                   SizedBox(height: 14.h),
                   TextField(
                     controller: descriptionController,
                     maxLines: 5,
+                    style: fieldTextStyle,
                     decoration: InputDecoration(
                       hintText: 'Briefly Explain Your Issue For Faster Support',
-                      hintStyle: TextStyle(
+                      hintStyle: fieldTextStyle?.copyWith(
                         color: AppColors.textPrimary.withOpacity(0.45),
+                        fontWeight: FontWeight.w500,
                       ),
                       filled: true,
                       fillColor: Colors.white,
@@ -278,30 +281,12 @@ class CreateSupportTicketScreen extends HookConsumerWidget {
                     ),
                   ),
                   SizedBox(height: 18.h),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 42.h,
-                    child: ElevatedButton(
-                      onPressed: state.isSubmitting ? null : submit,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFEA5A30),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(28.r),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: state.isSubmitting
-                          ? const SizedBox(
-                              height: 22,
-                              width: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text('Submit'),
-                    ),
+                  CustomElevatedButton(
+                    onPressed: state.isSubmitting ? null : submit,
+                    label: 'Submit',
+                    uppercaseLabel: false,
+                    height: 40.h,
+                    isLoading: state.isSubmitting,
                   ),
                   SizedBox(height: 20.h),
                 ],
@@ -315,9 +300,13 @@ class CreateSupportTicketScreen extends HookConsumerWidget {
 }
 
 class _DisabledField extends StatelessWidget {
-  const _DisabledField({required this.value});
+  const _DisabledField({
+    required this.value,
+    required this.textStyle,
+  });
 
   final String value;
+  final TextStyle? textStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -331,10 +320,7 @@ class _DisabledField extends StatelessWidget {
       ),
       child: Text(
         value,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
+        style: textStyle,
       ),
     );
   }
@@ -345,27 +331,37 @@ class _DropdownField<T> extends StatelessWidget {
     required this.value,
     required this.items,
     required this.itemLabel,
+    required this.textStyle,
     required this.onChanged,
   });
 
   final T value;
   final List<T> items;
   final String Function(T) itemLabel;
+  final TextStyle? textStyle;
   final ValueChanged<T?> onChanged;
 
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<T>(
-      initialValue: value,
+      value: value,
+      isExpanded: true,
       items: items
           .map(
             (e) => DropdownMenuItem<T>(
               value: e,
-              child: Text(itemLabel(e)),
+              child: Text(
+                itemLabel(e),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: textStyle,
+              ),
             ),
           )
           .toList(),
       onChanged: onChanged,
+      style: textStyle,
+      dropdownColor: Colors.white,
       decoration: InputDecoration(
         filled: true,
         fillColor: Colors.white,
@@ -381,9 +377,18 @@ class _DropdownField<T> extends StatelessWidget {
           borderRadius: BorderRadius.circular(14.r),
           borderSide: const BorderSide(color: AppColors.primary),
         ),
+        hintStyle: textStyle?.copyWith(
+          color: AppColors.textPrimary.withOpacity(0.45),
+          fontWeight: FontWeight.w500,
+        ),
         contentPadding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
       ),
-      icon: const Icon(Icons.keyboard_arrow_down),
+      icon: Icon(
+        Icons.keyboard_arrow_down_rounded,
+        size: 20.sp,
+        color: AppColors.textPrimary.withOpacity(0.7),
+      ),
+      borderRadius: BorderRadius.circular(14.r),
     );
   }
 }
@@ -392,11 +397,13 @@ class _ChoiceChipButton extends StatelessWidget {
   const _ChoiceChipButton({
     required this.selected,
     required this.text,
+    required this.textStyle,
     required this.onTap,
   });
 
   final bool selected;
   final String text;
+  final TextStyle? textStyle;
   final VoidCallback onTap;
 
   @override
@@ -419,10 +426,7 @@ class _ChoiceChipButton extends StatelessWidget {
             Expanded(
               child: Text(
                 text,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w700,
-                    ),
+                style: textStyle?.copyWith(fontWeight: FontWeight.w700),
               ),
             ),
             if (selected)

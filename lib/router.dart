@@ -44,6 +44,7 @@ import 'features/onboarding/views/pan_verification_view.dart';
 import 'features/onboarding/views/verification_result_view.dart';
 import 'features/profile/models/transaction_history_entry.dart';
 import 'features/profile/views/about_us_screen.dart';
+import 'features/profile/views/about_app_screen.dart';
 import 'features/profile/views/faq_screen.dart';
 import 'features/profile/views/help_center_chat_screen.dart';
 import 'features/profile/views/help_support_screen.dart';
@@ -189,12 +190,11 @@ final routerProvider = Provider<GoRouter>(
                   TemporaryBlockFlowType.deviceVerification,
                 _ => TemporaryBlockFlowType.kycVerified,
               };
-              final successRoute =
-                  flowType == TemporaryBlockFlowType.noKyc
-                      ? RouteConstants.kycVerification
-                      : (flowType == TemporaryBlockFlowType.deviceVerification
-                          ? RouteConstants.login
-                          : RouteConstants.temporaryBlockIdentityCompletion);
+              final successRoute = flowType == TemporaryBlockFlowType.noKyc
+                  ? RouteConstants.kycVerification
+                  : (flowType == TemporaryBlockFlowType.deviceVerification
+                      ? RouteConstants.login
+                      : RouteConstants.temporaryBlockIdentityCompletion);
               return OtpVerificationView(
                 args: OtpVerificationArgs(
                   phoneNumber: phone,
@@ -220,8 +220,7 @@ final routerProvider = Provider<GoRouter>(
                           : null,
                   successRouteUseGo:
                       flowType == TemporaryBlockFlowType.deviceVerification,
-                  clearTemporaryAccessOnSuccess:
-                      false,
+                  clearTemporaryAccessOnSuccess: false,
                   deviceVerificationId:
                       state.uri.queryParameters['verification_id'],
                   temporaryBlockFlowType: flowType,
@@ -394,10 +393,15 @@ final routerProvider = Provider<GoRouter>(
           builder: (context, state) => const AboutUsScreen(),
         ),
         GoRoute(
+          path: RouteConstants.aboutApp,
+          builder: (context, state) => const AboutAppScreen(),
+        ),
+        GoRoute(
           path: RouteConstants.termsPrivacy,
           builder: (context, state) => const PolicyPageScreen(
             slug: PolicyPageSlugs.termsAndConditions,
             title: 'Terms & Conditions',
+            showEnglishOnlyChip: true,
           ),
         ),
         GoRoute(

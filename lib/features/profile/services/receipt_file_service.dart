@@ -256,11 +256,28 @@ class ReceiptFileService {
     required Uint8List pdfBytes,
     required String transactionId,
   }) async {
-    final directory = Platform.isAndroid
-        ? await getExternalStorageDirectory()
-        : await getApplicationDocumentsDirectory();
-    final resolvedDir = directory ?? await getApplicationDocumentsDirectory();
-    final file = File('${resolvedDir.path}/receipt_$transactionId.pdf');
+    final fileName = 'receipt_$transactionId.pdf';
+
+    if (Platform.isAndroid) {
+      final downloadsDir = Directory('/storage/emulated/0/Download');
+      try {
+        if (await downloadsDir.exists()) {
+          final file = File('${downloadsDir.path}/$fileName');
+          return await file.writeAsBytes(pdfBytes, flush: true);
+        }
+      } catch (_) {
+        // Fall through to app-accessible storage.
+      }
+
+      final externalDir = await getExternalStorageDirectory();
+      if (externalDir != null) {
+        final file = File('${externalDir.path}/$fileName');
+        return await file.writeAsBytes(pdfBytes, flush: true);
+      }
+    }
+
+    final directory = await getApplicationDocumentsDirectory();
+    final file = File('${directory.path}/$fileName');
     return file.writeAsBytes(pdfBytes, flush: true);
   }
 

@@ -7,11 +7,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../../constants/app_colors.dart';
 import '../../../constants/file_constants.dart';
-import '../../../constants/routes_constant.dart';
 import '../../../widgets/app_snackbar.dart';
 import '../../../widgets/custom_elevated_button.dart';
+import '../models/support_latest_transaction.dart';
 import '../models/transaction_history_entry.dart';
 import '../utils/receipt_actions.dart';
+import 'create_support_ticket_screen.dart';
 
 class TransactionDetailScreen extends StatelessWidget {
   const TransactionDetailScreen({super.key, this.entry});
@@ -31,6 +32,8 @@ class TransactionDetailScreen extends StatelessWidget {
           totalAmountCharged: '',
           customerMobile: '',
           iconUrl: '',
+          pgTransactionId: '',
+          ecoinsTransactionId: '',
           transactionId: '',
           bankReferenceId: '',
           referenceId: '',
@@ -52,9 +55,21 @@ class TransactionDetailScreen extends StatelessWidget {
         ? tx.totalAmountCharged
         : tx.amount;
     final txnId = tx.transactionId.trim();
+    final pgTxnId = tx.pgTransactionId.trim();
+    final walletTxnId = tx.ecoinsTransactionId.trim();
     final bankRefId = tx.bankReferenceId.trim();
     final refId = tx.referenceId.trim();
     final receiptId = _resolveReceiptTransactionId(refId: refId, txnId: txnId);
+    final supportTransaction = SupportLatestTransaction(
+      id: refId.isNotEmpty ? refId : txnId,
+      paymentType: tx.paymentType.trim(),
+      billerName: tx.billerName.trim(),
+      amount: totalAmount.trim(),
+      status: tx.paymentStatus.trim(),
+      date: tx.transactionTime.trim(),
+      type: _resolveSupportTransactionType(tx),
+      transactionId: txnId,
+    );
     final primaryParam = tx.customerParams.isNotEmpty
         ? tx.customerParams.first
         : TransactionCustomerParam(
@@ -102,10 +117,16 @@ class TransactionDetailScreen extends StatelessWidget {
     final detailRows = <_DetailValueRow>[
       _DetailValueRow(label: 'Amount', value: _formatAmount(totalAmount)),
       _DetailValueRow(label: 'Payment Method', value: paymentMethod),
-      if (txnId.isNotEmpty)
+      if (pgTxnId.isNotEmpty)
         _DetailValueRow(
-          label: 'Transaction ID',
-          value: txnId,
+          label: 'PG Transaction ID',
+          value: pgTxnId,
+          copyable: true,
+        ),
+      if (walletTxnId.isNotEmpty)
+        _DetailValueRow(
+          label: 'Wallet Transaction ID',
+          value: walletTxnId,
           copyable: true,
         ),
       if (refId.isNotEmpty)
@@ -130,39 +151,38 @@ class TransactionDetailScreen extends StatelessWidget {
           final topPadding = MediaQuery.of(context).padding.top;
           final headerTop = topPadding + 40.h;
           final headerHorizontalPadding = 24.w;
-          final headerGap = hasStatusMessage ? 10.h : 16.h;
-          final headerWidth = constraints.maxWidth - (headerHorizontalPadding * 2);
-          final titleStyle =
-              Theme.of(context).textTheme.titleLarge?.copyWith(
+          final sectionGap = 10.h;
+          final titleToDateGap = 4.h;
+          final headerWidth =
+              constraints.maxWidth - (headerHorizontalPadding * 2);
+          final titleStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
                     fontSize: 17.sp,
                   ) ??
-                  TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 17.sp,
-                  );
-          final dateStyle =
-              Theme.of(context).textTheme.bodyMedium?.copyWith(
+              TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 17.sp,
+              );
+          final dateStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Colors.white.withOpacity(0.9),
                     fontSize: 10.5.sp,
                   ) ??
-                  TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 10.5.sp,
-                  );
-          final messageStyle =
-              Theme.of(context).textTheme.bodySmall?.copyWith(
+              TextStyle(
+                color: Colors.white.withOpacity(0.9),
+                fontSize: 10.5.sp,
+              );
+          final messageStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Colors.white,
                     height: 1.45,
                     fontSize: 9.5.sp,
                   ) ??
-                  TextStyle(
-                    color: Colors.white,
-                    height: 1.45,
-                    fontSize: 9.5.sp,
-                  );
+              TextStyle(
+                color: Colors.white,
+                height: 1.45,
+                fontSize: 9.5.sp,
+              );
           final titleHeight = _measureTextHeight(
             context,
             text: statusMeta.title,
@@ -183,16 +203,15 @@ class TransactionDetailScreen extends StatelessWidget {
                   maxWidth: headerWidth - 24.w,
                 )
               : 0.0;
-          final messageContainerHeight = hasStatusMessage
-              ? messageHeight + 18.h
-              : 0.0;
+          final messageContainerHeight =
+              hasStatusMessage ? messageHeight + 18.h : 0.0;
           final headerContentHeight = 52.h +
-              10.h +
+              sectionGap +
               titleHeight +
-              4.h +
+              titleToDateGap +
               dateHeight +
-              (hasStatusMessage ? headerGap + messageContainerHeight : 0.0);
-          final cardTop = headerTop + headerContentHeight + headerGap;
+              (hasStatusMessage ? sectionGap + messageContainerHeight : 0.0);
+          final cardTop = headerTop + headerContentHeight + sectionGap;
           final minHeaderHeight = 220.h;
           final computedHeaderHeight = cardTop + 24.h;
           final headerHeight = computedHeaderHeight < minHeaderHeight
@@ -264,14 +283,14 @@ class TransactionDetailScreen extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: titleStyle,
                     ),
-                    SizedBox(height: 4.h),
+                    SizedBox(height: titleToDateGap),
                     Text(
                       _formatHeaderDate(tx.transactionTime),
                       textAlign: TextAlign.center,
                       style: dateStyle,
                     ),
                     if (statusMeta.message.isNotEmpty) ...[
-                      SizedBox(height: headerGap),
+                      SizedBox(height: sectionGap),
                       Container(
                         width: double.infinity,
                         padding: EdgeInsets.symmetric(
@@ -303,10 +322,7 @@ class TransactionDetailScreen extends StatelessWidget {
                     children: [
                       Expanded(
                         child: SingleChildScrollView(
-                          padding: EdgeInsets.only(
-                            top: hasStatusMessage ? 0 : 6.h,
-                            bottom: 18.h,
-                          ),
+                          padding: EdgeInsets.only(bottom: 18.h),
                           child: Column(
                             children: [
                               _TransactionResultCard(
@@ -323,8 +339,16 @@ class TransactionDetailScreen extends StatelessWidget {
                                   _ResultActionButton(
                                     icon: Icons.headset_mic_outlined,
                                     label: 'Contact Support',
-                                    onTap: () => context
-                                        .push(RouteConstants.helpCenterChat),
+                                    onTap: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              CreateSupportTicketScreen(
+                                            transaction: supportTransaction,
+                                          ),
+                                        ),
+                                      );
+                                    },
                                   ),
                                   _ResultActionButton(
                                     icon: Icons.share_outlined,
@@ -783,6 +807,17 @@ String _resolveReceiptTransactionId({
   return ReceiptActions.resolveReceiptTransactionId(refId: refId, txnId: txnId);
 }
 
+String _resolveSupportTransactionType(TransactionHistoryEntry tx) {
+  final paymentType = tx.paymentType.trim().toLowerCase();
+  if (paymentType.contains('education')) return 'EDUCATION';
+  if (paymentType.contains('gold') ||
+      paymentType.contains('silver') ||
+      paymentType.contains('metal')) {
+    return 'METAL';
+  }
+  return 'BBPS';
+}
+
 bool _hasAmount(String raw) => raw.trim().isNotEmpty;
 
 String _formatAmount(String raw) {
@@ -794,7 +829,8 @@ String _formatAmount(String raw) {
 String _formatBreakdownValue(dynamic raw) {
   if (raw == null) return '';
   if (raw is num) {
-    final value = raw % 1 == 0 ? raw.toStringAsFixed(0) : raw.toStringAsFixed(2);
+    final value =
+        raw % 1 == 0 ? raw.toStringAsFixed(0) : raw.toStringAsFixed(2);
     return '₹$value';
   }
   final trimmed = raw.toString().trim();
