@@ -1,21 +1,25 @@
 // ignore_for_file: deprecated_member_use
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../../constants/app_colors.dart';
 import '../../../constants/routes_constant.dart';
 import '../../../utils/utils.dart';
 import '../../../widgets/app_snackbar.dart';
 import '../../../widgets/k_dialog.dart';
+import '../../profile/controllers/profile_controller.dart';
+import '../../profile/models/profile_model.dart';
 import '../../profile/repositories/bank_accounts_repository.dart';
 import '../components/refer_and_earn_app_bar.dart';
 import '../repositories/bank_account_repository.dart';
 
-class AddBankAccountView extends HookWidget {
+class AddBankAccountView extends HookConsumerWidget {
   const AddBankAccountView({
     super.key,
     this.existingAccount,
@@ -28,10 +32,13 @@ class AddBankAccountView extends HookWidget {
   final bool redirectToHomeOnSuccess;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isEdit = existingAccount != null;
     final step = useState(_BankStep.verify);
     final repository = useMemoized(() => BankAccountRepository());
+    final profileState = ref.watch(profileControllerProvider);
+    final isKycVerified =
+        profileState.profile?.kycStatus == ProfileKycStatus.verified;
 
     final accountController = useTextEditingController();
     final ifscController = useTextEditingController();
@@ -43,6 +50,14 @@ class AddBankAccountView extends HookWidget {
     final isVerifying = useState(false);
     final isSaving = useState(false);
     final referenceId = useState(existingAccount?.referenceId ?? '');
+
+    useEffect(() {
+      if (profileState.profile != null || profileState.isFetching) return null;
+      Future.microtask(
+        () => ref.read(profileControllerProvider.notifier).fetchProfile(),
+      );
+      return null;
+    }, [profileState.profile, profileState.isFetching]);
 
     useEffect(() {
       if (isEdit && existingAccount != null) {
@@ -60,6 +75,17 @@ class AddBankAccountView extends HookWidget {
     }, [existingAccount?.id, selectedBankName]);
 
     Future<void> handleVerify() async {
+      if (profileState.profile == null) {
+        AppSnackbar.show('Please wait while profile details are loading.');
+        return;
+      }
+      if (!isKycVerified) {
+        AppSnackbar.show('Please complete kyc first');
+        if (context.mounted) {
+          context.push(RouteConstants.kycVerification);
+        }
+        return;
+      }
       final accountNo = accountController.text.trim();
       final ifsc = ifscController.text.trim();
       if (accountNo.isEmpty || ifsc.isEmpty) {
@@ -83,7 +109,12 @@ class AddBankAccountView extends HookWidget {
           final message = response.message.isEmpty
               ? 'Unable to verify bank account.'
               : response.message;
-          if (_isKycMismatch(message)) {
+          if (_isKycVerificationRequired(message)) {
+            AppSnackbar.show(message);
+            if (context.mounted) {
+              context.push(RouteConstants.kycVerification);
+            }
+          } else if (_isKycMismatch(message)) {
             await KDialog.instance.openDialog(
               barrierDismissible: false,
               dialog: _KycMismatchDialog(
@@ -102,13 +133,30 @@ class AddBankAccountView extends HookWidget {
         referenceId.value = response.transactionReferenceNumber;
         step.value = _BankStep.confirm;
       } catch (e) {
-        AppSnackbar.show('Failed to verify account. Please try again.');
+        final message = _extractApiMessage(e);
+        final resolvedMessage =
+            message ?? 'Failed to verify account. Please try again.';
+        AppSnackbar.show(resolvedMessage);
+        if (_isKycVerificationRequired(resolvedMessage) && context.mounted) {
+          context.push(RouteConstants.kycVerification);
+        }
       } finally {
         isVerifying.value = false;
       }
     }
 
     Future<void> handleSave() async {
+      if (profileState.profile == null) {
+        AppSnackbar.show('Please wait while profile details are loading.');
+        return;
+      }
+      if (!isKycVerified) {
+        AppSnackbar.show('Please complete kyc first');
+        if (context.mounted) {
+          context.push(RouteConstants.kycVerification);
+        }
+        return;
+      }
       final accountNo = accountController.text.trim();
       final ifsc = ifscController.text.trim();
       final accountHolderName = nameController.text.trim();
@@ -308,6 +356,23 @@ class AddBankAccountView extends HookWidget {
       ),
     );
   }
+}
+
+String? _extractApiMessage(Object error) {
+  if (error is! DioException) return null;
+  final data = error.response?.data;
+  if (data is Map) {
+    final messages = data['messages'];
+    if (messages is Map) {
+      final nested = messages['error']?.toString().trim();
+      if (nested != null && nested.isNotEmpty) return nested;
+    }
+    final message = data['message']?.toString().trim();
+    if (message != null && message.isNotEmpty) return message;
+    final fallback = data['error']?.toString().trim();
+    if (fallback != null && fallback.isNotEmpty) return fallback;
+  }
+  return null;
 }
 
 enum _BankStep { verify, confirm }
@@ -716,5 +781,12 @@ class _BankAddedDialog extends HookWidget {
 
 bool _isKycMismatch(String message) {
   final lower = message.toLowerCase();
-  return lower.contains('kyc') || lower.contains('match');
+  return lower.contains('match');
+}
+
+bool _isKycVerificationRequired(String message) {
+  final lower = message.toLowerCase();
+  return lower.contains('complete your kyc') ||
+      lower.contains('complete kyc') ||
+      lower.contains('kyc verification');
 }

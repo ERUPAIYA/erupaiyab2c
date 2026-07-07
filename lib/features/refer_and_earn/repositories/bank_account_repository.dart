@@ -125,7 +125,7 @@ class BankVerifyResponse {
 
   factory BankVerifyResponse.fromJson(Map<String, dynamic> json) {
     return BankVerifyResponse(
-      status: (json['status'] ?? '').toString(),
+      status: json['status'],
       message: (json['message'] ?? '').toString(),
       creditorName: (json['creditorName'] ?? '').toString(),
       accountNumber: (json['accountNumber'] ?? '').toString(),
@@ -135,14 +135,18 @@ class BankVerifyResponse {
     );
   }
 
-  final String status;
+  final Object? status;
   final String message;
   final String creditorName;
   final String accountNumber;
   final String ifsc;
   final String transactionReferenceNumber;
 
-  bool get isSuccess => status.toUpperCase() == 'SUCCESS';
+  bool get isSuccess {
+    if (status is bool) return status as bool;
+    final normalized = status?.toString().trim().toLowerCase() ?? '';
+    return normalized == 'success' || normalized == 'true';
+  }
 }
 
 class BankAddResponse {

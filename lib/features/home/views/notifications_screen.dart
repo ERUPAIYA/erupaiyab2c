@@ -31,7 +31,8 @@ class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
   @override
-  ConsumerState<NotificationsScreen> createState() => _NotificationsScreenState();
+  ConsumerState<NotificationsScreen> createState() =>
+      _NotificationsScreenState();
 }
 
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
@@ -42,7 +43,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   void initState() {
     super.initState();
     Future.microtask(
-      () => ref.read(notificationsControllerProvider.notifier).fetchNotifications(),
+      () => ref
+          .read(notificationsControllerProvider.notifier)
+          .fetchNotifications(),
     );
   }
 
@@ -55,9 +58,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         .toList(growable: false);
     final unreadCountToSync = notificationsState.unreadCount > 0
         ? notificationsState.unreadCount
-        : items
-          .where((n) => !n.isRead && !localReadIds.contains(n.id))
-          .length;
+        : items.where((n) => !n.isRead && !localReadIds.contains(n.id)).length;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NotificationBadgeService.syncFromList(unreadCountToSync);
@@ -108,90 +109,128 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                               isLoading: notificationsState.isFetchingMore,
                               hasMore: notificationsState.hasMore,
                               onEndReached: () => ref
-                                  .read(notificationsControllerProvider.notifier)
+                                  .read(
+                                      notificationsControllerProvider.notifier)
                                   .fetchNextPage(),
                               child: Builder(
                                 builder: (context) {
                                   final unreadNotifications = items
-                                      .where((n) => !n.isRead && !localReadIds.contains(n.id))
+                                      .where((n) =>
+                                          !n.isRead &&
+                                          !localReadIds.contains(n.id))
                                       .toList(growable: false);
                                   final updates = items
-                                      .where((n) => n.isRead || localReadIds.contains(n.id))
+                                      .where((n) =>
+                                          n.isRead ||
+                                          localReadIds.contains(n.id))
                                       .toList(growable: false);
 
                                   final entries = <_NotificationsListEntry>[
                                     if (unreadNotifications.isNotEmpty) ...[
-                                      const _NotificationsListEntry.header('Unread'),
-                                      ...unreadNotifications.map(_NotificationsListEntry.unread),
+                                      const _NotificationsListEntry.header(
+                                          'Unread'),
+                                      ...unreadNotifications
+                                          .map(_NotificationsListEntry.unread),
                                     ],
                                     if (updates.isNotEmpty) ...[
-                                      const _NotificationsListEntry.header('Updates'),
-                                      ...updates.map(_NotificationsListEntry.update),
+                                      const _NotificationsListEntry.header(
+                                          'Updates'),
+                                      ...updates
+                                          .map(_NotificationsListEntry.update),
                                     ],
-                                    const _NotificationsListEntry.bottomSpacer(),
+                                    const _NotificationsListEntry
+                                        .bottomSpacer(),
                                   ];
 
                                   return CustomScrollView(
-                                    physics: const AlwaysScrollableScrollPhysics(),
+                                    physics:
+                                        const AlwaysScrollableScrollPhysics(),
                                     slivers: [
                                       SliverPadding(
-                                        padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 0),
+                                        padding: EdgeInsets.fromLTRB(
+                                            16.w, 8.h, 16.w, 0),
                                         sliver: SliverList(
                                           delegate: SliverChildBuilderDelegate(
                                             (context, index) {
                                               final entry = entries[index];
-                                              if (entry.kind == _NotificationsListEntryKind.header) {
+                                              if (entry.kind ==
+                                                  _NotificationsListEntryKind
+                                                      .header) {
                                                 return Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
                                                   children: [
-                                                    _SectionTitle(entry.headerText ?? ''),
+                                                    _SectionTitle(
+                                                        entry.headerText ?? ''),
                                                     SizedBox(height: 10.h),
                                                   ],
                                                 );
                                               }
                                               if (entry.kind ==
-                                                  _NotificationsListEntryKind.bottomSpacer) {
+                                                  _NotificationsListEntryKind
+                                                      .bottomSpacer) {
                                                 return SizedBox(height: 24.h);
                                               }
 
                                               final item = entry.item!;
                                               return Padding(
-                                                padding: EdgeInsets.only(bottom: 12.h),
+                                                padding: EdgeInsets.only(
+                                                    bottom: 12.h),
                                                 child: RepaintBoundary(
                                                   child: _NotificationCard(
                                                     item: item,
                                                     onClose: () {
-                                                      _handleNotificationClose(ref, item);
-                                                      setState(() => _dismissedIds.add(item.id));
+                                                      _handleNotificationClose(
+                                                          ref, item);
+                                                      setState(() =>
+                                                          _dismissedIds
+                                                              .add(item.id));
                                                     },
-                                                    onPrimary: () => _handleNotificationTap(
+                                                    onPrimary: () =>
+                                                        _handleNotificationTap(
                                                       context,
                                                       ref,
                                                       item,
                                                     ),
                                                     onSecondary: entry.kind ==
-                                                            _NotificationsListEntryKind.unread
-                                                        ? item.showRemindButton
+                                                            _NotificationsListEntryKind
+                                                                .unread
+                                                        ? item.isBillReminderNotification
                                                             ? () async {
-                                                                if (_remindingIds.contains(item.id)) {
+                                                                if (_remindingIds
+                                                                    .contains(item
+                                                                        .id)) {
                                                                   return;
                                                                 }
-                                                                setState(() => _remindingIds.add(item.id));
+                                                                setState(() =>
+                                                                    _remindingIds
+                                                                        .add(item
+                                                                            .id));
                                                                 final ok = await ref
-                                                                    .read(notificationsRepositoryProvider)
-                                                                    .remindMeLater(item.id);
+                                                                    .read(
+                                                                        notificationsRepositoryProvider)
+                                                                    .remindMeLater(
+                                                                        item.id);
                                                                 if (mounted) {
-                                                                  setState(() => _remindingIds.remove(item.id));
+                                                                  setState(() =>
+                                                                      _remindingIds
+                                                                          .remove(
+                                                                              item.id));
                                                                 }
                                                                 if (ok) {
-                                                                  AppSnackbar.show(
+                                                                  AppSnackbar
+                                                                      .show(
                                                                     'We will remind you later',
                                                                   );
                                                                   ref
-                                                                      .read(notificationsControllerProvider.notifier)
-                                                                      .fetchNotifications(force: true);
+                                                                      .read(notificationsControllerProvider
+                                                                          .notifier)
+                                                                      .fetchNotifications(
+                                                                          force:
+                                                                              true);
                                                                 } else {
-                                                                  AppSnackbar.show(
+                                                                  AppSnackbar
+                                                                      .show(
                                                                     'Failed to set reminder. Please try again.',
                                                                   );
                                                                 }
@@ -199,17 +238,24 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                                             : null
                                                         : null,
                                                     secondaryLoading:
-                                                        _remindingIds.contains(item.id),
-                                                    primaryLabel: _primaryLabelFor(item),
-                                                    secondaryLabel: entry.kind ==
-                                                                    _NotificationsListEntryKind.unread &&
-                                                                item.showRemindButton
+                                                        _remindingIds
+                                                            .contains(item.id),
+                                                    primaryLabel:
+                                                        _primaryLabelFor(item),
+                                                    secondaryLabel: entry
+                                                                    .kind ==
+                                                                _NotificationsListEntryKind
+                                                                    .unread &&
+                                                            item.isBillReminderNotification
                                                         ? 'Remind me Later'
                                                         : null,
-                                                    isPrimaryFullWidth:
-                                                        entry.kind == _NotificationsListEntryKind.update
-                                                            ? true
-                                                            : !item.showRemindButton,
+                                                    isPrimaryFullWidth: entry
+                                                                .kind ==
+                                                            _NotificationsListEntryKind
+                                                                .update
+                                                        ? true
+                                                        : !item
+                                                            .isBillReminderNotification,
                                                   ),
                                                 ),
                                               );
@@ -220,10 +266,13 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                                       ),
                                       SliverToBoxAdapter(
                                         child: AnimatedSwitcher(
-                                          duration: const Duration(milliseconds: 200),
-                                          child: notificationsState.isFetchingMore
+                                          duration:
+                                              const Duration(milliseconds: 200),
+                                          child: notificationsState
+                                                  .isFetchingMore
                                               ? Padding(
-                                                  padding: EdgeInsets.only(bottom: 24.h),
+                                                  padding: EdgeInsets.only(
+                                                      bottom: 24.h),
                                                   child: const Center(
                                                     child: SpinKitCircle(
                                                       color: AppColors.primary,
@@ -355,10 +404,12 @@ Future<void> _openPlayStore() async {
 }
 
 String _primaryLabelFor(NotificationItem item) {
+  if (item.isBillPaymentSuccessNotification) return 'View';
   final redirect = (item.redirectScreen ?? '').trim().toLowerCase();
   if (redirect == 'spin_screen') return 'Play Now';
   if (redirect == 'app_update_screen') return 'Tap To Update';
-  return 'Pay Now';
+  if (item.isBillReminderNotification) return 'Pay Now';
+  return 'View';
 }
 
 String _relativeAge(DateTime? dateTime) {

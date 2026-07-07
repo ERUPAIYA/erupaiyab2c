@@ -49,6 +49,7 @@ List<int> _filterContactIndices(Map<String, dynamic> payload) {
   final rawEntries = payload['entries'] as List<dynamic>? ?? const [];
   final query = (payload['query'] as String? ?? '').toLowerCase();
   final queryDigits = query.replaceAll(RegExp(r'\D'), '');
+  final normalizedQueryDigits = _normalizeMobile(queryDigits);
   if (rawEntries.isEmpty) return const [];
   if (query.isEmpty) {
     return List<int>.generate(rawEntries.length, (index) => index);
@@ -57,10 +58,18 @@ List<int> _filterContactIndices(Map<String, dynamic> payload) {
   for (var i = 0; i < rawEntries.length; i++) {
     final entry = rawEntries[i] as Map;
     final name = (entry['name'] as String? ?? '');
-    final phone = (entry['phone'] as String? ?? '');
+    final phone = (entry['phone'] as String? ?? '').replaceAll(
+      RegExp(r'\D'),
+      '',
+    );
+    final normalizedPhone = _normalizeMobile(phone);
     final matchesName = name.contains(query);
-    final matchesPhone =
-        queryDigits.isNotEmpty ? phone.contains(queryDigits) : false;
+    final matchesPhone = queryDigits.isNotEmpty &&
+        (
+          phone.contains(queryDigits) ||
+          (normalizedQueryDigits.isNotEmpty &&
+              normalizedPhone.contains(normalizedQueryDigits))
+        );
     if (matchesName || matchesPhone) {
       matches.add(i);
     }

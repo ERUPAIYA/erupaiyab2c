@@ -176,6 +176,7 @@ class QuickActionsView extends HookConsumerWidget {
                                         billerName: billerName,
                                         icon: item.icon,
                                       ),
+                                      categoryName: item.paymentType,
                                     );
                                 context.push(
                                   RouteConstants.billerDetail,

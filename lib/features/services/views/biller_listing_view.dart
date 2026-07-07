@@ -110,6 +110,35 @@ List<int> _filterContactIndices(Map<String, dynamic> payload) {
   return matches;
 }
 
+Biller? _findRecentBillerMatch({
+  required LatestTransaction txn,
+  required List<Biller> billers,
+}) {
+  final recentBillerId = txn.billerId.trim();
+  if (recentBillerId.isNotEmpty) {
+    for (final biller in billers) {
+      if (biller.billerId.trim() == recentBillerId) {
+        return biller;
+      }
+    }
+
+    return Biller(
+      billerId: recentBillerId,
+      billerName: txn.billerName.trim(),
+      icon: txn.icon.trim().isNotEmpty ? txn.icon.trim() : null,
+    );
+  }
+
+  final recentBillerName = txn.billerName.trim().toLowerCase();
+  if (recentBillerName.isEmpty) return null;
+  for (final biller in billers) {
+    if (biller.billerName.trim().toLowerCase() == recentBillerName) {
+      return biller;
+    }
+  }
+  return null;
+}
+
 class BillerListingView extends HookConsumerWidget {
   const BillerListingView({super.key, required this.categoryName});
 
@@ -176,9 +205,10 @@ class BillerListingView extends HookConsumerWidget {
                 .read(billerListingControllerProvider.notifier)
                 .fetchNextPage(),
             onTapBiller: (biller) {
-              ref
-                  .read(billerDetailControllerProvider.notifier)
-                  .selectBiller(biller);
+              ref.read(billerDetailControllerProvider.notifier).selectBiller(
+                    biller,
+                    categoryName: categoryName,
+                  );
               context.push(
                 RouteConstants.billerDetail,
                 extra: BillerDetailArgs(
@@ -188,16 +218,15 @@ class BillerListingView extends HookConsumerWidget {
               );
             },
             onPayNowRecent: (txn) {
-              final normalized = txn.billerName.trim().toLowerCase();
-              if (normalized.isEmpty) return;
-              final match = billers.where((b) {
-                return b.billerName.trim().toLowerCase() == normalized;
-              }).toList();
-              if (match.isEmpty) return;
-              final biller = match.first;
-              ref
-                  .read(billerDetailControllerProvider.notifier)
-                  .selectBiller(biller);
+              final biller = _findRecentBillerMatch(
+                txn: txn,
+                billers: billers,
+              );
+              if (biller == null) return;
+              ref.read(billerDetailControllerProvider.notifier).selectBiller(
+                    biller,
+                    categoryName: categoryName,
+                  );
               context.push(
                 RouteConstants.billerDetail,
                 extra: BillerDetailArgs(
@@ -239,7 +268,10 @@ class _StandardBillerListingBody extends HookConsumerWidget {
     final billers = listingState.billers;
 
     void openBiller(Biller biller) {
-      ref.read(billerDetailControllerProvider.notifier).selectBiller(biller);
+      ref.read(billerDetailControllerProvider.notifier).selectBiller(
+            biller,
+            categoryName: categoryName,
+          );
       context.push(
         RouteConstants.billerDetail,
         extra: BillerDetailArgs(
@@ -305,7 +337,10 @@ class _ElectricityFlow extends HookConsumerWidget {
     );
 
     void openBiller(Biller biller) {
-      ref.read(billerDetailControllerProvider.notifier).selectBiller(biller);
+      ref.read(billerDetailControllerProvider.notifier).selectBiller(
+            biller,
+            categoryName: categoryName,
+          );
       context.push(
         RouteConstants.billerDetail,
         extra: BillerDetailArgs(
@@ -320,28 +355,25 @@ class _ElectricityFlow extends HookConsumerWidget {
         ServiceRecentSection(
           recentTransactions: recentTransactions,
           onPayNow: (txn) {
-            final normalizedBiller = txn.billerName.trim().toLowerCase();
-            if (normalizedBiller.isEmpty) return;
-
-            final match = billers.where((b) {
-              return b.billerName.trim().toLowerCase() == normalizedBiller;
-            }).toList();
-            if (match.isEmpty) {
+            final biller = _findRecentBillerMatch(
+              txn: txn,
+              billers: billers,
+            );
+            if (biller == null) {
               AppSnackbar.show(
                   'Provider not found. Please select from the list.');
               return;
             }
-
-            final biller = match.first;
             final identifier = (txn.serviceNoFull ?? '').trim().isNotEmpty
                 ? txn.serviceNoFull!.trim()
                 : txn.serviceNo.trim();
             final isMaskedIdentifier = identifier.contains('*') ||
                 identifier.toLowerCase().contains('x');
 
-            ref
-                .read(billerDetailControllerProvider.notifier)
-                .selectBiller(biller);
+            ref.read(billerDetailControllerProvider.notifier).selectBiller(
+                  biller,
+                  categoryName: categoryName,
+                );
             context.push(
               RouteConstants.billerDetail,
               extra: BillerDetailArgs(
@@ -627,21 +659,18 @@ class _MobilePostpaidFlow extends HookConsumerWidget {
                           ref.read(billerListingControllerProvider).billers;
                       if (billersNow.isEmpty) return;
 
-                      final recentBillerName = txn.billerName.trim();
-                      Biller? selected;
-                      if (recentBillerName.isNotEmpty) {
-                        for (final b in billersNow) {
-                          if (b.billerName.trim() == recentBillerName) {
-                            selected = b;
-                            break;
-                          }
-                        }
-                      }
+                      Biller? selected = _findRecentBillerMatch(
+                        txn: txn,
+                        billers: billersNow,
+                      );
                       selected ??= billersNow.first;
 
                       ref
                           .read(billerDetailControllerProvider.notifier)
-                          .selectBiller(selected);
+                          .selectBiller(
+                            selected,
+                            categoryName: categoryName,
+                          );
                       context.push(
                         RouteConstants.billerDetail,
                         extra: BillerDetailArgs(
@@ -721,7 +750,10 @@ class _MobilePostpaidFlow extends HookConsumerWidget {
                     final biller = selectedBiller.value!;
                     ref
                         .read(billerDetailControllerProvider.notifier)
-                        .selectBiller(biller);
+                        .selectBiller(
+                          biller,
+                          categoryName: categoryName,
+                        );
                     context.push(
                       RouteConstants.billerDetail,
                       extra: BillerDetailArgs(

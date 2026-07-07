@@ -1,6 +1,7 @@
 class BillResponse {
   const BillResponse({
     required this.refId,
+    required this.fetchRefId,
     required this.amountInPaisa,
     required this.accountHolderName,
     required this.dueDate,
@@ -28,6 +29,7 @@ class BillResponse {
 
     return BillResponse(
       refId: payload['refId'] as String? ?? '',
+      fetchRefId: (json['fetch_ref_id'] ?? '').toString(),
       amountInPaisa: billerResponse['amount'] as String? ?? '0',
       accountHolderName: billerResponse['accountHolderName'] as String? ?? '',
       dueDate: billerResponse['dueDate'] as String? ?? '',
@@ -43,6 +45,7 @@ class BillResponse {
   }
 
   final String refId;
+  final String fetchRefId;
   final String amountInPaisa;
   final String accountHolderName;
   final String dueDate;

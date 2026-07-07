@@ -10,6 +10,7 @@ class PrepaidTransactionStatus {
     required this.razorpayAmount,
     required this.transactionId,
     required this.updatedAt,
+    required this.raw,
   });
 
   final String status;
@@ -22,6 +23,7 @@ class PrepaidTransactionStatus {
   final String razorpayAmount;
   final String transactionId;
   final String updatedAt;
+  final Map<String, dynamic> raw;
 
   bool get isSuccess => status.trim().toUpperCase() == 'SUCCESS';
   bool get isFailed => status.trim().toUpperCase() == 'FAILED';
@@ -65,6 +67,7 @@ class PrepaidTransactionStatus {
           ? read('transaction_id')
           : read('transactionId'),
       updatedAt: read('updated_at'),
+      raw: json,
     );
   }
 }

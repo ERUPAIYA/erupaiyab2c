@@ -154,6 +154,8 @@ class MobilePrepaidRepository {
     required String circleCode,
     String search = '',
     List<String> filters = const [],
+    int page = 1,
+    int limit = 20,
   }) async {
     try {
       final normalizedFilters =
@@ -165,6 +167,8 @@ class MobilePrepaidRepository {
           'mobile': mobile,
           'operator': operatorName,
           'circlecode': circleCode,
+          'page': page,
+          'limit': limit,
           if (trimmedSearch.isNotEmpty) 'search': trimmedSearch,
           if (normalizedFilters.isNotEmpty)
             'filter': normalizedFilters.length == 1
@@ -179,6 +183,7 @@ class MobilePrepaidRepository {
       final data = payload['data'] as Map<String, dynamic>? ?? {};
 
       final filtersMap = payload['filters'] as Map<String, dynamic>? ?? {};
+      final pagination = payload['pagination'] as Map<String, dynamic>? ?? {};
       final validityFilters = (filtersMap['validity'] is List)
           ? (filtersMap['validity'] as List).map((e) => e.toString()).toList()
           : const <String>[];
@@ -190,14 +195,22 @@ class MobilePrepaidRepository {
           : normalizedFilters;
       final ecoinsRestrictionsPercent =
           double.tryParse((payload['ecoins_restrictions'] ?? '').toString());
+      final hasPagination = pagination.isNotEmpty;
+      final currentPage = _parseInt(pagination['current_page']) ?? page;
+      final resolvedLimit = _parseInt(pagination['limit']) ?? limit;
+      final totalRecords = _parseInt(pagination['total_records']) ?? 0;
+      final totalPages = _parseInt(pagination['total_pages']) ?? 1;
 
       final result = <String, List<PlanItem>>{};
+      var totalPlansCount = 0;
       data.forEach((key, value) {
         if (value is List) {
-          result[key] = value
+          final plans = value
               .map((item) =>
                   PlanItem.fromJson(item as Map<String, dynamic>? ?? {}))
               .toList();
+          result[key] = plans;
+          totalPlansCount += plans.length;
         }
       });
       return PrepaidPlansResponse(
@@ -205,6 +218,13 @@ class MobilePrepaidRepository {
         validityFilters: validityFilters,
         dataFilters: dataFilters,
         filterTags: filterTags,
+        currentPage: currentPage,
+        totalPages: totalPages,
+        totalRecords: totalRecords,
+        limit: resolvedLimit,
+        hasMorePages: hasPagination
+            ? currentPage < totalPages
+            : totalPlansCount >= resolvedLimit,
         ecoinsRestrictionsPercent: ecoinsRestrictionsPercent,
       );
     } catch (e, stackTrace) {
@@ -215,6 +235,11 @@ class MobilePrepaidRepository {
       );
       rethrow;
     }
+  }
+
+  int? _parseInt(dynamic value) {
+    if (value is int) return value;
+    return int.tryParse(value?.toString() ?? '');
   }
 
   Future<List<OperatorOption>> fetchOperators() async {

@@ -460,7 +460,6 @@ class _StatusChip extends StatelessWidget {
               Text(
                 mode,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.textPrimary,
                       fontWeight: FontWeight.w600,
                     ),
               ),

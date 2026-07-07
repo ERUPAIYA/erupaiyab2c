@@ -81,7 +81,10 @@ class CreditCardListingView extends HookConsumerWidget {
       }
 
       final biller = match.first;
-      ref.read(billerDetailControllerProvider.notifier).selectBiller(biller);
+      ref.read(billerDetailControllerProvider.notifier).selectBiller(
+            biller,
+            categoryName: 'Credit card',
+          );
       context.push(
         RouteConstants.billerDetail,
         extra: BillerDetailArgs(
@@ -161,7 +164,10 @@ class CreditCardListingView extends HookConsumerWidget {
                                           billerDetailControllerProvider
                                               .notifier,
                                         )
-                                        .selectBiller(biller);
+                                    .selectBiller(
+                                      biller,
+                                      categoryName: 'Credit card',
+                                    );
                                     context.push(
                                       RouteConstants.billerDetail,
                                       extra: BillerDetailArgs(
@@ -227,7 +233,10 @@ class CreditCardListingView extends HookConsumerWidget {
                                                                   .notifier,
                                                             )
                                                             .selectBiller(
-                                                                biller);
+                                                              biller,
+                                                              categoryName:
+                                                                  'Credit card',
+                                                            );
                                                         context.push(
                                                           RouteConstants
                                                               .billerDetail,
@@ -270,7 +279,11 @@ class CreditCardListingView extends HookConsumerWidget {
                                                           billerDetailControllerProvider
                                                               .notifier,
                                                         )
-                                                        .selectBiller(biller);
+                                                        .selectBiller(
+                                                          biller,
+                                                          categoryName:
+                                                              'Credit card',
+                                                        );
                                                     context.push(
                                                       RouteConstants
                                                           .billerDetail,

@@ -1,4 +1,3 @@
-import 'package:e_rupaiya/constants/app_colors.dart';
 // import 'package:e_rupaiya/services/screen_security_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -30,8 +29,6 @@ Future<void> main() async {
     ),
   );
 
-  // Do not block first render on plugin/IO initialization; it can make the
-  // native splash appear "stuck" on some devices (especially first install).
   Future.microtask(() async {
     try {
       if (!dotenv.isInitialized) {
@@ -107,7 +104,8 @@ class MyApp extends HookConsumerWidget {
         scaffoldMessengerKey: AppSnackbar.messengerKey,
         title: 'eRupaiya',
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary),
+          colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color.fromARGB(255, 203, 137, 115)),
           textTheme: GoogleFonts.plusJakartaSansTextTheme(
             ThemeData.light().textTheme,
           ),

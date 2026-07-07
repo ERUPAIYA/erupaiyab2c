@@ -1,6 +1,7 @@
 class LatestTransaction {
   const LatestTransaction({
     required this.id,
+    this.billerId = '',
     required this.paymentType,
     required this.billerName,
     required this.amount,
@@ -16,6 +17,7 @@ class LatestTransaction {
   });
 
   final String id;
+  final String billerId;
   final String paymentType;
   final String billerName;
   final num amount;
@@ -32,6 +34,7 @@ class LatestTransaction {
   factory LatestTransaction.fromJson(Map<String, dynamic> json) {
     return LatestTransaction(
       id: (json['id'] ?? '').toString(),
+      billerId: (json['biller_id'] ?? json['provider_id'] ?? '').toString(),
       paymentType: (json['payment_type'] ?? '').toString(),
       billerName: (json['biller_name'] ?? '').toString(),
       amount: json['amount'] is num

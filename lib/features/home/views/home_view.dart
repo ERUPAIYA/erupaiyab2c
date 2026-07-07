@@ -55,6 +55,12 @@ import 'notifications_screen.dart';
 
 part 'home_view_parts.dart';
 
+void _showInvestmentComingSoonMessage() {
+  AppSnackbar.show(
+    'This service is currently unavailable. Sorry for the inconvenience.',
+  );
+}
+
 class HomeView extends HookConsumerWidget {
   const HomeView({super.key});
 

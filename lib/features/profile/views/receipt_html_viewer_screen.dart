@@ -41,48 +41,39 @@ class _ReceiptHtmlViewerScreenState extends State<ReceiptHtmlViewerScreen> {
     if (_isBusy) return;
     setState(() => _isBusy = true);
     try {
-      if (Platform.isAndroid) {
-        final pdfFile = await ReceiptFileService.buildPdfFileFromHtmlViaWebView(
-          html: widget.html,
-          transactionId: widget.transactionId,
-        );
-        await Share.shareXFiles(
-          [
-            XFile(
-              pdfFile.path,
-              mimeType: 'application/pdf',
-              name: 'receipt_${widget.transactionId}.pdf',
-            ),
-          ],
-          text: 'Payment Receipt',
-        );
-      } else {
-        final pdfBytes =
-            await ReceiptFileService.buildPdfBytesFromHtml(widget.html);
-        final imageFile = await ReceiptFileService.savePngFromPdfBytes(
-          pdfBytes: pdfBytes,
-          transactionId: widget.transactionId,
-        );
-        await Share.shareXFiles([XFile(imageFile.path)]);
-      }
-    } catch (e) {
-      AppSnackbar.show(e.toString());
-    } finally {
-      if (mounted) setState(() => _isBusy = false);
-    }
-  }
-
-  Future<void> _handleDownload() async {
-    if (_isBusy) return;
-    setState(() => _isBusy = true);
-    try {
-      final pdfBytes =
-          await ReceiptFileService.buildPdfBytesFromHtml(widget.html);
-      final file = await ReceiptFileService.savePdfToDownloads(
-        pdfBytes: pdfBytes,
-        transactionId: widget.transactionId,
+      final cached =
+          await ReceiptFileService.getCachedReceipt(widget.transactionId);
+      final pdfFile = cached ??
+          await (() async {
+            if (Platform.isAndroid) {
+              final generated =
+                  await ReceiptFileService.buildPdfFileFromHtmlViaWebView(
+                html: widget.html,
+                transactionId: widget.transactionId,
+              );
+              final bytes = await generated.readAsBytes();
+              return ReceiptFileService.savePdfToCache(
+                pdfBytes: bytes,
+                transactionId: widget.transactionId,
+              );
+            }
+            final pdfBytes =
+                await ReceiptFileService.buildPdfBytesFromHtml(widget.html);
+            return ReceiptFileService.savePdfToCache(
+              pdfBytes: pdfBytes,
+              transactionId: widget.transactionId,
+            );
+          })();
+      await Share.shareXFiles(
+        [
+          XFile(
+            pdfFile.path,
+            mimeType: 'application/pdf',
+            name: 'receipt_${widget.transactionId}.pdf',
+          ),
+        ],
+        text: 'Payment Receipt',
       );
-      AppSnackbar.show('Receipt saved to ${file.path}');
     } catch (e) {
       AppSnackbar.show(e.toString());
     } finally {

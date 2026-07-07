@@ -12,8 +12,8 @@ import '../../../widgets/app_snackbar.dart';
 import '../../../widgets/custom_elevated_button.dart';
 import '../../../widgets/grey_text_form_field.dart';
 import '../../../widgets/k_dialog.dart';
-import '../controllers/auth_controller.dart';
 import '../../profile/controllers/profile_controller.dart';
+import '../controllers/auth_controller.dart';
 
 class TemporaryBlockIdentityCompletionView extends HookConsumerWidget {
   const TemporaryBlockIdentityCompletionView({super.key});
@@ -181,7 +181,8 @@ class TemporaryBlockIdentityCompletionView extends HookConsumerWidget {
                     child: Text(
                       'Your information is encrypted and securely processed for verification purposes only.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.textPrimary.withValues(alpha: 0.68),
+                            color:
+                                AppColors.textPrimary.withValues(alpha: 0.68),
                             height: 1.4,
                           ),
                     ),
@@ -273,7 +274,7 @@ class _TemporaryBlockSuccessDialog extends StatelessWidget {
               onPressed: onContinue,
               label: 'Continue to Login',
               showArrow: false,
-              height: 42.h,
+              height: 40.h,
             ),
           ],
         ),

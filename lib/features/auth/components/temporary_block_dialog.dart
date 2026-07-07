@@ -88,7 +88,7 @@ class TemporaryBlockDialog extends StatelessWidget {
                     onPressed: onPrimaryTap,
                     label: primaryLabel,
                     showArrow: false,
-                    height: 42.h,
+                    height: 40.h,
                   ),
                 ),
               ],

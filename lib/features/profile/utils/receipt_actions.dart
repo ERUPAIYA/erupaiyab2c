@@ -8,14 +8,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../../../constants/app_colors.dart';
 import '../../../config/app_env.dart';
+import '../../../constants/app_colors.dart';
 import '../../../widgets/app_snackbar.dart';
 import '../../../widgets/k_dialog.dart';
 import '../repositories/receipt_repository.dart';
 import '../services/receipt_file_service.dart';
 import '../utils/receipt_html_renderer.dart';
-import '../views/receipt_html_viewer_screen.dart';
 import '../views/receipt_viewer_screen.dart';
 
 void _debugLog(String message) {
@@ -27,6 +26,8 @@ enum ReceiptAction { share, download }
 
 class ReceiptActions {
   ReceiptActions._();
+
+  static final Map<String, Future<File>> _pendingPdfBuilds = {};
 
   static String resolveReceiptTransactionId({
     required String refId,
@@ -48,97 +49,29 @@ class ReceiptActions {
 
     BuildContext? dialogContext;
     try {
-      dialogContext = navigatorKey.currentContext;
-      if (dialogContext != null) {
-        showDialog(
-          context: dialogContext,
-          barrierDismissible: false,
-          builder: (_) => const Center(
-            child: SpinKitCircle(
-              color: AppColors.primary,
-              size: 48,
-            ),
-          ),
-        );
-      }
-
-      if (Platform.isAndroid) {
-        _debugLog('[Receipt] Android flow start: $transactionId');
-        final html = await _fetchReceiptHtml(transactionId);
-        _debugLog('[Receipt] HTML fetched (${html.length} chars)');
-        if (action == ReceiptAction.share) {
-          _hideLoading(dialogContext);
-          _debugLog('[Receipt] Converting HTML to PDF for sharing');
-          File pdfFile;
-          try {
-            pdfFile = await ReceiptFileService.buildPdfFileFromHtmlViaWebView(
-              html: html,
-              transactionId: transactionId,
-            );
-          } catch (e) {
-            _debugLog('[Receipt] Native WebView PDF failed: $e');
-            final shareResult = await _buildSharePdfBytes(html);
-            final pdfBytes = shareResult.bytes;
-            if (shareResult.usedFallback) {
-              AppSnackbar.show(
-                'Using a basic receipt because full rendering is unavailable.',
-              );
-            }
-            pdfFile = await ReceiptFileService.savePdfToTemp(
-              pdfBytes: pdfBytes,
-              transactionId: transactionId,
+      if (action == ReceiptAction.share) {
+        final cached = await ReceiptFileService.getCachedReceipt(transactionId);
+        if (cached == null) {
+          dialogContext = navigatorKey.currentContext;
+          if (dialogContext != null && dialogContext.mounted) {
+            showDialog(
+              context: dialogContext,
+              barrierDismissible: false,
+              builder: (_) => const Center(
+                child: SpinKitCircle(
+                  color: AppColors.primary,
+                  size: 48,
+                ),
+              ),
             );
           }
-          _debugLog('[Receipt] PDF saved: ${pdfFile.path}');
-          await Share.shareXFiles(
-            [
-              XFile(
-                pdfFile.path,
-                mimeType: 'application/pdf',
-                name: 'receipt_$transactionId.pdf',
-              ),
-            ],
-            text: 'Payment Receipt',
-          );
-          _debugLog('[Receipt] Share sheet invoked');
-        } else {
-          final pdfBytes = await ReceiptFileService.buildPdfBytesFromHtml(html);
-          _debugLog('[Receipt] PDF bytes generated (${pdfBytes.length} bytes)');
-          final file = await ReceiptFileService.savePdfToDownloads(
-            pdfBytes: pdfBytes,
-            transactionId: transactionId,
-          );
-          _hideLoading(dialogContext);
-          if (!context.mounted) return;
-          await _showDownloadSuccessDialog(
-            context,
-            transactionId: transactionId,
-            file: file,
-            onOpen: () async {
-              await Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => ReceiptViewerScreen(
-                    pdfBytes: pdfBytes,
-                    transactionId: transactionId,
-                  ),
-                ),
-              );
-            },
-          );
         }
-        return;
-      }
-
-      _debugLog('[Receipt] Non-Android flow start: $transactionId');
-      final pdfBytes = await _fetchReceiptPdfBytes(transactionId);
-      _debugLog('[Receipt] PDF bytes generated (${pdfBytes.length} bytes)');
-      if (action == ReceiptAction.share) {
+        final pdfFile = cached ??
+            await _getOrBuildReceiptPdf(
+              transactionId,
+              preferWebViewOnAndroid: true,
+            );
         _hideLoading(dialogContext);
-        final pdfFile = await ReceiptFileService.savePdfToTemp(
-          pdfBytes: pdfBytes,
-          transactionId: transactionId,
-        );
-        _debugLog('[Receipt] PDF saved: ${pdfFile.path}');
         await Share.shareXFiles(
           [
             XFile(
@@ -151,24 +84,25 @@ class ReceiptActions {
         );
         _debugLog('[Receipt] Share sheet invoked');
       } else {
-        final file = await _saveReceiptPdf(
-          bytes: pdfBytes,
+        final cachedFile = await _getOrBuildReceiptPdf(
+          transactionId,
+          preferWebViewOnAndroid: Platform.isAndroid,
+        );
+        final bytes = await cachedFile.readAsBytes();
+        final file = await ReceiptFileService.savePdfToDownloads(
+          pdfBytes: bytes,
           transactionId: transactionId,
         );
-        _hideLoading(dialogContext);
         if (!context.mounted) return;
         await _showDownloadSuccessDialog(
           context,
           transactionId: transactionId,
           file: file,
           onOpen: () async {
-            await Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => ReceiptViewerScreen(
-                  pdfBytes: pdfBytes,
-                  transactionId: transactionId,
-                ),
-              ),
+            await _openReceiptPdfFile(
+              context,
+              transactionId: transactionId,
+              file: cachedFile,
             );
           },
         );
@@ -192,8 +126,19 @@ class ReceiptActions {
 
     BuildContext? dialogContext;
     try {
+      final cached = await ReceiptFileService.getCachedReceipt(transactionId);
+      if (cached != null) {
+        if (!context.mounted) return;
+        await _openReceiptPdfFile(
+          context,
+          transactionId: transactionId,
+          file: cached,
+        );
+        return;
+      }
+
       dialogContext = navigatorKey.currentContext;
-      if (dialogContext != null) {
+      if (dialogContext != null && dialogContext.mounted) {
         showDialog(
           context: dialogContext,
           barrierDismissible: false,
@@ -205,32 +150,16 @@ class ReceiptActions {
           ),
         );
       }
-
-      if (Platform.isAndroid) {
-        final html = await _fetchReceiptHtml(transactionId);
-        _hideLoading(dialogContext);
-        if (!context.mounted) return;
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => ReceiptHtmlViewerScreen(
-              html: html,
-              transactionId: transactionId,
-            ),
-          ),
-        );
-        return;
-      }
-
-      final pdfBytes = await _fetchReceiptPdfBytes(transactionId);
+      final file = await _getOrBuildReceiptPdf(
+        transactionId,
+        preferWebViewOnAndroid: Platform.isAndroid,
+      );
       _hideLoading(dialogContext);
       if (!context.mounted) return;
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ReceiptViewerScreen(
-            pdfBytes: pdfBytes,
-            transactionId: transactionId,
-          ),
-        ),
+      await _openReceiptPdfFile(
+        context,
+        transactionId: transactionId,
+        file: file,
       );
     } catch (e, t) {
       _debugLog('Receipt view error: $e');
@@ -275,15 +204,6 @@ class ReceiptActions {
     }
   }
 
-  static Future<Uint8List> _fetchReceiptPdfBytes(String transactionId) async {
-    final repo = ReceiptRepository();
-    final html = await repo.fetchReceiptHtml(transactionId: transactionId);
-    if (html.trim().isEmpty) {
-      throw Exception('Empty receipt content.');
-    }
-    return ReceiptHtmlRenderer.toPdfBytes(html);
-  }
-
   static Future<String> _fetchReceiptHtml(String transactionId) async {
     final repo = ReceiptRepository();
     final html = await repo.fetchReceiptHtml(transactionId: transactionId);
@@ -293,12 +213,91 @@ class ReceiptActions {
     return html;
   }
 
-  static Future<File> _saveReceiptPdf({
-    required List<int> bytes,
+  static Future<void> _openReceiptPdfFile(
+    BuildContext context, {
     required String transactionId,
+    required File file,
   }) async {
-    return ReceiptFileService.savePdfToDownloads(
-      pdfBytes: Uint8List.fromList(bytes),
+    final pdfBytes = await file.readAsBytes();
+    if (!context.mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ReceiptViewerScreen(
+          pdfBytes: pdfBytes,
+          transactionId: transactionId,
+        ),
+      ),
+    );
+  }
+
+  static Future<File> _getOrBuildReceiptPdf(
+    String transactionId, {
+    required bool preferWebViewOnAndroid,
+  }) async {
+    final cached = await ReceiptFileService.getCachedReceipt(transactionId);
+    if (cached != null) {
+      return cached;
+    }
+
+    final existing = _pendingPdfBuilds[transactionId];
+    if (existing != null) {
+      return existing;
+    }
+
+    final future = _buildAndCacheReceiptPdf(
+      transactionId,
+      preferWebViewOnAndroid: preferWebViewOnAndroid,
+    );
+    _pendingPdfBuilds[transactionId] = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_pendingPdfBuilds[transactionId], future)) {
+        _pendingPdfBuilds.remove(transactionId);
+      }
+    }
+  }
+
+  static Future<File> _buildAndCacheReceiptPdf(
+    String transactionId, {
+    required bool preferWebViewOnAndroid,
+  }) async {
+    final html = await _fetchReceiptHtml(transactionId);
+
+    if (Platform.isAndroid && preferWebViewOnAndroid) {
+      _debugLog('[Receipt] Android WebView PDF build start: $transactionId');
+      try {
+        final generated =
+            await ReceiptFileService.buildPdfFileFromHtmlViaWebView(
+          html: html,
+          transactionId: transactionId,
+        );
+        final bytes = await generated.readAsBytes();
+        return ReceiptFileService.savePdfToCache(
+          pdfBytes: bytes,
+          transactionId: transactionId,
+        );
+      } catch (e) {
+        _debugLog('[Receipt] Native WebView PDF failed: $e');
+      }
+    }
+
+    if (Platform.isAndroid) {
+      final shareResult = await _buildSharePdfBytes(html);
+      if (shareResult.usedFallback) {
+        AppSnackbar.show(
+          'Using a basic receipt because full rendering is unavailable.',
+        );
+      }
+      return ReceiptFileService.savePdfToCache(
+        pdfBytes: shareResult.bytes,
+        transactionId: transactionId,
+      );
+    }
+
+    final pdfBytes = await ReceiptHtmlRenderer.toPdfBytes(html);
+    return ReceiptFileService.savePdfToCache(
+      pdfBytes: pdfBytes,
       transactionId: transactionId,
     );
   }

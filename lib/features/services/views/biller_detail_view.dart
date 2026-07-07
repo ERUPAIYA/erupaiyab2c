@@ -32,6 +32,7 @@ import '../../../widgets/search_textfield.dart';
 import '../../mobile_prepaid/components/payment_bottom_sheet.dart';
 import '../../mobile_prepaid/controllers/contacts_cache_controller.dart';
 import '../../profile/controllers/profile_controller.dart';
+import '../../profile/views/transaction_detail_screen.dart';
 import '../components/credit_card_pay_now/credit_card_pay_now_section.dart';
 import '../components/piped_gas/piped_gas_bill_section.dart';
 import '../components/service_error_banner.dart';
@@ -193,7 +194,10 @@ class BillerDetailView extends HookConsumerWidget {
           detailState.selectedBiller?.billerId != argBiller.billerId) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!context.mounted) return;
-          controller.selectBiller(argBiller);
+          controller.selectBiller(
+            argBiller,
+            categoryName: args?.paymentType,
+          );
         });
       }
       return null;
@@ -590,7 +594,7 @@ class BillerDetailView extends HookConsumerWidget {
 
                           // --- Input form (no bill yet) ---
                           else if (detail != null && bill == null) ...[
-                            if (isGasCylinder) ...[
+                            if (isGasCylinder || isElectricity) ...[
                               BillSampleTermsCard(
                                 isExpanded: showBillSample.value,
                                 onToggle: () => showBillSample.value =
@@ -1090,94 +1094,29 @@ class BillerDetailView extends HookConsumerWidget {
                                                       .trim()
                                                       .toUpperCase() ??
                                                   '');
-                                              final isSuccess =
-                                                  normalized == 'SUCCESS';
-                                              final isPending = normalized ==
-                                                      'PENDING' ||
-                                                  normalized == 'PROCESSING';
-                                              final title = isSuccess
-                                                  ? 'Payment Successful!'
-                                                  : (isPending
-                                                      ? 'Payment Pending'
-                                                      : 'Payment Failed!');
-                                              final subtitle = status?.message
-                                                          .trim()
-                                                          .isNotEmpty ==
-                                                      true
-                                                  ? status!.message
-                                                  : fallbackMessage;
-                                              final txId = status?.transactionId
-                                                          .trim()
-                                                          .isNotEmpty ==
-                                                      true
-                                                  ? status!.transactionId.trim()
-                                                  : order.transactionRef;
+                                              final entry =
+                                                  buildPaymentFlowTransactionEntryFromRechargeStatus(
+                                                status: status,
+                                                fallbackStatus:
+                                                    normalized.isNotEmpty
+                                                        ? normalized
+                                                        : 'FAILED',
+                                                fallbackPaymentType: args
+                                                        ?.paymentType ??
+                                                    detail.billerCategoryName,
+                                                fallbackBillerName: name,
+                                                fallbackAmount: amountToPay,
+                                                fallbackTransactionId:
+                                                    order.transactionRef,
+                                              );
 
                                               Navigator.of(context).push(
                                                 MaterialPageRoute(
                                                   builder: (_) =>
-                                                      PaymentResultScreen(
-                                                    title: title,
-                                                    subtitle: subtitle,
-                                                    details: [
-                                                      PaymentDetailItem(
-                                                        label: 'Amount',
-                                                        value:
-                                                            '₹ ${amountToPay.toStringAsFixed(2)}',
-                                                      ),
-                                                      PaymentDetailItem(
-                                                        label: 'To',
-                                                        value: name,
-                                                      ),
-                                                      PaymentDetailItem(
-                                                        label: 'Transaction ID',
-                                                        value: '#$txId',
-                                                        copyable: true,
-                                                      ),
-                                                    ],
-                                                    continueText: 'Continue',
-                                                    onContinue: (c) =>
-                                                        Navigator.of(c).pop(),
-                                                    showFailureActions:
-                                                        !isSuccess,
-                                                    showBackButton: !isSuccess,
-                                                    statusIcon: isSuccess
-                                                        ? Icons.check
-                                                        : (isPending
-                                                            ? Icons
-                                                                .hourglass_top
-                                                            : Icons.close),
-                                                    statusIconColor:
-                                                        Colors.white,
-                                                    statusIconBorderColor:
-                                                        Colors.white,
-                                                    headerGradientColors:
-                                                        isSuccess
-                                                            ? const [
-                                                                Color(
-                                                                  0xFF0D5C32,
-                                                                ),
-                                                                Color(
-                                                                  0xFF0E7340,
-                                                                )
-                                                              ]
-                                                            : (isPending
-                                                                ? const [
-                                                                    Color(
-                                                                      0xFFF59E0B,
-                                                                    ),
-                                                                    Color(
-                                                                      0xFFD97706,
-                                                                    )
-                                                                  ]
-                                                                : const [
-                                                                    Color(
-                                                                      0xFFB91C1C,
-                                                                    ),
-                                                                    Color(
-                                                                      0xFFDC2626,
-                                                                    )
-                                                                  ]),
+                                                      TransactionDetailScreen(
+                                                    entry: entry,
+                                                    doneLabel: 'Continue',
+                                                    navigateHomeOnExit: true,
                                                   ),
                                                 ),
                                               );

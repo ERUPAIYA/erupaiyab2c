@@ -98,4 +98,30 @@ class SupportTicketsRepository {
       rethrow;
     }
   }
+
+  Future<bool> closeTicket({
+    required String ticketId,
+  }) async {
+    try {
+      final parsedTicketId = int.tryParse(ticketId.trim());
+      final response = await _dio.post(
+        ApiConstants.supportTicketCloseEndpoint,
+        data: {
+          'ticket_id': parsedTicketId ?? ticketId,
+        },
+      );
+      final payload = response.data;
+      if (payload is Map) {
+        return payload['status'] == true || payload['success'] == true;
+      }
+      return true;
+    } catch (e, stackTrace) {
+      logger.error(
+        'Failed to close support ticket',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
+  }
 }

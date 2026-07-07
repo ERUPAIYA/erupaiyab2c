@@ -7,17 +7,30 @@ import 'package:go_router/go_router.dart';
 
 import '../../../constants/app_colors.dart';
 import '../../../constants/file_constants.dart';
+import '../../../constants/routes_constant.dart';
 import '../../../widgets/app_snackbar.dart';
 import '../../../widgets/custom_elevated_button.dart';
+import '../../../widgets/k_dialog.dart';
 import '../models/support_latest_transaction.dart';
 import '../models/transaction_history_entry.dart';
 import '../utils/receipt_actions.dart';
 import 'create_support_ticket_screen.dart';
 
 class TransactionDetailScreen extends StatelessWidget {
-  const TransactionDetailScreen({super.key, this.entry});
+  const TransactionDetailScreen({
+    super.key,
+    this.entry,
+    this.doneLabel = 'Done',
+    this.onDone,
+    this.onBack,
+    this.navigateHomeOnExit = false,
+  });
 
   final TransactionHistoryEntry? entry;
+  final String doneLabel;
+  final VoidCallback? onDone;
+  final VoidCallback? onBack;
+  final bool navigateHomeOnExit;
 
   @override
   Widget build(BuildContext context) {
@@ -48,12 +61,15 @@ class TransactionDetailScreen extends StatelessWidget {
         );
 
     final status = tx.paymentStatus.trim().toUpperCase();
-    final statusMeta = _statusMeta(status);
     final paymentMethod =
         tx.method.trim().isNotEmpty ? tx.method.trim() : 'UPI/GPay';
     final totalAmount = tx.totalAmountCharged.trim().isNotEmpty
         ? tx.totalAmountCharged
         : tx.amount;
+    final statusMeta = _statusMeta(
+      status,
+      refundAmount: _formatAmount(totalAmount),
+    );
     final txnId = tx.transactionId.trim();
     final pgTxnId = tx.pgTransactionId.trim();
     final walletTxnId = tx.ecoinsTransactionId.trim();
@@ -70,22 +86,10 @@ class TransactionDetailScreen extends StatelessWidget {
       type: _resolveSupportTransactionType(tx),
       transactionId: txnId,
     );
-    final primaryParam = tx.customerParams.isNotEmpty
-        ? tx.customerParams.first
-        : TransactionCustomerParam(
-            label: 'Payment to',
-            value: tx.billerName.trim().isNotEmpty
-                ? tx.billerName.trim()
-                : 'MSEDCL Maharasht...',
-          );
-    final secondaryParam = tx.customerParams.length > 1
-        ? tx.customerParams[1]
-        : TransactionCustomerParam(
-            label: 'Payment to',
-            value: tx.billerName.trim().isNotEmpty
-                ? tx.billerName.trim()
-                : 'MSEDCL Maharasht...',
-          );
+    final resolvedParams = _resolveHeaderParams(tx);
+    final primaryParam = resolvedParams.first;
+    final secondaryParam =
+        resolvedParams.length > 1 ? resolvedParams[1] : resolvedParams.first;
     final breakdownRows = tx.amountBreakdown.isNotEmpty
         ? tx.amountBreakdown.entries.map((entry) {
             final isTotal = entry.key.trim().toLowerCase() == 'total';
@@ -143,7 +147,29 @@ class TransactionDetailScreen extends StatelessWidget {
         ),
     ];
 
-    return Scaffold(
+    Future<void> handleExitToHome() async {
+      final navigator = Navigator.of(context, rootNavigator: true);
+      navigator.popUntil((route) => route.isFirst);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final rootContext = navigatorKey.currentContext;
+        if (rootContext != null && rootContext.mounted) {
+          rootContext.go(RouteConstants.home);
+        }
+      });
+    }
+
+    final effectiveOnDone = navigateHomeOnExit
+        ? () {
+            handleExitToHome();
+          }
+        : onDone;
+    final effectiveOnBack = navigateHomeOnExit
+        ? () {
+            handleExitToHome();
+          }
+        : onBack;
+
+    final screen = Scaffold(
       backgroundColor: Colors.white,
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -183,6 +209,17 @@ class TransactionDetailScreen extends StatelessWidget {
                 height: 1.45,
                 fontSize: 9.5.sp,
               );
+          final messageTitleStyle =
+              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 10.5.sp,
+                      ) ??
+                  TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 10.5.sp,
+                  );
           final titleHeight = _measureTextHeight(
             context,
             text: statusMeta.title,
@@ -203,8 +240,22 @@ class TransactionDetailScreen extends StatelessWidget {
                   maxWidth: headerWidth - 24.w,
                 )
               : 0.0;
-          final messageContainerHeight =
-              hasStatusMessage ? messageHeight + 18.h : 0.0;
+          final messageTitleHeight =
+              hasStatusMessage && statusMeta.messageTitle.isNotEmpty
+                  ? _measureTextHeight(
+                      context,
+                      text: statusMeta.messageTitle,
+                      style: messageTitleStyle,
+                      maxWidth: headerWidth - 42.w,
+                    )
+                  : 0.0;
+          final messageContainerHeight = hasStatusMessage
+              ? messageHeight +
+                  (statusMeta.messageTitle.isNotEmpty
+                      ? messageTitleHeight + 8.h
+                      : 0.0) +
+                  18.h
+              : 0.0;
           final headerContentHeight = 52.h +
               sectionGap +
               titleHeight +
@@ -258,7 +309,7 @@ class TransactionDetailScreen extends StatelessWidget {
                 left: 12.w,
                 top: MediaQuery.of(context).padding.top + 8.h,
                 child: IconButton(
-                  onPressed: () => context.pop(),
+                  onPressed: effectiveOnBack ?? () => context.pop(),
                   icon: const Icon(
                     Icons.arrow_back_ios_new_rounded,
                     color: Colors.white,
@@ -301,10 +352,52 @@ class TransactionDetailScreen extends StatelessWidget {
                           color: statusMeta.messageBackgroundColor,
                           borderRadius: BorderRadius.circular(12.r),
                         ),
-                        child: Text(
-                          statusMeta.message,
-                          textAlign: TextAlign.center,
-                          style: messageStyle,
+                        child: Column(
+                          children: [
+                            if (statusMeta.messageTitle.isNotEmpty) ...[
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 8.w,
+                                    height: 8.w,
+                                    decoration: BoxDecoration(
+                                      gradient: statusMeta
+                                              .messageIndicatorGradient
+                                              .isNotEmpty
+                                          ? LinearGradient(
+                                              colors: statusMeta
+                                                  .messageIndicatorGradient,
+                                              begin: Alignment.topCenter,
+                                              end: Alignment.bottomCenter,
+                                            )
+                                          : null,
+                                      color: statusMeta
+                                              .messageIndicatorGradient.isEmpty
+                                          ? Colors.white
+                                          : null,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  SizedBox(width: 6.w),
+                                  Flexible(
+                                    child: Text(
+                                      statusMeta.messageTitle,
+                                      textAlign: TextAlign.center,
+                                      style: messageTitleStyle,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 8.h),
+                            ],
+                            Text(
+                              statusMeta.message,
+                              textAlign: TextAlign.center,
+                              style: messageStyle,
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -377,8 +470,8 @@ class TransactionDetailScreen extends StatelessWidget {
                         ),
                       ),
                       CustomElevatedButton(
-                        onPressed: () => context.pop(),
-                        label: 'Done',
+                        onPressed: effectiveOnDone ?? () => context.pop(),
+                        label: doneLabel,
                         uppercaseLabel: false,
                         showArrow: false,
                       ),
@@ -411,7 +504,71 @@ class TransactionDetailScreen extends StatelessWidget {
         },
       ),
     );
+
+    if (effectiveOnBack == null) {
+      return screen;
+    }
+
+    return WillPopScope(
+      onWillPop: () async {
+        effectiveOnBack.call();
+        return false;
+      },
+      child: screen,
+    );
   }
+}
+
+List<TransactionCustomerParam> _resolveHeaderParams(
+    TransactionHistoryEntry tx) {
+  final explicit = tx.customerParams
+      .where(
+        (item) => item.label.trim().isNotEmpty && item.value.trim().isNotEmpty,
+      )
+      .toList(growable: false);
+  if (explicit.isNotEmpty) return explicit;
+
+  final paymentType = tx.paymentType.trim().toLowerCase();
+  final billerName = tx.billerName.trim();
+  final customerMobile = tx.customerMobile.trim();
+  final maskedIdentifier = tx.maskedIdentifier.trim();
+
+  if (paymentType.contains('credit')) {
+    final mobileValue = customerMobile.isNotEmpty
+        ? customerMobile
+        : (maskedIdentifier.isNotEmpty ? maskedIdentifier : billerName);
+    final digits = maskedIdentifier.replaceAll(RegExp(r'\D'), '');
+    final last4 =
+        digits.length >= 4 ? digits.substring(digits.length - 4) : digits;
+    return [
+      TransactionCustomerParam(
+        label: 'Registered Mobile Number',
+        value: mobileValue.isNotEmpty ? mobileValue : billerName,
+      ),
+      TransactionCustomerParam(
+        label: 'Last 4 digits of Credit Card Number',
+        value: last4.isNotEmpty ? last4 : billerName,
+      ),
+    ];
+  }
+
+  final secondaryLabel =
+      paymentType.isNotEmpty ? tx.paymentType.trim() : 'Details';
+  final secondaryValue =
+      maskedIdentifier.isNotEmpty ? maskedIdentifier : customerMobile;
+
+  return [
+    TransactionCustomerParam(
+      label: 'Payment to',
+      value: billerName.isNotEmpty ? billerName : 'Transaction',
+    ),
+    TransactionCustomerParam(
+      label: secondaryLabel,
+      value: secondaryValue.isNotEmpty
+          ? secondaryValue
+          : (billerName.isNotEmpty ? billerName : 'Transaction'),
+    ),
+  ];
 }
 
 class _TransactionResultCard extends StatelessWidget {
@@ -732,6 +889,8 @@ class _StatusMeta {
     required this.iconAsset,
     required this.gradient,
     this.message = '',
+    this.messageTitle = '',
+    this.messageIndicatorGradient = const [],
     this.messageBackgroundColor = const Color(0xFF09301A),
   });
 
@@ -739,10 +898,15 @@ class _StatusMeta {
   final String iconAsset;
   final List<Color> gradient;
   final String message;
+  final String messageTitle;
+  final List<Color> messageIndicatorGradient;
   final Color messageBackgroundColor;
 }
 
-_StatusMeta _statusMeta(String status) {
+_StatusMeta _statusMeta(
+  String status, {
+  required String refundAmount,
+}) {
   switch (status) {
     case 'SUCCESS':
       return _StatusMeta(
@@ -757,7 +921,6 @@ _StatusMeta _statusMeta(String status) {
       );
     case 'PENDING':
     case 'PROCESSING':
-    case 'REFUND_PENDING':
       return _StatusMeta(
         title: 'Transaction Pending',
         iconAsset: FileConstants.pendingIcon,
@@ -770,6 +933,44 @@ _StatusMeta _statusMeta(String status) {
         message:
             'Your transaction is currently pending. Please wait a few moments while we confirm your payment status. If the amount has been deducted, it will be updated shortly.',
         messageBackgroundColor: const Color(0xFF5D3A00),
+      );
+    case 'REFUND_PENDING':
+      return _StatusMeta(
+        title: 'Transaction Failed',
+        iconAsset: FileConstants.failedIcon,
+        gradient: const [
+          Color(0xFFFF5D5D),
+          Color(0xFFC04242),
+          Color(0xFF981919),
+          Color(0xFF8E0303),
+        ],
+        messageTitle: 'Refund Initiated',
+        message:
+            'Your transaction failed. A refund of $refundAmount has been initiated and is expected to be credited within 3–5 business days.',
+        messageIndicatorGradient: const [
+          Color(0xFFFB8A67),
+          Color(0xFFDD5428),
+        ],
+        messageBackgroundColor: const Color(0xFF6D120E),
+      );
+    case 'REFUNDED':
+      return _StatusMeta(
+        title: 'Transaction Failed',
+        iconAsset: FileConstants.failedIcon,
+        gradient: const [
+          Color(0xFFFF5D5D),
+          Color(0xFFC04242),
+          Color(0xFF981919),
+          Color(0xFF8E0303),
+        ],
+        messageTitle: 'Refund Completed',
+        message:
+            '$refundAmount has been successfully refunded to your original payment method. No further action is required.',
+        messageIndicatorGradient: const [
+          Color(0xFF60EB97),
+          Color(0xFF058337),
+        ],
+        messageBackgroundColor: const Color(0xFF6D120E),
       );
     case 'FAILED':
     case 'FAIL':

@@ -1,7 +1,7 @@
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
-String _digitsOnly(String input) => input.replaceAll(RegExp(r'\\D'), '');
+String _digitsOnly(String input) => input.replaceAll(RegExp(r'\D'), '');
 
 class ContactsCacheState {
   const ContactsCacheState({

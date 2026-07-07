@@ -1801,6 +1801,11 @@ class _HomeContent extends HookConsumerWidget {
           final cardLast4 = maskedDigits.length >= 4
               ? maskedDigits.substring(maskedDigits.length - 4)
               : null;
+          final reminderIdentifier = _resolveReminderPrefillValue(reminder);
+          final reminderMobile = reminder.customerMobile.trim();
+          final canAutoFetchReminder = normalizedPaymentType.contains('credit')
+              ? reminderMobile.isNotEmpty && cardLast4 != null
+              : reminderIdentifier.isNotEmpty;
           await KDialog.instance.openDialog(
             dialog: _HomeReminderDialog(
               data: reminder,
@@ -1809,7 +1814,11 @@ class _HomeContent extends HookConsumerWidget {
                       Navigator.of(context, rootNavigator: true).pop();
                       ref
                           .read(billerDetailControllerProvider.notifier)
-                          .selectBiller(biller);
+                          .selectBiller(
+                            biller,
+                            categoryName:
+                                paymentType.isNotEmpty ? paymentType : null,
+                          );
                       context.push(
                         RouteConstants.billerDetail,
                         extra: BillerDetailArgs(
@@ -1818,14 +1827,15 @@ class _HomeContent extends HookConsumerWidget {
                               normalizedPaymentType.contains('credit'),
                           paymentType:
                               paymentType.isNotEmpty ? paymentType : null,
-                          mobileNumber: reminder.customerMobile.trim().isNotEmpty
-                              ? reminder.customerMobile.trim()
-                              : null,
+                          mobileNumber: normalizedPaymentType.contains('credit')
+                              ? (reminderMobile.isNotEmpty
+                                  ? reminderMobile
+                                  : null)
+                              : (reminderIdentifier.isNotEmpty
+                                  ? reminderIdentifier
+                                  : null),
                           cardLast4: cardLast4,
-                          autoFetchBill:
-                              normalizedPaymentType.contains('credit') &&
-                                  reminder.customerMobile.trim().isNotEmpty &&
-                                  cardLast4 != null,
+                          autoFetchBill: canAutoFetchReminder,
                           autoOpenPaymentSheet: false,
                         ),
                       );
@@ -2055,9 +2065,8 @@ class _HomeContent extends HookConsumerWidget {
       onServiceTap: handleServiceTap,
       onMyBillsTap: () => context.push(RouteConstants.quickActions),
       onExploreUtilitiesTap: () => context.push(RouteConstants.homeSearchView),
-      onGoldTap: () => context.push('${RouteConstants.digitalGold}?entry=home'),
-      onSilverTap: () =>
-          context.push('${RouteConstants.digitalGold}?metal=silver&entry=home'),
+      onGoldTap: _showInvestmentComingSoonMessage,
+      onSilverTap: _showInvestmentComingSoonMessage,
       bankingInvestmentBanners: bankingInvestmentBanners,
       bankingBannerController: bankingBannerController,
       bankingBannerPage: bankingBannerPage.value,
@@ -2072,7 +2081,7 @@ class _HomeContent extends HookConsumerWidget {
           BannerRedirectMapper.handle(context, redirectUrl);
           return;
         }
-        context.push('${RouteConstants.digitalGold}?entry=home');
+        _showInvestmentComingSoonMessage();
       },
       middleBanners: middleBanners,
       middleBannerController: middleBannerController,
@@ -2944,147 +2953,154 @@ class _HomeReminderDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: EdgeInsets.symmetric(horizontal: 24.w),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.fromLTRB(22.w, 22.h, 22.w, 20.h),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(28.r),
+      insetPadding: EdgeInsets.symmetric(horizontal: 30.w),
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.fromLTRB(18.w, 20.h, 18.w, 18.h),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24.r),
+          border: Border.all(
+            color: const Color(0xFF7A2E11),
+            width: 1.2,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _billReminderTitle(data.paymentType),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: Colors.black,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16.sp,
+                  ),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+            SizedBox(height: 4.h),
+            Text(
+              _billReminderDueText(data),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Colors.red,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5.sp,
+                  ),
+            ),
+            SizedBox(height: 14.h),
+            Container(
+              width: 82.w,
+              height: 82.w,
+              padding: EdgeInsets.all(12.r),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFE8E8E8)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 14,
+                    offset: const Offset(0, 7),
+                  ),
+                ],
+              ),
+              child: data.billerIcon.trim().isNotEmpty
+                  ? ClipOval(
+                      child: AppNetworkImage(
+                        url: data.billerIcon,
+                        fit: BoxFit.contain,
+                        showShimmer: false,
+                      ),
+                    )
+                  : Image.asset(
+                      FileConstants.bharatConnectColor,
+                      fit: BoxFit.contain,
+                    ),
+            ),
+            SizedBox(height: 12.h),
+            Text(
+              _billReminderIdentifier(data),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: const Color(0xFFF05A28),
+                    fontWeight: FontWeight.w500,
+                    fontSize: 15.sp,
+                  ),
+            ),
+            SizedBox(height: 6.h),
+            RichText(
+              textAlign: TextAlign.center,
+              text: TextSpan(
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: Colors.black,
+                      fontSize: 15.sp,
+                      fontWeight: FontWeight.w500,
+                    ),
+                children: [
+                  const TextSpan(text: 'Amount Due: '),
+                  TextSpan(
+                    text: _formatReminderAmount(data.lastBillAmount),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: Colors.black,
+                          fontSize: 15.sp,
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 12.h),
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(
+                horizontal: 12.w,
+                vertical: 10.h,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7F7F7),
+                borderRadius: BorderRadius.circular(14.r),
+              ),
+              child: Text(
+                _billReminderMessage(data),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.black.withOpacity(0.78),
+                      fontSize: 12.sp,
+                      height: 1.3,
+                      fontWeight: FontWeight.w500,
+                    ),
+              ),
+            ),
+            SizedBox(height: 16.h),
+            Row(
               children: [
-                Text(
-                  _billReminderTitle(data.paymentType),
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Colors.black,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-                SizedBox(height: 18.h),
-                Container(
-                  width: 92.w,
-                  height: 92.w,
-                  padding: EdgeInsets.all(16.r),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.lightBorder),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
-                        blurRadius: 18,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: (data.billerIcon.trim().isNotEmpty)
-                      ? ClipOval(
-                          child: AppNetworkImage(
-                            url: data.billerIcon,
-                            fit: BoxFit.contain,
-                            showShimmer: false,
-                          ),
-                        )
-                      : Image.asset(
-                          FileConstants.bharatConnectColor,
-                          fit: BoxFit.contain,
-                        ),
-                ),
-                SizedBox(height: 14.h),
-                Text(
-                  'Last Bill Amount: ${_formatReminderAmount(data.lastBillAmount)}',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.black,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-                SizedBox(height: 4.h),
-                Text(
-                  'Due Date: ${_formatReminderDate(data.dueDate)}',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.black,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-                SizedBox(height: 14.h),
-                Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 16.w,
-                    vertical: 12.h,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFEFE8),
-                    borderRadius: BorderRadius.circular(14.r),
-                  ),
-                  child: Text(
-                    _billReminderMessage(data),
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.black.withOpacity(0.8),
-                          height: 1.45,
-                        ),
+                Expanded(
+                  child: CustomElevatedButton(
+                    onPressed: () => _close(context),
+                    label: 'Later',
+                    uppercaseLabel: false,
+                    height: 40.h,
+                    isBorder: true,
+                    backgroundColor: Colors.white,
+                    borderColor: const Color(0xFFF05A28),
+                    labelColor: const Color(0xFFF05A28),
                   ),
                 ),
-                SizedBox(height: 18.h),
-                Row(
-                  children: [
-                    Expanded(
-                      child: CustomElevatedButton(
-                        onPressed: () => _close(context),
-                        label: 'Later',
-                        uppercaseLabel: false,
-                        height: 42.h,
-                        isBorder: true,
-                        backgroundColor: Colors.white,
-                        borderColor: AppColors.primary,
-                        labelColor: AppColors.primary,
-                      ),
-                    ),
-                    SizedBox(width: 16.w),
-                    Expanded(
-                      child: CustomElevatedButton(
-                        onPressed: onPrimaryTap,
-                        label: 'Pay Now',
-                        uppercaseLabel: false,
-                        height: 42.h,
-                      ),
-                    ),
-                  ],
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: CustomElevatedButton(
+                    onPressed: onPrimaryTap,
+                    label: 'Pay Now',
+                    uppercaseLabel: false,
+                    height: 40.h,
+                    backgroundColor: const Color(0xFFF05A28),
+                    labelColor: Colors.white,
+                  ),
                 ),
               ],
             ),
-          ),
-          Positioned(
-            top: -18.h,
-            right: 6.w,
-            child: GestureDetector(
-              onTap: () => _close(context),
-              child: Container(
-                width: 38.w,
-                height: 38.w,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF6C5248),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 1.5),
-                ),
-                child: const Icon(
-                  Icons.close_rounded,
-                  color: Colors.white,
-                  size: 22,
-                ),
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -3092,25 +3108,66 @@ class _HomeReminderDialog extends StatelessWidget {
 
 String _billReminderTitle(String paymentType) {
   final trimmed = paymentType.trim();
-  if (trimmed.isEmpty) return 'Bill Reminder';
+  if (trimmed.isEmpty) return 'Reminder';
   if (trimmed.toLowerCase() == 'recharge') return 'Recharge Reminder';
-  return '$trimmed Bill Reminder';
+  return '$trimmed Reminder';
 }
 
 String _billReminderMessage(BillReminderItem data) {
   final description = data.description?.trim() ?? '';
   if (description.isNotEmpty) return description;
+  return 'Pay before the due date to avoid late payment charges.';
+}
+
+String _billReminderDueText(BillReminderItem data) {
+  final dueDate = _formatReminderDate(data.dueDate);
+  final daysRemaining = data.daysRemaining;
+  if (daysRemaining > 0 && dueDate.isNotEmpty) {
+    final label = daysRemaining == 1 ? 'Day' : 'Days';
+    return 'Due in $daysRemaining $label : $dueDate';
+  }
   final note = data.note.trim();
-  if (note.isNotEmpty) return note;
-  return 'Your bill is due soon. Please complete the payment on time.';
+  if (note.isNotEmpty && dueDate.isNotEmpty) {
+    return '$note : $dueDate';
+  }
+  if (dueDate.isNotEmpty) return dueDate;
+  return note;
+}
+
+String _billReminderIdentifier(BillReminderItem data) {
+  final paymentType = data.paymentType.trim().toLowerCase();
+  final masked = data.maskedIdentifier.trim();
+  final mobile = data.customerMobile.trim();
+  if (paymentType.contains('mobile') || paymentType.contains('recharge')) {
+    if (mobile.isNotEmpty) return mobile;
+    if (masked.isNotEmpty) return masked;
+    return data.billerId.trim();
+  }
+  if (masked.isNotEmpty) return masked;
+  if (mobile.isNotEmpty) return mobile;
+  return data.billerId.trim();
+}
+
+String _resolveReminderPrefillValue(BillReminderItem data) {
+  final paymentType = data.paymentType.trim().toLowerCase();
+  final masked = data.maskedIdentifier.trim();
+  final mobile = data.customerMobile.trim();
+  if (paymentType.contains('credit')) {
+    return mobile;
+  }
+  if (paymentType.contains('mobile') || paymentType.contains('recharge')) {
+    if (mobile.isNotEmpty) return mobile;
+    return masked;
+  }
+  if (masked.isNotEmpty) return masked;
+  return mobile;
 }
 
 String _formatReminderAmount(double amount) {
   final absolute = amount.abs();
   final isWhole = absolute == absolute.truncateToDouble();
-  final value = isWhole
-      ? absolute.toStringAsFixed(0)
-      : absolute.toStringAsFixed(2);
+  final value =
+      isWhole ? absolute.toStringAsFixed(0) : absolute.toStringAsFixed(2);
   return '₹$value';
 }
 

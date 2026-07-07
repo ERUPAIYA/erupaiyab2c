@@ -51,6 +51,8 @@ class SupportTicketDetailScreen extends HookConsumerWidget {
     }, [state.errorMessage]);
 
     final ticket = state.ticket;
+    final isClosedTicket =
+        ticket != null && _isClosedTicketStatus(ticket.status);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -155,8 +157,14 @@ class SupportTicketDetailScreen extends HookConsumerWidget {
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed:
-                      ticket == null ? null : () => _openFeedbackFlow(context),
+                  onPressed: ticket == null || state.isClosing
+                      ? null
+                      : () => isClosedTicket
+                          ? _openReopenSheet(context)
+                          : _openFeedbackFlow(
+                              context,
+                              controller: controller,
+                            ),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.primary,
                     side: const BorderSide(color: AppColors.primary),
@@ -165,29 +173,33 @@ class SupportTicketDetailScreen extends HookConsumerWidget {
                     ),
                     padding: EdgeInsets.symmetric(vertical: 12.h),
                   ),
-                  child: const Text('Close Ticket'),
-                ),
-              ),
-              SizedBox(width: 12.w),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: ticket == null
-                      ? null
-                      : () => KDialog.instance.openSheet(
-                            dialog: SupportReplySheet(ticketId: ticketId),
-                          ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(28.r),
-                    ),
-                    elevation: 0,
-                    padding: EdgeInsets.symmetric(vertical: 12.h),
+                  child: Text(
+                    isClosedTicket ? 'Reopen Ticket' : 'Close Ticket',
                   ),
-                  child: const Text('Send Reply'),
                 ),
               ),
+              if (!isClosedTicket) ...[
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: ticket == null
+                        ? null
+                        : () => KDialog.instance.openSheet(
+                              dialog: SupportReplySheet(ticketId: ticketId),
+                            ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(28.r),
+                      ),
+                      elevation: 0,
+                      padding: EdgeInsets.symmetric(vertical: 12.h),
+                    ),
+                    child: const Text('Send Reply'),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -195,10 +207,15 @@ class SupportTicketDetailScreen extends HookConsumerWidget {
     );
   }
 
-  void _openFeedbackFlow(BuildContext context) {
+  void _openFeedbackFlow(
+    BuildContext context, {
+    required SupportTicketDetailController controller,
+  }) {
     KDialog.instance.openSheet(
       dialog: SupportExperienceSheet(
-        onContinue: () {
+        onContinue: () async {
+          final ok = await controller.closeTicket();
+          if (!ok || !context.mounted) return;
           KDialog.instance.openSheet(
             dialog: SupportThankYouSheet(
               onContinue: () {
@@ -208,6 +225,193 @@ class SupportTicketDetailScreen extends HookConsumerWidget {
             ),
           );
         },
+      ),
+    );
+  }
+
+  void _openReopenSheet(BuildContext context) {
+    KDialog.instance.openSheet(
+      dialog: const _ReopenTicketSheet(),
+    );
+  }
+}
+
+bool _isClosedTicketStatus(String status) {
+  final normalized = status.trim().toLowerCase();
+  return normalized == 'closed' || normalized == 'resolved';
+}
+
+class _ReopenTicketSheet extends HookWidget {
+  const _ReopenTicketSheet();
+
+  static const _reasons = [
+    'Issue Still Not Resolved',
+    'Refund Not Received',
+    'Payment Still Pending',
+    'Incorrect Resolution Provided',
+    'Need Additional Clarification',
+    'Other',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedReason = useState<String?>(null);
+    final otherController = useTextEditingController();
+    final otherText = useState('');
+    final isOtherSelected = selectedReason.value == 'Other';
+
+    final canSubmit = selectedReason.value != null &&
+        (!isOtherSelected || otherText.value.trim().isNotEmpty);
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 16.h),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Reopen Ticket',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const Spacer(),
+              InkWell(
+                onTap: () => Navigator.of(context).pop(),
+                borderRadius: BorderRadius.circular(20.r),
+                child: Container(
+                  width: 34.w,
+                  height: 34.w,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.lightBorder),
+                  ),
+                  child: Icon(Icons.close, size: 18.sp),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 18.h),
+          Text(
+            'Reason For Reopening',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          SizedBox(height: 8.h),
+          DropdownButtonFormField<String>(
+            value: selectedReason.value,
+            decoration: InputDecoration(
+              hintText: 'Select',
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding:
+                  EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14.r),
+                borderSide: const BorderSide(color: AppColors.lightBorder),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14.r),
+                borderSide: const BorderSide(color: AppColors.lightBorder),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14.r),
+                borderSide: const BorderSide(color: AppColors.primary),
+              ),
+            ),
+            items: _reasons
+                .map(
+                  (reason) => DropdownMenuItem<String>(
+                    value: reason,
+                    child: Text(reason),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: (value) => selectedReason.value = value,
+          ),
+          if (isOtherSelected) ...[
+            SizedBox(height: 14.h),
+            Text(
+              'Other',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            SizedBox(height: 8.h),
+            TextField(
+              controller: otherController,
+              maxLines: 4,
+              onChanged: (value) => otherText.value = value,
+              decoration: InputDecoration(
+                hintText: 'Describe Your Concern...',
+                hintStyle: TextStyle(
+                  color: AppColors.textPrimary.withOpacity(0.42),
+                ),
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 14.w, vertical: 14.h),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14.r),
+                  borderSide: const BorderSide(color: AppColors.lightBorder),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14.r),
+                  borderSide: const BorderSide(color: AppColors.lightBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14.r),
+                  borderSide: const BorderSide(color: AppColors.primary),
+                ),
+              ),
+            ),
+          ],
+          SizedBox(height: 18.h),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: const BorderSide(color: AppColors.primary),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28.r),
+                    ),
+                    padding: EdgeInsets.symmetric(vertical: 12.h),
+                  ),
+                  child: const Text('Cancel'),
+                ),
+              ),
+              SizedBox(width: 14.w),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed:
+                      canSubmit ? () => Navigator.of(context).pop() : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: AppColors.lightBorder,
+                    disabledForegroundColor:
+                        AppColors.textPrimary.withOpacity(0.45),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28.r),
+                    ),
+                    elevation: 0,
+                    padding: EdgeInsets.symmetric(vertical: 12.h),
+                  ),
+                  child: const Text('Reopen Ticket'),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

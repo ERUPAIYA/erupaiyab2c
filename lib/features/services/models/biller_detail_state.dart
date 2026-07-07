@@ -6,6 +6,7 @@ import 'biller_model.dart';
 class BillerDetailState {
   const BillerDetailState({
     this.selectedBiller,
+    this.selectedCategoryName,
     this.billerDetail,
     this.isFetchingDetail = false,
     this.isFetchingBill = false,
@@ -20,6 +21,7 @@ class BillerDetailState {
   });
 
   final Biller? selectedBiller;
+  final String? selectedCategoryName;
   final BillerDetail? billerDetail;
   final bool isFetchingDetail;
   final bool isFetchingBill;
@@ -36,6 +38,7 @@ class BillerDetailState {
 
   BillerDetailState copyWith({
     Object? selectedBiller = _sentinel,
+    Object? selectedCategoryName = _sentinel,
     Object? billerDetail = _sentinel,
     bool? isFetchingDetail,
     bool? isFetchingBill,
@@ -52,6 +55,9 @@ class BillerDetailState {
       selectedBiller: selectedBiller == _sentinel
           ? this.selectedBiller
           : selectedBiller as Biller?,
+      selectedCategoryName: selectedCategoryName == _sentinel
+          ? this.selectedCategoryName
+          : selectedCategoryName as String?,
       billerDetail: billerDetail == _sentinel
           ? this.billerDetail
           : billerDetail as BillerDetail?,

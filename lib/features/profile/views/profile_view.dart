@@ -677,12 +677,14 @@ class _ProfileTabChip extends StatelessWidget {
     required this.label,
     required this.isActive,
     required this.onTap,
+    this.isEnabled = true,
   });
 
   final IconData icon;
   final String label;
   final bool isActive;
   final VoidCallback onTap;
+  final bool isEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -691,12 +693,16 @@ class _ProfileTabChip extends StatelessWidget {
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
         decoration: BoxDecoration(
-          color: isActive ? const Color(0xFFFDE7DD) : Colors.white,
+          color: isActive
+              ? const Color(0xFFFDE7DD)
+              : (isEnabled ? Colors.white : const Color(0xFFF6F6F6)),
           borderRadius: BorderRadius.circular(14.r),
           border: Border.all(
             color: isActive
                 ? AppColors.primary.withOpacity(0.7)
-                : AppColors.lightBorder,
+                : (isEnabled
+                    ? AppColors.lightBorder
+                    : AppColors.lightBorder.withOpacity(0.6)),
           ),
         ),
         child: Row(
@@ -705,14 +711,18 @@ class _ProfileTabChip extends StatelessWidget {
             Icon(
               icon,
               size: 16.r,
-              color: AppColors.textPrimary,
+              color: isEnabled
+                  ? AppColors.textPrimary
+                  : AppColors.textPrimary.withOpacity(0.45),
             ),
             SizedBox(width: 6.w),
             Text(
               label,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: AppColors.textPrimary,
+                    color: isEnabled
+                        ? AppColors.textPrimary
+                        : AppColors.textPrimary.withOpacity(0.45),
                     fontWeight: FontWeight.w700,
                   ),
             ),
@@ -868,6 +878,7 @@ class UpdateProfileView extends HookConsumerWidget {
     }, const []);
 
     final canEdit = !latestProfile.isKycVerified;
+    final isKycVerified = latestProfile.kycStatus == ProfileKycStatus.verified;
     final initialFullName = initialFullNameState.value;
     final initialAddress = initialAddressState.value;
     final initialMobile = profile.mobile.trim();
@@ -938,6 +949,14 @@ class UpdateProfileView extends HookConsumerWidget {
           alignment: 0.1,
         );
       });
+    }
+
+    void openBankingSection() {
+      if (!isKycVerified) {
+        AppSnackbar.show('Please complete kyc first');
+        return;
+      }
+      selectedTab.value = 1;
     }
 
     Future<bool> confirmDiscard() async {
@@ -1301,7 +1320,8 @@ class UpdateProfileView extends HookConsumerWidget {
                               icon: Icons.account_balance_outlined,
                               label: 'Banking information',
                               isActive: selectedTab.value == 1,
-                              onTap: () => selectedTab.value = 1,
+                              onTap: openBankingSection,
+                              isEnabled: isKycVerified,
                             ),
                             SizedBox(width: 10.w),
                             _ProfileTabChip(

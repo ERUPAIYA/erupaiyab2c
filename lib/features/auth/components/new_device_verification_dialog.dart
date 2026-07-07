@@ -61,7 +61,7 @@ class NewDeviceVerificationDialog extends StatelessWidget {
               onPressed: onPrimaryTap,
               label: 'Verify Now',
               showArrow: false,
-              height: 42.h,
+              height: 40.h,
             ),
           ],
         ),

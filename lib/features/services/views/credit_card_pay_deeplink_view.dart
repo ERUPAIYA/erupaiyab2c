@@ -111,7 +111,10 @@ class _CreditCardPayDeeplinkViewState
       icon: (match.icon ?? '').trim().isNotEmpty ? match.icon : widget.iconUrl,
     );
 
-    ref.read(billerDetailControllerProvider.notifier).selectBiller(biller);
+    ref.read(billerDetailControllerProvider.notifier).selectBiller(
+          biller,
+          categoryName: 'Credit card',
+        );
     context.pushReplacement(
       RouteConstants.billerDetail,
       extra: BillerDetailArgs(

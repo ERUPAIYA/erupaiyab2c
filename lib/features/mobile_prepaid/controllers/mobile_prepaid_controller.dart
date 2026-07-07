@@ -53,6 +53,7 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
 
   final MobilePrepaidRepository _repository;
   static const Duration _processingPollInterval = Duration(seconds: 2);
+  static const int _plansPageLimit = 20;
 
   Future<PrepaidTransactionStatus> _fetchRechargeStatusWithProcessingPoll({
     required String transactionId,
@@ -74,7 +75,13 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
   }
 
   void updatePlanSearch(String query) {
-    state = state.copyWith(planSearchQuery: query);
+    final trimmedQuery = query.trim();
+    state = state.copyWith(
+      planSearchQuery: query,
+      selectedCategory: trimmedQuery.isNotEmpty && state.categories.isNotEmpty
+          ? kAllPlansCategory
+          : state.selectedCategory,
+    );
   }
 
   void clearError() {
@@ -105,6 +112,11 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
       selectedCategory: state.selectedCategory,
       planSearchQuery: state.planSearchQuery,
       ecoinsRestrictionsPercent: state.ecoinsRestrictionsPercent,
+      currentPlansPage: state.currentPlansPage,
+      totalPlansPages: state.totalPlansPages,
+      totalPlansRecords: state.totalPlansRecords,
+      plansPageLimit: state.plansPageLimit,
+      hasMorePlans: state.hasMorePlans,
     );
   }
 
@@ -140,6 +152,12 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
       selectedPlan: null,
       planSearchQuery: search,
       ecoinsRestrictionsPercent: null,
+      currentPlansPage: 1,
+      totalPlansPages: 1,
+      totalPlansRecords: 0,
+      plansPageLimit: _plansPageLimit,
+      hasMorePlans: false,
+      isFetchingMorePlans: false,
     );
     try {
       final operatorInfo = await _repository.checkOperator(mobile: mobile);
@@ -149,6 +167,8 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
         circleCode: operatorInfo.circleCode,
         search: search,
         filters: filters,
+        page: 1,
+        limit: _plansPageLimit,
       );
       final categories = result.plansByCategory.keys.toList();
       state = state.copyWith(
@@ -161,7 +181,12 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
         filterTags: result.filterTags,
         ecoinsRestrictionsPercent: result.ecoinsRestrictionsPercent,
         appliedFilters: filters.isNotEmpty ? filters : const ['All'],
-        selectedCategory: categories.isNotEmpty ? categories.first : '',
+        selectedCategory: categories.isNotEmpty ? kAllPlansCategory : '',
+        currentPlansPage: result.currentPage,
+        totalPlansPages: result.totalPages,
+        totalPlansRecords: result.totalRecords,
+        plansPageLimit: result.limit,
+        hasMorePlans: result.hasMorePages,
       );
     } catch (e, stackTrace) {
       logger.error(
@@ -217,6 +242,12 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
       planSearchQuery: search,
       ecoinsRestrictionsPercent:
           hasExistingPlans ? state.ecoinsRestrictionsPercent : null,
+      currentPlansPage: hasExistingPlans ? state.currentPlansPage : 1,
+      totalPlansPages: hasExistingPlans ? state.totalPlansPages : 1,
+      totalPlansRecords: hasExistingPlans ? state.totalPlansRecords : 0,
+      plansPageLimit: hasExistingPlans ? state.plansPageLimit : _plansPageLimit,
+      hasMorePlans: hasExistingPlans ? state.hasMorePlans : false,
+      isFetchingMorePlans: false,
     );
     try {
       final result = await _repository.fetchPlans(
@@ -225,6 +256,8 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
         circleCode: circleCode,
         search: search,
         filters: filters,
+        page: 1,
+        limit: _plansPageLimit,
       );
       final categories = result.plansByCategory.keys.toList();
       state = state.copyWith(
@@ -236,7 +269,12 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
         filterTags: result.filterTags,
         ecoinsRestrictionsPercent: result.ecoinsRestrictionsPercent,
         appliedFilters: filters.isNotEmpty ? filters : const ['All'],
-        selectedCategory: categories.isNotEmpty ? categories.first : '',
+        selectedCategory: categories.isNotEmpty ? kAllPlansCategory : '',
+        currentPlansPage: result.currentPage,
+        totalPlansPages: result.totalPages,
+        totalPlansRecords: result.totalRecords,
+        plansPageLimit: result.limit,
+        hasMorePlans: result.hasMorePages,
       );
     } catch (e, stackTrace) {
       logger.error(
@@ -250,6 +288,77 @@ class MobilePrepaidController extends StateNotifier<MobilePrepaidState> {
         errorMessage: 'Failed to fetch plans. Please try again.',
       );
     }
+  }
+
+  Future<void> loadNextPlansPage() async {
+    final info = state.operatorInfo;
+    if (info == null ||
+        state.isFetching ||
+        state.isRefreshingPlans ||
+        state.isFetchingMorePlans ||
+        !state.hasMorePlans) {
+      return;
+    }
+
+    state = state.copyWith(
+      isFetchingMorePlans: true,
+      errorMessage: null,
+    );
+
+    try {
+      final nextPage = state.currentPlansPage + 1;
+      final result = await _repository.fetchPlans(
+        mobile: state.mobile,
+        operatorName: info.operatorName,
+        circleCode: info.circleCode,
+        search: state.planSearchQuery,
+        filters: state.appliedFilters.where((e) => e != 'All').toList(),
+        page: nextPage,
+        limit: state.plansPageLimit,
+      );
+
+      state = state.copyWith(
+        isFetchingMorePlans: false,
+        plansByCategory: _mergePlansByCategory(
+          existing: state.plansByCategory,
+          incoming: result.plansByCategory,
+        ),
+        validityFilters: result.validityFilters,
+        dataFilters: result.dataFilters,
+        filterTags: result.filterTags,
+        ecoinsRestrictionsPercent: result.ecoinsRestrictionsPercent,
+        currentPlansPage: result.currentPage,
+        totalPlansPages: result.totalPages,
+        totalPlansRecords: result.totalRecords,
+        plansPageLimit: result.limit,
+        hasMorePlans: result.hasMorePages,
+      );
+    } catch (e, stackTrace) {
+      logger.error(
+        'Failed to load next plans page',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      state = state.copyWith(
+        isFetchingMorePlans: false,
+        errorMessage: 'Failed to fetch more plans. Please try again.',
+      );
+    }
+  }
+
+  Map<String, List<PlanItem>> _mergePlansByCategory({
+    required Map<String, List<PlanItem>> existing,
+    required Map<String, List<PlanItem>> incoming,
+  }) {
+    final merged = <String, List<PlanItem>>{};
+    final keys = <String>{...existing.keys, ...incoming.keys};
+    for (final key in keys) {
+      merged[key] = <PlanItem>[
+        ...?existing[key],
+        ...?incoming[key],
+      ];
+    }
+    return merged;
   }
 
   Future<RechargeOrderResult?> createRechargeOrderWithPlan({

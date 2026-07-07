@@ -283,17 +283,6 @@ class _MobilePrepaidSearchSwitcher extends StatelessWidget {
   final List<Contact> contacts;
   final Future<void> Function(String mobile) onProceed;
 
-  bool _isInContacts(String digits) {
-    if (digits.length < 10) return false;
-    final normalized = _normalizeMobile(digits);
-    for (final c in contacts) {
-      if (c.phones.isEmpty) continue;
-      final phone = _normalizeMobile(c.phones.first.number);
-      if (phone == normalized) return true;
-    }
-    return false;
-  }
-
   @override
   Widget build(BuildContext context) {
     final isNumeric = searchMode == _MobilePrepaidSearchMode.numeric;
@@ -378,8 +367,7 @@ class _MobilePrepaidSearchSwitcher extends StatelessWidget {
             valueListenable: numericController,
             builder: (context, value, _) {
               final numericDigits = _normalizeMobile(value.text);
-              final isInContacts = _isInContacts(numericDigits);
-              final isEnabled = numericDigits.length == 10 && !isInContacts;
+              final isEnabled = numericDigits.length == 10;
               return Column(
                 children: [
                   const SizedBox(height: 14),
@@ -923,7 +911,7 @@ class _OperatorIconBadge extends StatelessWidget {
   }
 }
 
-class _PlanSection extends StatelessWidget {
+class _PlanSection extends HookWidget {
   const _PlanSection({
     required this.state,
     required this.controller,
@@ -957,120 +945,179 @@ class _PlanSection extends StatelessWidget {
     final applied = state.appliedFilters.map((e) => e.trim()).toSet();
     final isAllSelected = applied.isEmpty || applied.contains(allFilterLabel);
 
-    return ListView(
-      padding: EdgeInsets.fromLTRB(
-        0,
-        10,
-        0,
-        24 + MediaQuery.of(context).viewPadding.bottom,
-      ),
-      children: [
-        // Suggested plans block should be at the top (edge-to-edge gradient).
-        if (!state.isFetching && state.currentPlans.isNotEmpty)
-          Container(
-            width: double.infinity,
-            decoration: const BoxDecoration(gradient: suggestedGradient),
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Suggested Plans',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                        fontSize: 14.sp,
-                      ),
-                ),
-                const SizedBox(height: 14),
-                _SuggestedPlanCards(
-                  plans: state.currentPlans,
-                  onSelect: controller.selectPlan,
-                ),
-              ],
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification.metrics.pixels >=
+            notification.metrics.maxScrollExtent - 200) {
+          controller.loadNextPlansPage();
+        }
+        return false;
+      },
+      child: ListView(
+        padding: EdgeInsets.fromLTRB(
+          0,
+          10,
+          0,
+          24 + MediaQuery.of(context).viewPadding.bottom,
+        ),
+        children: [
+          // Suggested plans block should be at the top (edge-to-edge gradient).
+          if (!state.isFetching && state.currentPlans.isNotEmpty)
+            Container(
+              width: double.infinity,
+              decoration: const BoxDecoration(gradient: suggestedGradient),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Suggested Plans',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                          fontSize: 14.sp,
+                        ),
+                  ),
+                  const SizedBox(height: 14),
+                  _SuggestedPlanCards(
+                    plans: state.currentPlans,
+                    onSelect: controller.selectPlan,
+                  ),
+                ],
+              ),
+            ),
+
+          // Search field
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+            child: SearchTextfield(
+              hintText: 'Search a plan, eg 299, 5g, etc.',
+              controller: planSearchController,
+              onChange: onPlanSearchChanged,
             ),
           ),
 
-        // Search field
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-          child: SearchTextfield(
-            hintText: 'Search a plan, eg 299, 5g, etc.',
-            controller: planSearchController,
-            onChange: onPlanSearchChanged,
-          ),
-        ),
-
-        // Filters row
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-          child: SizedBox(
-            height: 30.h,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: 2 + quickFilters.length,
-              separatorBuilder: (_, index) =>
-                  SizedBox(width: index == 0 ? 12.w : 6.w),
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return OutlinedButton.icon(
-                    onPressed: () => KDialog.instance.openSheet(
-                      dialog: FilterPlansSheet(
-                        validityOptions: state.validityFilters,
-                        dataOptions: state.dataFilters,
-                        initialValiditySelected: applied
-                            .where((t) => t != allFilterLabel)
-                            .where((t) => state.validityFilters.contains(t))
-                            .toSet(),
-                        initialDataSelected: applied
-                            .where((t) => t != allFilterLabel)
-                            .where((t) => state.dataFilters.contains(t))
-                            .toSet(),
-                        onApply: (validity, data) async {
-                          final selected = <String>[
-                            ...validity,
-                            ...data,
-                          ];
-                          final info = state.operatorInfo;
-                          if (info == null) return;
-                          await controller.fetchPlansForSelection(
-                            mobileInput: state.mobile,
-                            operatorName: info.operatorName,
-                            circleName: info.circle,
-                            circleCode: info.circleCode,
-                            iconUrl: info.iconUrl,
-                            search: state.planSearchQuery,
-                            filters: selected,
-                          );
-                        },
+          // Filters row
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+            child: SizedBox(
+              height: 30.h,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: 2 + quickFilters.length,
+                separatorBuilder: (_, index) =>
+                    SizedBox(width: index == 0 ? 12.w : 6.w),
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return OutlinedButton.icon(
+                      onPressed: () => KDialog.instance.openSheet(
+                        dialog: FilterPlansSheet(
+                          validityOptions: state.validityFilters,
+                          dataOptions: state.dataFilters,
+                          initialValiditySelected: applied
+                              .where((t) => t != allFilterLabel)
+                              .where((t) => state.validityFilters.contains(t))
+                              .toSet(),
+                          initialDataSelected: applied
+                              .where((t) => t != allFilterLabel)
+                              .where((t) => state.dataFilters.contains(t))
+                              .toSet(),
+                          onApply: (validity, data) async {
+                            final selected = <String>[
+                              ...validity,
+                              ...data,
+                            ];
+                            final info = state.operatorInfo;
+                            if (info == null) return;
+                            await controller.fetchPlansForSelection(
+                              mobileInput: state.mobile,
+                              operatorName: info.operatorName,
+                              circleName: info.circle,
+                              circleCode: info.circleCode,
+                              iconUrl: info.iconUrl,
+                              search: state.planSearchQuery,
+                              filters: selected,
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: AppColors.textPrimary,
-                      side: BorderSide(
-                        color: AppColors.textPrimary.withOpacity(0.12),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: AppColors.textPrimary,
+                        side: BorderSide(
+                          color: AppColors.textPrimary.withOpacity(0.12),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                      icon: Icon(
+                        Icons.tune_rounded,
+                        size: 16.sp,
+                        color: AppColors.textPrimary,
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                    ),
-                    icon: Icon(
-                      Icons.tune_rounded,
-                      size: 16.sp,
-                      color: AppColors.textPrimary,
-                    ),
-                    label: Text(
-                      'Filter',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12.sp,
+                      label: Text(
+                        'Filter',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12.sp,
+                        ),
                       ),
-                    ),
-                  );
-                }
-                if (index == 1) {
+                    );
+                  }
+                  if (index == 1) {
+                    return InkWell(
+                      onTap: () async {
+                        final info = state.operatorInfo;
+                        if (info == null) return;
+                        await controller.fetchPlansForSelection(
+                          mobileInput: state.mobile,
+                          operatorName: info.operatorName,
+                          circleName: info.circle,
+                          circleCode: info.circleCode,
+                          iconUrl: info.iconUrl,
+                          search: state.planSearchQuery,
+                          filters: const [],
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isAllSelected
+                              ? AppColors.primary.withOpacity(0.1)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isAllSelected
+                                ? AppColors.primary.withOpacity(0.35)
+                                : AppColors.textPrimary.withOpacity(0.08),
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            allFilterLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: isAllSelected
+                                      ? AppColors.primary
+                                      : AppColors.textPrimary.withOpacity(0.85),
+                                ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  final label = quickFilters[index - 2];
                   return InkWell(
                     onTap: () async {
                       final info = state.operatorInfo;
@@ -1082,7 +1129,7 @@ class _PlanSection extends StatelessWidget {
                         circleCode: info.circleCode,
                         iconUrl: info.iconUrl,
                         search: state.planSearchQuery,
-                        filters: const [],
+                        filters: [label],
                       );
                     },
                     borderRadius: BorderRadius.circular(10),
@@ -1092,19 +1139,19 @@ class _PlanSection extends StatelessWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: isAllSelected
+                        color: applied.contains(label) && !isAllSelected
                             ? AppColors.primary.withOpacity(0.1)
                             : Colors.white,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: isAllSelected
+                          color: applied.contains(label) && !isAllSelected
                               ? AppColors.primary.withOpacity(0.35)
                               : AppColors.textPrimary.withOpacity(0.08),
                         ),
                       ),
                       child: Center(
                         child: Text(
-                          allFilterLabel,
+                          label,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context)
@@ -1112,7 +1159,7 @@ class _PlanSection extends StatelessWidget {
                               .bodySmall
                               ?.copyWith(
                                 fontWeight: FontWeight.w600,
-                                color: isAllSelected
+                                color: applied.contains(label) && !isAllSelected
                                     ? AppColors.primary
                                     : AppColors.textPrimary.withOpacity(0.85),
                               ),
@@ -1120,100 +1167,64 @@ class _PlanSection extends StatelessWidget {
                       ),
                     ),
                   );
+                },
+              ),
+            ),
+          ),
+
+          // Categories + plan list content
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: _CategoryTabs(
+              categories: state.categories,
+              selected: state.selectedCategory,
+              onSelected: controller.selectCategory,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Builder(
+              builder: (context) {
+                if (state.isFetching && state.currentPlans.isEmpty) {
+                  return const Center(
+                    child: SpinKitCircle(
+                      color: AppColors.primary,
+                      size: 48,
+                    ),
+                  );
                 }
-                final label = quickFilters[index - 2];
-                return InkWell(
-                  onTap: () async {
-                    final info = state.operatorInfo;
-                    if (info == null) return;
-                    await controller.fetchPlansForSelection(
-                      mobileInput: state.mobile,
-                      operatorName: info.operatorName,
-                      circleName: info.circle,
-                      circleCode: info.circleCode,
-                      iconUrl: info.iconUrl,
-                      search: state.planSearchQuery,
-                      filters: [label],
-                    );
-                  },
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: applied.contains(label) && !isAllSelected
-                          ? AppColors.primary.withOpacity(0.1)
-                          : Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: applied.contains(label) && !isAllSelected
-                            ? AppColors.primary.withOpacity(0.35)
-                            : AppColors.textPrimary.withOpacity(0.08),
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: applied.contains(label) && !isAllSelected
-                                  ? AppColors.primary
-                                  : AppColors.textPrimary.withOpacity(0.85),
-                            ),
-                      ),
+                if (state.visiblePlans.isEmpty) {
+                  return _EmptyPlansState(query: state.planSearchQuery);
+                }
+                return _PlanList(
+                  plans: state.visiblePlans,
+                  selectedPlan: state.selectedPlan,
+                  onSelect: controller.selectPlan,
+                  onPayNow: (plan) => KDialog.instance.openSheet(
+                    dialog: PrepaidPaymentBottomSheet(
+                      plan: plan,
+                      billerName:
+                          state.operatorInfo?.operatorName ?? 'Mobile Prepaid',
+                      ecoinsRestrictionsPercent:
+                          state.ecoinsRestrictionsPercent,
                     ),
                   ),
                 );
               },
             ),
           ),
-        ),
-
-        // Categories + plan list content
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-          child: _CategoryTabs(
-            categories: state.categories,
-            selected: state.selectedCategory,
-            onSelected: controller.selectCategory,
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: Builder(
-            builder: (context) {
-              if (state.isFetching && state.currentPlans.isEmpty) {
-                return const Center(
-                  child: SpinKitCircle(
-                    color: AppColors.primary,
-                    size: 48,
-                  ),
-                );
-              }
-              if (state.visiblePlans.isEmpty) {
-                return _EmptyPlansState(query: state.planSearchQuery);
-              }
-              return _PlanList(
-                plans: state.visiblePlans,
-                selectedPlan: state.selectedPlan,
-                onSelect: controller.selectPlan,
-                onPayNow: (plan) => KDialog.instance.openSheet(
-                  dialog: PrepaidPaymentBottomSheet(
-                    plan: plan,
-                    billerName:
-                        state.operatorInfo?.operatorName ?? 'Mobile Prepaid',
-                    ecoinsRestrictionsPercent: state.ecoinsRestrictionsPercent,
-                  ),
+          if (state.isFetchingMorePlans)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: Center(
+                child: SpinKitCircle(
+                  color: AppColors.primary,
+                  size: 28,
                 ),
-              );
-            },
-          ),
-        ),
-      ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

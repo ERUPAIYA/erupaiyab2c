@@ -281,13 +281,39 @@ class ReceiptFileService {
     return file.writeAsBytes(pdfBytes, flush: true);
   }
 
+  static Future<File> receiptCacheFile(String transactionId) async {
+    final dir = await getTemporaryDirectory();
+    final receiptsDir = Directory('${dir.path}/receipts');
+    if (!await receiptsDir.exists()) {
+      await receiptsDir.create(recursive: true);
+    }
+    return File('${receiptsDir.path}/receipt_$transactionId.pdf');
+  }
+
+  static Future<File?> getCachedReceipt(String transactionId) async {
+    final file = await receiptCacheFile(transactionId);
+    if (await file.exists() && await file.length() > 0) {
+      return file;
+    }
+    return null;
+  }
+
+  static Future<File> savePdfToCache({
+    required Uint8List pdfBytes,
+    required String transactionId,
+  }) async {
+    final file = await receiptCacheFile(transactionId);
+    return file.writeAsBytes(pdfBytes, flush: true);
+  }
+
   static Future<File> savePdfToTemp({
     required Uint8List pdfBytes,
     required String transactionId,
   }) async {
-    final directory = await getTemporaryDirectory();
-    final file = File('${directory.path}/receipt_$transactionId.pdf');
-    return file.writeAsBytes(pdfBytes, flush: true);
+    return savePdfToCache(
+      pdfBytes: pdfBytes,
+      transactionId: transactionId,
+    );
   }
 
   static Future<File> savePngFromPdfBytes({

@@ -10,24 +10,28 @@ class SupportTicketDetailState {
   const SupportTicketDetailState({
     this.isLoading = false,
     this.isReplying = false,
+    this.isClosing = false,
     this.errorMessage,
     this.ticket,
   });
 
   final bool isLoading;
   final bool isReplying;
+  final bool isClosing;
   final String? errorMessage;
   final SupportTicketDetail? ticket;
 
   SupportTicketDetailState copyWith({
     bool? isLoading,
     bool? isReplying,
+    bool? isClosing,
     String? errorMessage,
     SupportTicketDetail? ticket,
   }) {
     return SupportTicketDetailState(
       isLoading: isLoading ?? this.isLoading,
       isReplying: isReplying ?? this.isReplying,
+      isClosing: isClosing ?? this.isClosing,
       errorMessage: errorMessage,
       ticket: ticket ?? this.ticket,
     );
@@ -92,6 +96,24 @@ class SupportTicketDetailController
       state = state.copyWith(
         isReplying: false,
         errorMessage: 'Failed to send reply. Please try again.',
+      );
+      return false;
+    }
+  }
+
+  Future<bool> closeTicket() async {
+    if (state.isClosing) return false;
+    state = state.copyWith(isClosing: true, errorMessage: null);
+    try {
+      final ok = await _repository.closeTicket(ticketId: _ticketId);
+      state = state.copyWith(isClosing: false);
+      await fetch();
+      _ref.read(supportTicketsControllerProvider.notifier).fetchTickets();
+      return ok;
+    } catch (_) {
+      state = state.copyWith(
+        isClosing: false,
+        errorMessage: 'Failed to close ticket. Please try again.',
       );
       return false;
     }

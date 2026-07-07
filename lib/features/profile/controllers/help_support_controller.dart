@@ -62,9 +62,8 @@ class HelpSupportController extends StateNotifier<HelpSupportState> {
     } catch (_) {
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Failed to load support data. Please try again.',
+        errorMessage: 'Something went wrong.Please try again.',
       );
     }
   }
 }
-

@@ -63,11 +63,18 @@ class BillerRepository {
     }
   }
 
-  Future<BillerDetail> fetchBillerDetails({required String billerId}) async {
+  Future<BillerDetail> fetchBillerDetails({
+    required String billerId,
+    String? categoryName,
+  }) async {
     try {
       final response = await _dio.get(
         ApiConstants.billerParamsEndpoint,
-        queryParameters: {'biller_id': billerId},
+        queryParameters: {
+          'biller_id': billerId,
+          if (categoryName != null && categoryName.trim().isNotEmpty)
+            'category_name': categoryName.trim(),
+        },
       );
       final payload = response.data as Map<String, dynamic>? ?? {};
       return BillerDetail.fromJson(payload);
@@ -132,6 +139,7 @@ class BillerRepository {
     required String maskedIdentifier,
     required String amount,
     required String refId,
+    required String fetchRefId,
     required List<String> paymentModes,
     required String billerName,
     required String paymentType,
@@ -150,6 +158,7 @@ class BillerRepository {
         'billerid': billerId,
         'amount': amount,
         'ref_id': refId,
+        'fetch_ref_id': fetchRefId,
         'arr_bill_payment_modes': paymentModes.join(','),
         'masked_identifier': maskedIdentifier,
         'use_wallet': useWallet ? 1 : 0,

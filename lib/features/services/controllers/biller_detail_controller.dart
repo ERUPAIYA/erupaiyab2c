@@ -40,39 +40,45 @@ class BillerDetailController extends StateNotifier<BillerDetailState> {
     return status;
   }
 
-  bool _isGasCylinderBillerName(String value) {
-    final name = value.trim().toLowerCase();
-    if (name.isEmpty) return false;
-    return name.contains('gas') ||
-        name.contains('lpg') ||
-        name.contains('cylinder');
-  }
-
-  Map<String, String> _withBookGasServiceNameIfNeeded({
+  Map<String, String> _withServiceNameIfNeeded({
     required Biller biller,
     required BillerDetail detail,
     required Map<String, String> customerParams,
   }) {
-    final isGas = _isGasCylinderBillerName(biller.billerName) ||
-        _isGasCylinderBillerName(detail.billerCategoryName);
-    if (!isGas) return customerParams;
-
     if (customerParams.containsKey('service_name')) return customerParams;
+    final dynamicServiceName =
+        (state.selectedCategoryName ?? '').trim().isNotEmpty
+            ? state.selectedCategoryName!.trim()
+            : (detail.billerCategoryName.trim().isNotEmpty
+                ? detail.billerCategoryName.trim()
+                : biller.billerName.trim());
     return {
       ...customerParams,
-      'service_name': 'Book Gas',
+      'service_name': dynamicServiceName,
     };
   }
 
-  void selectBiller(Biller biller) {
-    state = const BillerDetailState().copyWith(selectedBiller: biller);
-    _fetchBillerDetail(biller.billerId);
+  void selectBiller(Biller biller, {String? categoryName}) {
+    state = const BillerDetailState().copyWith(
+      selectedBiller: biller,
+      selectedCategoryName: categoryName?.trim(),
+    );
+    _fetchBillerDetail(
+      biller.billerId,
+      categoryName: categoryName,
+    );
   }
 
-  Future<void> _fetchBillerDetail(String billerId) async {
+  Future<void> _fetchBillerDetail(
+    String billerId, {
+    String? categoryName,
+  }) async {
     state = state.copyWith(isFetchingDetail: true, errorMessage: null);
     try {
-      final detail = await _repository.fetchBillerDetails(billerId: billerId);
+      final detail = await _repository.fetchBillerDetails(
+        billerId: billerId,
+        categoryName: categoryName,
+      );
       state = state.copyWith(
         isFetchingDetail: false,
         billerDetail: detail,
@@ -105,7 +111,7 @@ class BillerDetailController extends StateNotifier<BillerDetailState> {
       customerParamsInput: customerParams,
     );
     try {
-      final paramsForApi = _withBookGasServiceNameIfNeeded(
+      final paramsForApi = _withServiceNameIfNeeded(
         biller: biller,
         detail: detail,
         customerParams: customerParams,
@@ -179,6 +185,7 @@ class BillerDetailController extends StateNotifier<BillerDetailState> {
         ),
         amount: amount.toStringAsFixed(2),
         refId: bill.refId,
+        fetchRefId: bill.fetchRefId,
         paymentModes: detail.paymentModes
             .map((mode) => mode.paymentMode)
             .where((mode) => mode.trim().isNotEmpty)

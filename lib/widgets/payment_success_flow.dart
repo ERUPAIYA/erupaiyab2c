@@ -1,6 +1,7 @@
 // ignore_for_file: deprecated_member_use
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,9 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../constants/app_colors.dart';
 import '../constants/file_constants.dart';
+import '../features/mobile_prepaid/models/prepaid_transaction_status.dart';
+import '../features/profile/models/transaction_history_entry.dart';
+import '../features/services/models/recharge_status_result.dart';
 import '../utils/screenutil_ext.dart';
 import 'app_snackbar.dart';
 import 'custom_elevated_button.dart';
@@ -619,6 +623,387 @@ class _PaymentSoundController {
   }
 }
 
+TransactionHistoryEntry buildPaymentFlowTransactionEntryFromRechargeStatus({
+  required RechargeStatusResult? status,
+  required String fallbackStatus,
+  required String fallbackPaymentType,
+  required String fallbackBillerName,
+  required double fallbackAmount,
+  required String fallbackTransactionId,
+  String? fallbackTransactionTime,
+}) {
+  final raw = _flattenStatusPayload(status?.raw);
+  final statusCode = _readFirstNonEmpty(
+    raw,
+    ['payment_status', 'status'],
+    fallback: status?.status.trim().isNotEmpty == true
+        ? status!.status.trim()
+        : fallbackStatus,
+  );
+  final paymentType = _readFirstNonEmpty(
+    raw,
+    ['payment_type', 'category_name'],
+    fallback: fallbackPaymentType,
+  );
+  final billerName = _readFirstNonEmpty(
+    raw,
+    ['biller_name', 'operator', 'provider_name', 'merchant_name'],
+    fallback: fallbackBillerName,
+  );
+  final amount = _readFirstNonEmpty(
+    raw,
+    ['amount', 'total_amount_charged', 'bill_amount'],
+    fallback: fallbackAmount.toStringAsFixed(2),
+  );
+  final platformFees = _readFirstNonEmpty(
+    raw,
+    ['platform_fees', 'convenience_fee'],
+  );
+  final totalAmount = _readFirstNonEmpty(
+    raw,
+    ['total_amount_charged', 'amount'],
+    fallback: amount,
+  );
+  final transactionId = _readFirstNonEmpty(
+    raw,
+    ['transaction_id', 'pg_transaction_id', 'payment_transaction_id'],
+    fallback: fallbackTransactionId,
+  );
+  final referenceId = _readFirstNonEmpty(
+    raw,
+    ['org_ref_id', 'reference_id', 'transaction_ref'],
+    fallback: transactionId,
+  );
+  final paymentMode = _readFirstNonEmpty(
+    raw,
+    ['payment_mode', 'method'],
+  );
+  final customerMobile = _readFirstNonEmpty(
+    raw,
+    ['customer_mobile', 'mobile'],
+  );
+  final maskedIdentifier = _readFirstNonEmpty(
+    raw,
+    ['masked_identifier', 'consumer_number', 'customer_account', 'mobile'],
+  );
+  final transactionTime = _readFirstNonEmpty(
+    raw,
+    ['transaction_time', 'updated_at', 'created_at'],
+    fallback: fallbackTransactionTime ?? '',
+  );
+  final customerParams =
+      status?.customerParams ?? const <TransactionCustomerParam>[];
+  final amountBreakdown = status?.amountBreakdown ?? const <String, dynamic>{};
+
+  return TransactionHistoryEntry(
+    paymentStatus: statusCode,
+    paymentType: paymentType,
+    billerName: billerName,
+    maskedIdentifier: maskedIdentifier,
+    amount: amount,
+    platformFees: platformFees,
+    totalAmountCharged: totalAmount,
+    customerMobile: customerMobile,
+    iconUrl: _readFirstNonEmpty(raw, ['icon', 'icon_url']),
+    pgTransactionId: _readFirstNonEmpty(
+      raw,
+      ['pg_transaction_id', 'payment_transaction_id', 'transaction_id'],
+      fallback: transactionId,
+    ),
+    ecoinsTransactionId: _readFirstNonEmpty(raw, ['ecoins_transaction_id']),
+    transactionId: transactionId,
+    bankReferenceId: _readFirstNonEmpty(
+      raw,
+      ['bank_reference_id', 'bank_referenceId', 'rrn'],
+    ),
+    referenceId: referenceId,
+    transactionTime: transactionTime,
+    method: _readFirstNonEmpty(
+      raw,
+      ['method', 'payment_mode'],
+      fallback: paymentMode,
+    ),
+    methodIcon: _readFirstNonEmpty(raw, ['method_icon']),
+    paymentMode: paymentMode,
+    vpa: _readFirstNonEmpty(raw, ['vpa']),
+    rrn: _readFirstNonEmpty(raw, ['rrn']),
+    customerParams: customerParams.isNotEmpty
+        ? customerParams
+        : _customerParamsFromRaw(
+            raw,
+            paymentType: paymentType,
+            billerName: billerName,
+            fallbackIdentifier:
+                maskedIdentifier.isNotEmpty ? maskedIdentifier : customerMobile,
+          ),
+    amountBreakdown: amountBreakdown.isNotEmpty
+        ? amountBreakdown
+        : _amountBreakdownFromRaw(
+            raw,
+            fallbackLabel: paymentType.toLowerCase().contains('recharge')
+                ? 'Recharge Amount'
+                : 'Bill Amount',
+            amount: amount,
+            platformFees: platformFees,
+            totalAmount: totalAmount,
+          ),
+  );
+}
+
+TransactionHistoryEntry buildPaymentFlowTransactionEntryFromPrepaidStatus({
+  required PrepaidTransactionStatus? status,
+  required String fallbackStatus,
+  required String fallbackPaymentType,
+  required String fallbackBillerName,
+  required double fallbackAmount,
+  required String fallbackTransactionId,
+  String? fallbackTransactionTime,
+}) {
+  final raw = _flattenStatusPayload(status?.raw);
+  final amount = _readFirstNonEmpty(
+    raw,
+    ['amount', 'total_amount_charged', 'bill_amount'],
+    fallback: status?.amount.trim().isNotEmpty == true
+        ? status!.amount.trim()
+        : fallbackAmount.toStringAsFixed(2),
+  );
+  final platformFees = _readFirstNonEmpty(
+    raw,
+    ['platform_fees', 'convenience_fee'],
+  );
+  final totalAmount = _readFirstNonEmpty(
+    raw,
+    ['total_amount_charged', 'amount'],
+    fallback: amount,
+  );
+  final transactionId = _readFirstNonEmpty(
+    raw,
+    ['transaction_id', 'pg_transaction_id', 'payment_transaction_id'],
+    fallback: status?.transactionId.trim().isNotEmpty == true
+        ? status!.transactionId.trim()
+        : fallbackTransactionId,
+  );
+  final paymentMode = _readFirstNonEmpty(
+    raw,
+    ['payment_mode', 'method'],
+    fallback: status?.paymentMode.trim() ?? '',
+  );
+  final mobile = _readFirstNonEmpty(
+    raw,
+    ['customer_mobile', 'mobile'],
+    fallback: status?.mobile.trim() ?? '',
+  );
+  final operatorName = _readFirstNonEmpty(
+    raw,
+    ['biller_name', 'operator', 'provider_name', 'merchant_name'],
+    fallback: status?.operatorName.trim().isNotEmpty == true
+        ? status!.operatorName.trim()
+        : fallbackBillerName,
+  );
+  final paymentType = _readFirstNonEmpty(
+    raw,
+    ['payment_type', 'category_name'],
+    fallback: fallbackPaymentType,
+  );
+  final maskedIdentifier = _readFirstNonEmpty(
+    raw,
+    ['masked_identifier', 'consumer_number', 'customer_account', 'mobile'],
+    fallback: mobile,
+  );
+  final referenceId = _readFirstNonEmpty(
+    raw,
+    ['org_ref_id', 'reference_id', 'transaction_ref'],
+    fallback: transactionId,
+  );
+  final transactionTime = _readFirstNonEmpty(
+    raw,
+    ['transaction_time', 'updated_at', 'created_at'],
+    fallback: status?.updatedAt.trim().isNotEmpty == true
+        ? status!.updatedAt.trim()
+        : (fallbackTransactionTime ?? ''),
+  );
+
+  return TransactionHistoryEntry(
+    paymentStatus: _readFirstNonEmpty(
+      raw,
+      ['payment_status', 'status'],
+      fallback: status?.status.trim().isNotEmpty == true
+          ? status!.status.trim()
+          : fallbackStatus,
+    ),
+    paymentType: paymentType,
+    billerName: operatorName,
+    maskedIdentifier: maskedIdentifier,
+    amount: amount,
+    platformFees: platformFees,
+    totalAmountCharged: totalAmount,
+    customerMobile: mobile,
+    iconUrl: _readFirstNonEmpty(raw, ['icon', 'icon_url']),
+    pgTransactionId: _readFirstNonEmpty(
+      raw,
+      ['pg_transaction_id', 'payment_transaction_id', 'transaction_id'],
+      fallback: transactionId,
+    ),
+    ecoinsTransactionId: _readFirstNonEmpty(raw, ['ecoins_transaction_id']),
+    transactionId: transactionId,
+    bankReferenceId: _readFirstNonEmpty(
+      raw,
+      ['bank_reference_id', 'bank_referenceId', 'rrn'],
+    ),
+    referenceId: referenceId,
+    transactionTime: transactionTime,
+    method: _readFirstNonEmpty(
+      raw,
+      ['method', 'payment_mode'],
+      fallback: paymentMode,
+    ),
+    methodIcon: _readFirstNonEmpty(raw, ['method_icon']),
+    paymentMode: paymentMode,
+    vpa: _readFirstNonEmpty(raw, ['vpa']),
+    rrn: _readFirstNonEmpty(raw, ['rrn']),
+    customerParams: _customerParamsFromRaw(
+      raw,
+      paymentType: paymentType,
+      billerName: operatorName,
+      fallbackIdentifier:
+          maskedIdentifier.isNotEmpty ? maskedIdentifier : mobile,
+    ),
+    amountBreakdown: _amountBreakdownFromRaw(
+      raw,
+      fallbackLabel: paymentType.toLowerCase().contains('recharge')
+          ? 'Recharge Amount'
+          : 'Bill Amount',
+      amount: amount,
+      platformFees: platformFees,
+      totalAmount: totalAmount,
+    ),
+  );
+}
+
+Map<String, dynamic> _flattenStatusPayload(Map<String, dynamic>? payload) {
+  if (payload == null || payload.isEmpty) return const {};
+  final data = payload['data'];
+  if (data is Map) {
+    return <String, dynamic>{
+      ...payload,
+      ...data.map((key, value) => MapEntry(key.toString(), value)),
+    };
+  }
+  return payload;
+}
+
+String _readFirstNonEmpty(
+  Map<String, dynamic> source,
+  List<String> keys, {
+  String fallback = '',
+}) {
+  for (final key in keys) {
+    final value = source[key];
+    final text = value?.toString().trim() ?? '';
+    if (text.isNotEmpty && text.toLowerCase() != 'null') {
+      return text;
+    }
+  }
+  return fallback;
+}
+
+List<TransactionCustomerParam> _customerParamsFromRaw(
+  Map<String, dynamic> raw, {
+  required String paymentType,
+  required String billerName,
+  required String fallbackIdentifier,
+}) {
+  final params = _parseCustomerParams(raw);
+  if (params.isNotEmpty) return params;
+
+  return [
+    TransactionCustomerParam(
+      label: 'Payment to',
+      value: billerName,
+    ),
+    TransactionCustomerParam(
+      label: paymentType.isNotEmpty ? paymentType : 'Details',
+      value: fallbackIdentifier.isNotEmpty ? fallbackIdentifier : billerName,
+    ),
+  ];
+}
+
+Map<String, dynamic> _amountBreakdownFromRaw(
+  Map<String, dynamic> raw, {
+  required String fallbackLabel,
+  required String amount,
+  required String platformFees,
+  required String totalAmount,
+}) {
+  final existing = _parseAmountBreakdown(raw);
+  if (existing.isNotEmpty) return existing;
+
+  return <String, dynamic>{
+    fallbackLabel: amount,
+    if (platformFees.trim().isNotEmpty) 'Platform Fees': platformFees,
+    'Total': totalAmount,
+  };
+}
+
+List<TransactionCustomerParam> _parseCustomerParams(Map<String, dynamic> raw) {
+  final candidates = <dynamic>[
+    raw['customer_params'],
+    (raw['data'] is Map) ? (raw['data'] as Map)['customer_params'] : null,
+  ];
+
+  for (final candidate in candidates) {
+    final normalized = _normalizeDynamic(candidate);
+    if (normalized is! List) continue;
+    final params = normalized
+        .whereType<Map>()
+        .map(
+          (item) => TransactionCustomerParam.fromJson(
+            item.map((key, value) => MapEntry(key.toString(), value)),
+          ),
+        )
+        .where(
+          (item) =>
+              item.label.trim().isNotEmpty && item.value.trim().isNotEmpty,
+        )
+        .toList();
+    if (params.isNotEmpty) return params;
+  }
+
+  return const <TransactionCustomerParam>[];
+}
+
+Map<String, dynamic> _parseAmountBreakdown(Map<String, dynamic> raw) {
+  final candidates = <dynamic>[
+    raw['amount_breakdown'],
+    (raw['data'] is Map) ? (raw['data'] as Map)['amount_breakdown'] : null,
+  ];
+
+  for (final candidate in candidates) {
+    final normalized = _normalizeDynamic(candidate);
+    if (normalized is Map) {
+      final breakdown = normalized.map(
+        (key, value) => MapEntry(key.toString(), value),
+      );
+      if (breakdown.isNotEmpty) return breakdown;
+    }
+  }
+
+  return const <String, dynamic>{};
+}
+
+dynamic _normalizeDynamic(dynamic value) {
+  if (value is String) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return value;
+    try {
+      return jsonDecode(trimmed);
+    } catch (_) {
+      return value;
+    }
+  }
+  return value;
+}
+
 class _TransactionDetailsCard extends StatelessWidget {
   const _TransactionDetailsCard({
     required this.title,
@@ -671,7 +1056,6 @@ class _TransactionDetailsCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: AppColors.textPrimary.withOpacity(0.7),
-                          fontSize: 12,
                         ),
                   ),
                   const SizedBox(width: 12),
@@ -733,5 +1117,3 @@ class _TransactionDetailsCard extends StatelessWidget {
     );
   }
 }
-
-// Rating bottom sheet extracted to `lib/widgets/rating_bottom_sheet.dart`.

@@ -72,6 +72,29 @@ class NotificationItem {
   final bool isRead;
   final DateTime? createdAt;
 
+  String get _combinedText =>
+      '${title.trim()} ${subtitle.trim()} ${(type ?? '').trim()} ${(redirectScreen ?? '').trim()}'
+          .toLowerCase();
+
+  bool get isBillPaymentSuccessNotification {
+    final text = _combinedText;
+    return (text.contains('bill payment successful') ||
+            text.contains('payment successful') ||
+            text.contains('payment success') ||
+            text.contains('paid successfully')) &&
+        !text.contains('reminder');
+  }
+
+  bool get isBillReminderNotification {
+    if (isBillPaymentSuccessNotification) return false;
+    final text = _combinedText;
+    if (showRemindButton) return true;
+    return text.contains('bill reminder') ||
+        text.contains('due date') ||
+        text.contains('due in') ||
+        text.contains('remind');
+  }
+
   static DateTime? _parseCreatedAt(String? raw) {
     if (raw == null || raw.isEmpty) return null;
     final normalized = raw.contains(' ') ? raw.replaceFirst(' ', 'T') : raw;
