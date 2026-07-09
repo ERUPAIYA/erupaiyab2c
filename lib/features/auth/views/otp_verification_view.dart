@@ -299,7 +299,7 @@ class OtpVerificationView extends HookConsumerWidget {
       } else {
         final latestState = ref.read(authControllerProvider);
         AppSnackbar.show(
-          latestState.errorMessage ?? 'Failed to resend OTP. Please try again.',
+          latestState.errorMessage ?? 'Unable to resend OTP. Please try again.',
         );
       }
     }
@@ -391,214 +391,237 @@ class OtpVerificationView extends HookConsumerWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(8.w, 6.h, 16.w, 0),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    color: AppColors.textPrimary,
-                    onPressed: () => context.pop(),
-                  ),
-                  Expanded(
-                    child: Text(
-                      args.title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                    ),
-                  ),
-                  Image.asset(
-                    FileConstants.bharatConnectColor,
-                    height: 22.h,
-                    fit: BoxFit.contain,
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: 16.h),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20.w),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (showIdentityVariant) ...[
-                    Image.asset(
-                      FileConstants.resetPinIcon,
-                      height: 72.h,
-                      fit: BoxFit.contain,
-                    ),
-                    SizedBox(height: 18.h),
-                  ],
-                  Text(
-                    args.heading,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: showIdentityVariant
-                              ? AppColors.primary
-                              : AppColors.textPrimary,
-                        ),
-                  ),
-                  SizedBox(height: 8.h),
-                  if (showIdentityVariant)
-                    Text(
-                      args.description ??
-                          'Enter the OTPs sent to your registered mobile number and email address to verify your identity.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.textPrimary.withOpacity(0.7),
-                            height: 1.45,
-                          ),
-                    )
-                  else
-                    RichText(
-                      text: TextSpan(
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppColors.textPrimary.withOpacity(0.7),
-                            ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: EdgeInsets.only(bottom: 24.h),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(8.w, 6.h, 16.w, 0),
+                      child: Row(
                         children: [
-                          TextSpan(
-                            text: args.description ??
-                                'Sent to ${args.phoneNumber ?? authState.pendingMobile ?? ''} ',
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back),
+                            color: AppColors.textPrimary,
+                            onPressed: () => context.pop(),
                           ),
-                          TextSpan(
-                            text: 'Change',
+
+                          // Expanded(
+                          //   child: Text(
+                          //     "",
+                          //     style: Theme.of(context)
+                          //         .textTheme
+                          //         .titleMedium
+                          //         ?.copyWith(
+                          //           fontWeight: FontWeight.w600,
+                          //           color: AppColors.textPrimary,
+                          //         ),
+                          //   ),
+                          // ),
+                          // Image.asset(
+                          //   FileConstants.bharatConnectColor,
+                          //   height: 22.h,
+                          //   fit: BoxFit.contain,
+                          // ),
+                        ],
+                      ),
+                    ),
+                    Divider(
+                      color: AppColors.textPrimary.withOpacity(0.1),
+                      thickness: 1,
+                    ),
+                    SizedBox(height: 16.h),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 20.w),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (showIdentityVariant) ...[
+                            Image.asset(
+                              FileConstants.resetPinIcon,
+                              height: 65.h,
+                              fit: BoxFit.contain,
+                            ),
+                            SizedBox(height: 18.h),
+                          ],
+                          Text(
+                            args.heading,
                             style: Theme.of(context)
                                 .textTheme
-                                .bodyMedium
+                                .titleLarge
                                 ?.copyWith(
-                                  color: AppColors.textPrimary,
-                                  decoration: TextDecoration.underline,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w700,
+                                  color: showIdentityVariant
+                                      ? AppColors.primary
+                                      : AppColors.textPrimary,
                                 ),
-                            recognizer: TapGestureRecognizer()
-                              ..onTap = () => context.go(RouteConstants.login),
+                          ),
+                          SizedBox(height: 8.h),
+                          if (showIdentityVariant)
+                            Text(
+                              args.description ??
+                                  'Enter the OTPs sent to your registered mobile number and email address to verify your identity.',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    fontSize: 12,
+                                    color:
+                                        AppColors.textPrimary.withOpacity(0.7),
+                                    height: 1.45,
+                                  ),
+                            )
+                          else
+                            RichText(
+                              text: TextSpan(
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
+                                      color: AppColors.textPrimary
+                                          .withOpacity(0.7),
+                                    ),
+                                children: [
+                                  TextSpan(
+                                    text: args.description ??
+                                        'Sent to ${args.phoneNumber ?? authState.pendingMobile ?? ''} ',
+                                  ),
+                                  TextSpan(
+                                    text: 'Change',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: AppColors.textPrimary,
+                                          decoration: TextDecoration.underline,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                    recognizer: TapGestureRecognizer()
+                                      ..onTap = () =>
+                                          context.go(RouteConstants.login),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          SizedBox(height: 18.h),
+                          if (showIdentityVariant) ...[
+                            _IdentityOtpSection(
+                              title: 'Mobile OTP',
+                              subtitle:
+                                  'Enter the 6 digit OTP sent to your registered mobile number.',
+                              controllers: mobileOtpControllers,
+                              focusNodes: mobileOtpFocusNodes,
+                              timerText: timerText,
+                              canResend: remainingSeconds.value == 0,
+                              onResend: handleResend,
+                              onChanged: (_) => errorText.value = null,
+                            ),
+                            SizedBox(height: 20.h),
+                            _IdentityOtpSection(
+                              title: 'Email OTP',
+                              subtitle:
+                                  'Enter the 6 digit OTP sent to your registered email address.',
+                              controllers: emailOtpControllers,
+                              focusNodes: emailOtpFocusNodes,
+                              timerText: emailTimerText,
+                              canResend: emailRemainingSeconds.value == 0,
+                              onResend: handleEmailResend,
+                              onChanged: (_) => errorText.value = null,
+                            ),
+                          ] else
+                            Pinput(
+                              length: _otpLength,
+                              controller: otpController,
+                              focusNode: otpFocusNode,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                              autofocus: true,
+                              onChanged: (_) => errorText.value = null,
+                              onCompleted: (_) => handleVerify(),
+                              defaultPinTheme: PinTheme(
+                                width: 44.w,
+                                height: 44.w,
+                                textStyle: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: const Color(0xFFD6D6D6),
+                                  ),
+                                ),
+                              ),
+                              errorPinTheme: PinTheme(
+                                width: 44.w,
+                                height: 44.w,
+                                textStyle: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: Colors.red),
+                                ),
+                              ),
+                              errorTextStyle: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                            ),
+                          if (errorText.value != null &&
+                              errorText.value!.isNotEmpty) ...[
+                            SizedBox(height: 12.h),
+                            Text(
+                              errorText.value!,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                            ),
+                          ],
+                          SizedBox(height: showIdentityVariant ? 28.h : 20.h),
+                          CustomElevatedButton(
+                            onPressed:
+                                authState.isSubmitting ? null : handleVerify,
+                            label: authState.isSubmitting
+                                ? 'Verifying...'
+                                : (args.primaryButtonLabel ??
+                                    (showIdentityVariant
+                                        ? 'Verify & Continue'
+                                        : 'Verify')),
+                            uppercaseLabel: false,
+                            showArrow: false,
+                            height: 42.h,
                           ),
                         ],
                       ),
                     ),
-                  SizedBox(height: 18.h),
-                  if (showIdentityVariant) ...[
-                    _IdentityOtpSection(
-                      title: 'Mobile OTP',
-                      subtitle:
-                          'Enter the 6 digit OTP sent to your registered mobile number.',
-                      controllers: mobileOtpControllers,
-                      focusNodes: mobileOtpFocusNodes,
-                      timerText: timerText,
-                      canResend: remainingSeconds.value == 0,
-                      onResend: handleResend,
-                      onChanged: (_) => errorText.value = null,
-                    ),
-                    SizedBox(height: 20.h),
-                    _IdentityOtpSection(
-                      title: 'Email OTP',
-                      subtitle:
-                          'Enter the 6 digit OTP sent to your registered email address.',
-                      controllers: emailOtpControllers,
-                      focusNodes: emailOtpFocusNodes,
-                      timerText: emailTimerText,
-                      canResend: emailRemainingSeconds.value == 0,
-                      onResend: handleEmailResend,
-                      onChanged: (_) => errorText.value = null,
-                    ),
-                  ] else
-                    Pinput(
-                      length: _otpLength,
-                      controller: otpController,
-                      focusNode: otpFocusNode,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      autofocus: true,
-                      onChanged: (_) => errorText.value = null,
-                      onCompleted: (_) => handleVerify(),
-                      defaultPinTheme: PinTheme(
-                        width: 44.w,
-                        height: 44.w,
-                        textStyle:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  color: AppColors.textPrimary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xFFD6D6D6)),
-                        ),
-                      ),
-                      errorPinTheme: PinTheme(
-                        width: 44.w,
-                        height: 44.w,
-                        textStyle:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  color: AppColors.textPrimary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.red),
-                        ),
-                      ),
-                      errorTextStyle:
-                          Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Colors.red,
-                                fontWeight: FontWeight.w500,
-                              ),
-                    ),
-                  // if (autoFilledCode.value != null &&
-                  //     autoFilledCode.value!.isNotEmpty) ...[
-                  //   SizedBox(height: 8.h),
-                  //   Text(
-                  //     'Auto-filled OTP: ${autoFilledCode.value}',
-                  //     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  //           color: AppColors.textPrimary.withOpacity(0.6),
-                  //           fontWeight: FontWeight.w600,
-                  //         ),
-                  //   ),
-                  // ],
-                  if (errorText.value != null &&
-                      errorText.value!.isNotEmpty) ...[
-                    SizedBox(height: 12.h),
-                    Text(
-                      errorText.value!,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Colors.red,
-                            fontWeight: FontWeight.w500,
-                          ),
-                    ),
                   ],
-                  SizedBox(height: showIdentityVariant ? 28.h : 20.h),
-                  CustomElevatedButton(
-                    onPressed: authState.isSubmitting ? null : handleVerify,
-                    label: authState.isSubmitting
-                        ? 'Verifying...'
-                        : (args.primaryButtonLabel ??
-                            (showIdentityVariant
-                                ? 'Verify & Continue'
-                                : 'Verify')),
-                    uppercaseLabel: false,
-                    showArrow: false,
-                    height: 42.h,
-                  ),
-                  // if (!showIdentityVariant) ...[
-                  //   SizedBox(height: 8.h),
-                  //   Text(
-                  //     'OTPj',
-                  //     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  //           color: AppColors.textPrimary.withOpacity(0.6),
-                  //           fontWeight: FontWeight.w600,
-                  //         ),
-                  //   ),
-                  // ],
-                ],
+                ),
               ),
-            ),
-            const Spacer(),
-          ],
+            );
+          },
         ),
       ),
     );

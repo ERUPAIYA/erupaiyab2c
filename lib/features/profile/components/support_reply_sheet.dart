@@ -19,6 +19,15 @@ class SupportReplySheet extends HookConsumerWidget {
 
   final String ticketId;
 
+  static const _reasons = [
+    'Issue Still Not Resolved',
+    'Refund Not Received',
+    'Payment Still Pending',
+    'Incorrect Resolution Provided',
+    'Need Additional Clarification',
+    'Other',
+  ];
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(supportTicketDetailControllerProvider(ticketId));
@@ -27,6 +36,18 @@ class SupportReplySheet extends HookConsumerWidget {
 
     final messageController = useTextEditingController();
     final screenshot = useState<File?>(null);
+    final selectedReason = useState<String?>(null);
+    final sectionTitleStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: AppColors.textPrimary,
+        );
+    final fieldTextStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.w600,
+        );
+    final helperTextStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: AppColors.textPrimary.withOpacity(0.6),
+        );
 
     Future<void> pickScreenshot() async {
       final picker = ImagePicker();
@@ -51,6 +72,16 @@ class SupportReplySheet extends HookConsumerWidget {
     }
 
     Future<void> sendReply() async {
+      final reason = selectedReason.value?.trim() ?? '';
+      if (reason.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Please select a reason'),
+            backgroundColor: Colors.red.shade400,
+          ),
+        );
+        return;
+      }
       final message = messageController.text.trim();
       if (message.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -62,6 +93,7 @@ class SupportReplySheet extends HookConsumerWidget {
         return;
       }
       final ok = await controller.reply(
+        reason: reason,
         message: message,
         screenshot: screenshot.value,
       );
@@ -104,21 +136,69 @@ class SupportReplySheet extends HookConsumerWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              'Your Reply',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+              'Reason For Reply',
+              style: sectionTitleStyle,
+            ),
+          ),
+          SizedBox(height: 8.h),
+          DropdownButtonFormField<String>(
+            value: selectedReason.value,
+            isExpanded: true,
+            decoration: InputDecoration(
+              hintText: 'Select',
+              hintStyle: TextStyle(
+                color: AppColors.textPrimary.withOpacity(0.45),
+              ),
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding:
+                  EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14.r),
+                borderSide: const BorderSide(color: AppColors.lightBorder),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14.r),
+                borderSide: const BorderSide(color: AppColors.lightBorder),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14.r),
+                borderSide: const BorderSide(color: AppColors.primary),
+              ),
+            ),
+            items: _reasons
+                .map(
+                  (reason) => DropdownMenuItem<String>(
+                    value: reason,
+                    child: Text(
+                      reason,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: fieldTextStyle,
+                    ),
                   ),
+                )
+                .toList(growable: false),
+            onChanged: (value) => selectedReason.value = value,
+          ),
+          SizedBox(height: 12.h),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Your Reply',
+              style: sectionTitleStyle,
             ),
           ),
           SizedBox(height: 8.h),
           TextField(
             controller: messageController,
             maxLines: 5,
+            style: fieldTextStyle,
             decoration: InputDecoration(
               hintText: 'Message',
-              hintStyle: TextStyle(
+              hintStyle: fieldTextStyle?.copyWith(
                 color: AppColors.textPrimary.withOpacity(0.45),
+                fontWeight: FontWeight.w500,
               ),
               filled: true,
               fillColor: Colors.white,
@@ -143,7 +223,7 @@ class SupportReplySheet extends HookConsumerWidget {
             onTap: pickScreenshot,
             borderRadius: BorderRadius.circular(14.r),
             child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 14.h),
+              padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 14),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(14.r),
@@ -160,10 +240,7 @@ class SupportReplySheet extends HookConsumerWidget {
                           : (screenshot.value!.uri.pathSegments.isEmpty
                               ? 'Screenshot selected'
                               : screenshot.value!.uri.pathSegments.last),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                          ),
+                      style: fieldTextStyle,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -180,9 +257,7 @@ class SupportReplySheet extends HookConsumerWidget {
             alignment: Alignment.centerLeft,
             child: Text(
               'Please note: File size should be lesser than 20MB',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: AppColors.textPrimary.withOpacity(0.6),
-                  ),
+              style: helperTextStyle,
             ),
           ),
           SizedBox(height: 14.h),

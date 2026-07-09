@@ -65,12 +65,14 @@ class SupportTicketsRepository {
 
   Future<bool> reply({
     required String ticketId,
+    required String reason,
     required String message,
     File? screenshot,
   }) async {
     try {
       final form = FormData.fromMap({
         'ticket_id': ticketId,
+        'reason': reason,
         'message': message,
         if (screenshot != null)
           'screenshot': await MultipartFile.fromFile(
@@ -118,6 +120,28 @@ class SupportTicketsRepository {
     } catch (e, stackTrace) {
       logger.error(
         'Failed to close support ticket',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
+  }
+
+  Future<bool> reopenTicket({
+    required String ticketId,
+  }) async {
+    try {
+      final response = await _dio.post(
+        ApiConstants.supportTicketReopenEndpoint(ticketId),
+      );
+      final payload = response.data;
+      if (payload is Map) {
+        return payload['status'] == true || payload['success'] == true;
+      }
+      return true;
+    } catch (e, stackTrace) {
+      logger.error(
+        'Failed to reopen support ticket',
         error: e,
         stackTrace: stackTrace,
       );

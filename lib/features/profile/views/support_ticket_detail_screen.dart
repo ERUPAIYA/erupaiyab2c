@@ -3,10 +3,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 
 import '../../../constants/app_colors.dart';
+import '../../../constants/file_constants.dart';
+import '../../../constants/routes_constant.dart';
+import '../../../widgets/app_network_image.dart';
 import '../../../widgets/k_dialog.dart';
 import '../../../widgets/my_app_bar.dart';
 import '../components/support_feedback_sheets.dart';
@@ -51,6 +55,7 @@ class SupportTicketDetailScreen extends HookConsumerWidget {
     }, [state.errorMessage]);
 
     final ticket = state.ticket;
+    final isOpenTicket = ticket != null && _isOpenTicketStatus(ticket.status);
     final isClosedTicket =
         ticket != null && _isClosedTicketStatus(ticket.status);
 
@@ -82,13 +87,9 @@ class SupportTicketDetailScreen extends HookConsumerWidget {
                             SizedBox(height: 14.h),
                             const _SectionTitle(title: 'Issue Description'),
                             SizedBox(height: 10.h),
-                            const _IssueDescriptionHeaderCard(
+                            const _IssueDescriptionCard(
                               ticket: _SupportTicketDetailSkeletons.ticket,
                             ),
-                            SizedBox(height: 14.h),
-                            _QuestionText(
-                                text: _SupportTicketDetailSkeletons
-                                    .ticket.description),
                             SizedBox(height: 14.h),
                             const _AdminReplyCard(
                               message:
@@ -122,18 +123,22 @@ class SupportTicketDetailScreen extends HookConsumerWidget {
                     SizedBox(height: 14.h),
                     const _SectionTitle(title: 'Issue Description'),
                     SizedBox(height: 10.h),
-                    _IssueDescriptionHeaderCard(ticket: ticket),
-                    SizedBox(height: 14.h),
-                    _QuestionText(text: ticket.description),
+                    _IssueDescriptionCard(ticket: ticket),
                     SizedBox(height: 14.h),
                     if (ticket.messages.isNotEmpty)
                       for (final message in ticket.messages) ...[
                         if (message.isAdmin)
                           _AdminReplyCard(message: message)
                         else
-                          _QuestionText(text: message.message),
+                          _UserReplyCard(message: message),
                         SizedBox(height: 12.h),
                       ],
+                    if (isClosedTicket) ...[
+                      SizedBox(height: 4.h),
+                      _SupportExperiencePrompt(
+                        onTap: () => _openSupportExperienceSheet(context),
+                      ),
+                    ],
                   ],
                 ],
               ),
@@ -155,38 +160,10 @@ class SupportTicketDetailScreen extends HookConsumerWidget {
           ),
           child: Row(
             children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: ticket == null || state.isClosing
-                      ? null
-                      : () => isClosedTicket
-                          ? _openReopenSheet(context)
-                          : _openFeedbackFlow(
-                              context,
-                              controller: controller,
-                            ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    side: const BorderSide(color: AppColors.primary),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(28.r),
-                    ),
-                    padding: EdgeInsets.symmetric(vertical: 12.h),
-                  ),
-                  child: Text(
-                    isClosedTicket ? 'Reopen Ticket' : 'Close Ticket',
-                  ),
-                ),
-              ),
-              if (!isClosedTicket) ...[
-                SizedBox(width: 12.w),
+              if (isOpenTicket) ...[
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: ticket == null
-                        ? null
-                        : () => KDialog.instance.openSheet(
-                              dialog: SupportReplySheet(ticketId: ticketId),
-                            ),
+                    onPressed: () => _handleDone(context),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
@@ -196,9 +173,51 @@ class SupportTicketDetailScreen extends HookConsumerWidget {
                       elevation: 0,
                       padding: EdgeInsets.symmetric(vertical: 12.h),
                     ),
-                    child: const Text('Send Reply'),
+                    child: const Text('Done'),
                   ),
                 ),
+              ] else ...[
+                if (isClosedTicket) ...[
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: state.isClosing
+                          ? null
+                          : () => _openReopenSheet(context),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: const BorderSide(color: AppColors.primary),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(28.r),
+                        ),
+                        padding: EdgeInsets.symmetric(vertical: 12.h),
+                      ),
+                      child: const Text('Reopen Ticket'),
+                    ),
+                  ),
+                ] else ...[
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: ticket == null || !ticket.isReplyButtonEnabled
+                          ? null
+                          : () => KDialog.instance.openSheet(
+                                dialog: SupportReplySheet(ticketId: ticketId),
+                              ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: AppColors.lightBorder,
+                        disabledForegroundColor:
+                            AppColors.textPrimary.withOpacity(0.45),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(28.r),
+                        ),
+                        elevation: 0,
+                        padding: EdgeInsets.symmetric(vertical: 12.h),
+                      ),
+                      child: const Text('Send Reply'),
+                    ),
+                  ),
+                ],
               ],
             ],
           ),
@@ -207,31 +226,33 @@ class SupportTicketDetailScreen extends HookConsumerWidget {
     );
   }
 
-  void _openFeedbackFlow(
-    BuildContext context, {
-    required SupportTicketDetailController controller,
-  }) {
+  void _openReopenSheet(BuildContext context) {
     KDialog.instance.openSheet(
-      dialog: SupportExperienceSheet(
-        onContinue: () async {
-          final ok = await controller.closeTicket();
-          if (!ok || !context.mounted) return;
-          KDialog.instance.openSheet(
-            dialog: SupportThankYouSheet(
-              onContinue: () {
-                if (!context.mounted) return;
-                Navigator.of(context).maybePop();
-              },
-            ),
-          );
-        },
+      dialog: _ReopenTicketSheet(
+        ticketId: ticketId,
       ),
     );
   }
 
-  void _openReopenSheet(BuildContext context) {
+  void _handleDone(BuildContext context) {
+    if (Navigator.of(context).canPop()) {
+      context.pop();
+      return;
+    }
+    context.go(RouteConstants.supportTickets);
+  }
+
+  void _openSupportExperienceSheet(BuildContext context) {
     KDialog.instance.openSheet(
-      dialog: const _ReopenTicketSheet(),
+      dialog: SupportExperienceSheet(
+        onContinue: () {
+          KDialog.instance.openSheet(
+            dialog: SupportThankYouSheet(
+              onContinue: () {},
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -241,8 +262,79 @@ bool _isClosedTicketStatus(String status) {
   return normalized == 'closed' || normalized == 'resolved';
 }
 
-class _ReopenTicketSheet extends HookWidget {
-  const _ReopenTicketSheet();
+bool _isOpenTicketStatus(String status) {
+  return status.trim().toLowerCase() == 'open';
+}
+
+class _SupportExperiencePrompt extends StatelessWidget {
+  const _SupportExperiencePrompt({
+    required this.onTap,
+  });
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Rate your support experience.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w700,
+              ),
+        ),
+        SizedBox(height: 8.h),
+        Row(
+          children: [
+            for (final face in _supportExperienceFaces) ...[
+              Expanded(
+                child: Center(
+                  child: InkWell(
+                    onTap: onTap,
+                    borderRadius: BorderRadius.circular(16.r),
+                    child: Padding(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 2.w, vertical: 4.h),
+                      child: Image.asset(
+                        face.assetPath,
+                        height: 28.w,
+                        width: 28.w,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _SupportExperienceFace {
+  const _SupportExperienceFace(this.assetPath);
+
+  final String assetPath;
+}
+
+final List<_SupportExperienceFace> _supportExperienceFaces = [
+  _SupportExperienceFace(FileConstants.worstIcon),
+  _SupportExperienceFace(FileConstants.fineIcon),
+  _SupportExperienceFace(FileConstants.neutralIcon),
+  _SupportExperienceFace(FileConstants.goodIcon),
+  _SupportExperienceFace(FileConstants.loveIcon),
+];
+
+class _ReopenTicketSheet extends HookConsumerWidget {
+  const _ReopenTicketSheet({
+    required this.ticketId,
+  });
+
+  final String ticketId;
 
   static const _reasons = [
     'Issue Still Not Resolved',
@@ -254,14 +346,22 @@ class _ReopenTicketSheet extends HookWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final controller =
+        ref.read(supportTicketDetailControllerProvider(ticketId).notifier);
     final selectedReason = useState<String?>(null);
     final otherController = useTextEditingController();
     final otherText = useState('');
     final isOtherSelected = selectedReason.value == 'Other';
+    final isSubmitting = ref.watch(
+      supportTicketDetailControllerProvider(ticketId).select(
+        (state) => state.isClosing,
+      ),
+    );
 
     final canSubmit = selectedReason.value != null &&
-        (!isOtherSelected || otherText.value.trim().isNotEmpty);
+        (!isOtherSelected || otherText.value.trim().isNotEmpty) &&
+        !isSubmitting;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 16.h),
@@ -392,8 +492,13 @@ class _ReopenTicketSheet extends HookWidget {
               SizedBox(width: 14.w),
               Expanded(
                 child: ElevatedButton(
-                  onPressed:
-                      canSubmit ? () => Navigator.of(context).pop() : null,
+                  onPressed: canSubmit
+                      ? () async {
+                          final ok = await controller.reopenTicket();
+                          if (!ok || !context.mounted) return;
+                          Navigator.of(context).pop();
+                        }
+                      : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
@@ -406,7 +511,9 @@ class _ReopenTicketSheet extends HookWidget {
                     elevation: 0,
                     padding: EdgeInsets.symmetric(vertical: 12.h),
                   ),
-                  child: const Text('Reopen Ticket'),
+                  child: Text(
+                    isSubmitting ? 'Please wait...' : 'Reopen Ticket',
+                  ),
                 ),
               ),
             ],
@@ -453,7 +560,9 @@ class _SupportTicketDetailSkeletons {
     description: 'Loading ticket details…',
     createdAt: '2026-01-01 00:00:00',
     username: 'User',
+    screenshot: null,
     messages: [],
+    isReplyButtonEnabled: true,
   );
 
   static const adminMessage = SupportTicketMessage(
@@ -574,14 +683,15 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-class _IssueDescriptionHeaderCard extends StatelessWidget {
-  const _IssueDescriptionHeaderCard({required this.ticket});
+class _IssueDescriptionCard extends StatelessWidget {
+  const _IssueDescriptionCard({required this.ticket});
 
   final SupportTicketDetail ticket;
 
   @override
   Widget build(BuildContext context) {
     final initials = _initials(ticket.username);
+    final screenshot = ticket.screenshot?.trim() ?? '';
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(12.w),
@@ -590,32 +700,51 @@ class _IssueDescriptionHeaderCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14.r),
         border: Border.all(color: AppColors.lightBorder),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _InitialAvatar(text: initials),
-          SizedBox(width: 10.w),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Issue Description',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w900,
-                      ),
+          Row(
+            children: [
+              _InitialAvatar(text: initials),
+              SizedBox(width: 10.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Issue Description',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                    SizedBox(height: 4.h),
+                    Text(
+                      ticket.createdAt,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.textPrimary.withOpacity(0.55),
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ],
                 ),
-                SizedBox(height: 4.h),
-                Text(
-                  ticket.createdAt,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textPrimary.withOpacity(0.55),
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
+          SizedBox(height: 12.h),
+          Divider(
+            color: Colors.black.withOpacity(0.08),
+            thickness: 1,
+            height: 1,
+          ),
+          SizedBox(height: 12.h),
+          _QuestionText(text: ticket.description),
+          if (screenshot.isNotEmpty) ...[
+            SizedBox(height: 12.h),
+            _ScreenshotAttachment(
+              imageUrl: screenshot,
+            ),
+          ],
         ],
       ),
     );
@@ -651,6 +780,66 @@ class _QuestionText extends StatelessWidget {
                   ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UserReplyCard extends StatelessWidget {
+  const _UserReplyCard({required this.message});
+
+  final SupportTicketMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(12.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14.r),
+        border: Border.all(color: AppColors.lightBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const _InitialAvatar(text: 'Y'),
+              SizedBox(width: 10.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'You',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                    SizedBox(height: 4.h),
+                    Text(
+                      message.createdAt,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.textPrimary.withOpacity(0.55),
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12.h),
+          Divider(
+            color: Colors.black.withOpacity(0.08),
+            thickness: 1,
+            height: 1,
+          ),
+          SizedBox(height: 12.h),
+          _QuestionText(text: message.message),
         ],
       ),
     );
@@ -718,6 +907,99 @@ class _AdminReplyCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ScreenshotAttachment extends StatelessWidget {
+  const _ScreenshotAttachment({required this.imageUrl});
+
+  final String imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final fileName = _fileNameFromUrl(imageUrl);
+
+    return InkWell(
+      onTap: () => _openImagePreview(context, imageUrl),
+      borderRadius: BorderRadius.circular(14.r),
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14.r),
+          border: Border.all(color: AppColors.lightBorder),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.image_outlined,
+              size: 20.sp,
+              color: AppColors.textPrimary,
+            ),
+            SizedBox(width: 10.w),
+            Expanded(
+              child: Text(
+                fileName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ),
+            SizedBox(width: 10.w),
+            Icon(
+              Icons.remove_red_eye_outlined,
+              size: 20.sp,
+              color: AppColors.textPrimary,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openImagePreview(BuildContext context, String url) {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          insetPadding: EdgeInsets.all(16.w),
+          backgroundColor: Colors.black87,
+          child: Stack(
+            children: [
+              Padding(
+                padding: EdgeInsets.all(12.w),
+                child: InteractiveViewer(
+                  minScale: 0.8,
+                  maxScale: 4,
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: AppNetworkImage(
+                      url: url,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 8.h,
+                right: 8.w,
+                child: IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(
+                    Icons.close,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -842,6 +1124,14 @@ String _serviceLabel(String raw) {
     default:
       return raw.isEmpty ? 'Service' : raw;
   }
+}
+
+String _fileNameFromUrl(String raw) {
+  final uri = Uri.tryParse(raw.trim());
+  if (uri != null && uri.pathSegments.isNotEmpty) {
+    return uri.pathSegments.last;
+  }
+  return raw.trim().isEmpty ? 'Attachment' : raw.trim();
 }
 
 String _initials(String name) {

@@ -121,7 +121,7 @@ class CreateSupportTicketScreen extends HookConsumerWidget {
         backgroundColor: AppColors.green,
         textColor: Colors.white,
       );
-      context.go(RouteConstants.supportTickets);
+      context.pushReplacement(RouteConstants.supportTickets);
     }
 
     return Scaffold(
@@ -417,7 +417,7 @@ class _ChoiceChipButton extends StatelessWidget {
       borderRadius: BorderRadius.circular(14.r),
       child: Container(
         height: 46.h,
-        padding: EdgeInsets.symmetric(horizontal: 12.w),
+        padding: EdgeInsets.symmetric(horizontal: 8.w),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(14.r),
@@ -428,7 +428,8 @@ class _ChoiceChipButton extends StatelessWidget {
             Expanded(
               child: Text(
                 text,
-                style: textStyle?.copyWith(fontWeight: FontWeight.w700),
+                style: textStyle?.copyWith(
+                    fontWeight: FontWeight.w700, fontSize: 12),
               ),
             ),
             if (selected)

@@ -8,7 +8,9 @@ class SupportTicketDetail {
     required this.description,
     required this.createdAt,
     required this.username,
+    required this.screenshot,
     required this.messages,
+    required this.isReplyButtonEnabled,
   });
 
   final String id;
@@ -19,7 +21,9 @@ class SupportTicketDetail {
   final String description;
   final String createdAt;
   final String username;
+  final String? screenshot;
   final List<SupportTicketMessage> messages;
+  final bool isReplyButtonEnabled;
 
   factory SupportTicketDetail.fromJson(Map<String, dynamic> json) {
     final rawMessages = json['messages'];
@@ -40,7 +44,10 @@ class SupportTicketDetail {
       description: (json['description'] ?? '').toString(),
       createdAt: (json['created_at'] ?? '').toString(),
       username: (json['username'] ?? '').toString(),
+      screenshot:
+          json['screenshot'] == null ? null : json['screenshot'].toString(),
       messages: messages,
+      isReplyButtonEnabled: json['is_reply_button_enable'] == true,
     );
   }
 }

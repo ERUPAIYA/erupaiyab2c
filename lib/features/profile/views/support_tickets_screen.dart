@@ -48,7 +48,10 @@ class SupportTicketsScreen extends HookConsumerWidget {
       backgroundColor: Colors.white,
       body: Column(
         children: [
-          const MyAppBar(title: 'Tickets'),
+          MyAppBar(
+            title: 'Tickets',
+            onBack: () => context.pop(),
+          ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: controller.fetchTickets,
@@ -129,13 +132,18 @@ class _TicketCard extends StatelessWidget {
   final VoidCallback onTap;
 
   String get _title {
+    final description = ticket.description.trim();
+    if (description.isNotEmpty) return description;
+
     final issue = ticket.issueType.trim();
-    if (issue.isEmpty) return 'Ticket';
-    return 'Why $issue';
+    if (issue.isNotEmpty) return issue;
+
+    return 'Ticket';
   }
 
   String get _subtitle {
-    final service = _serviceLabel(ticket.service);
+    final service =
+        ticket.service.trim().isEmpty ? 'Service' : ticket.service.trim();
     final date = _formatDate(ticket.createdAtRaw);
     if (date.isEmpty) return service;
     return '$service  •  $date';
@@ -161,6 +169,8 @@ class _TicketCard extends StatelessWidget {
                 children: [
                   Text(
                     _title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: AppColors.textPrimary,
                           fontWeight: FontWeight.w800,
@@ -208,12 +218,16 @@ class _TicketStatusChip extends StatelessWidget {
 
   Color get _color {
     final normalized = status.trim().toLowerCase();
-    if (normalized == 'resolved' || normalized == 'closed') {
+    if (normalized == 'resolved' || normalized == 'Resolved') {
       return const Color(0xFF0E8B3E);
     }
-    if (normalized == 'in_progress' || normalized == 'in progress') {
-      return const Color(0xFF9C6A00);
+    if (normalized == 'Reopened' || normalized == 'reopened') {
+      return const Color(0xFFB07B00);
     }
+    if (normalized == 'Closed' || normalized == 'closed') {
+      return Colors.red;
+    }
+
     return const Color(0xFFB07B00);
   }
 
@@ -240,20 +254,6 @@ class _TicketStatusChip extends StatelessWidget {
             ),
       ),
     );
-  }
-}
-
-String _serviceLabel(String raw) {
-  final code = raw.trim().toUpperCase();
-  switch (code) {
-    case 'BBPS':
-      return 'Rent & Utility Payments';
-    case 'EDUCATION':
-      return 'Education Payments';
-    case 'METAL':
-      return 'Metal Payments';
-    default:
-      return raw.isEmpty ? 'Service' : raw;
   }
 }
 

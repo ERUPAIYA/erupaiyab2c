@@ -169,4 +169,7 @@ class ApiConstants {
 
   static const String supportTicketCloseEndpoint =
       '$baseUrl/api/support/ticket/close';
+
+  static String supportTicketReopenEndpoint(String id) =>
+      '$baseUrl/api/support/ticket/reopen/$id';
 }

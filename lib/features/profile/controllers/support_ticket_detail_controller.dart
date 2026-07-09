@@ -71,12 +71,13 @@ class SupportTicketDetailController
     } catch (_) {
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Failed to load ticket details. Please try again.',
+        errorMessage: 'Unable to load ticket details. Please try again.',
       );
     }
   }
 
   Future<bool> reply({
+    required String reason,
     required String message,
     File? screenshot,
   }) async {
@@ -85,6 +86,7 @@ class SupportTicketDetailController
     try {
       final ok = await _repository.reply(
         ticketId: _ticketId,
+        reason: reason,
         message: message,
         screenshot: screenshot,
       );
@@ -95,7 +97,7 @@ class SupportTicketDetailController
     } catch (_) {
       state = state.copyWith(
         isReplying: false,
-        errorMessage: 'Failed to send reply. Please try again.',
+        errorMessage: 'Unable to send reply. Please try again.',
       );
       return false;
     }
@@ -113,7 +115,25 @@ class SupportTicketDetailController
     } catch (_) {
       state = state.copyWith(
         isClosing: false,
-        errorMessage: 'Failed to close ticket. Please try again.',
+        errorMessage: 'Unable to close ticket. Please try again.',
+      );
+      return false;
+    }
+  }
+
+  Future<bool> reopenTicket() async {
+    if (state.isClosing) return false;
+    state = state.copyWith(isClosing: true, errorMessage: null);
+    try {
+      final ok = await _repository.reopenTicket(ticketId: _ticketId);
+      state = state.copyWith(isClosing: false);
+      await fetch();
+      _ref.read(supportTicketsControllerProvider.notifier).fetchTickets();
+      return ok;
+    } catch (_) {
+      state = state.copyWith(
+        isClosing: false,
+        errorMessage: 'Unable to reopen ticket. Please try again.',
       );
       return false;
     }

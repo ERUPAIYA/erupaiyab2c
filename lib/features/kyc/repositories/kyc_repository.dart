@@ -92,17 +92,38 @@ class KycPanResponse {
   const KycPanResponse({
     required this.valid,
     required this.message,
+    required this.provider,
+    required this.failureType,
+    required this.referenceId,
+    required this.registeredName,
+    required this.panNumber,
+    required this.requestDurationMs,
   });
 
   factory KycPanResponse.fromJson(Map<String, dynamic> json) {
+    final status = json['status'];
     return KycPanResponse(
-      valid: json['valid'] == true,
+      valid: json['valid'] == true ||
+          status == true ||
+          status?.toString().toUpperCase() == 'SUCCESS',
       message: (json['message'] ?? '').toString(),
+      provider: (json['provider'] ?? '').toString(),
+      failureType: json['failure_type']?.toString(),
+      referenceId: (json['reference_id'] ?? '').toString(),
+      registeredName: (json['registered_name'] ?? '').toString(),
+      panNumber: (json['pan_number'] ?? '').toString(),
+      requestDurationMs: (json['request_duration_ms'] ?? '').toString(),
     );
   }
 
   final bool valid;
   final String message;
+  final String provider;
+  final String? failureType;
+  final String referenceId;
+  final String registeredName;
+  final String panNumber;
+  final String requestDurationMs;
 }
 
 class KycAadhaarOtpResponse {
