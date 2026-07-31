@@ -129,10 +129,24 @@ class SupportTicketsRepository {
 
   Future<bool> reopenTicket({
     required String ticketId,
+    required String reason,
+    File? screenshot,
   }) async {
     try {
+      final form = FormData.fromMap({
+        'ticket_id': ticketId,
+        'reason': reason,
+        if (screenshot != null)
+          'screenshot': await MultipartFile.fromFile(
+            screenshot.path,
+            filename: screenshot.uri.pathSegments.isNotEmpty
+                ? screenshot.uri.pathSegments.last
+                : 'screenshot.jpg',
+          ),
+      });
       final response = await _dio.post(
         ApiConstants.supportTicketReopenEndpoint(ticketId),
+        data: form,
       );
       final payload = response.data;
       if (payload is Map) {

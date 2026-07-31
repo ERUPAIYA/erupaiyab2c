@@ -20,6 +20,7 @@ class HomeIconTile extends StatefulWidget {
     this.offer,
     this.labelSpacing,
     this.showHalfRing = false,
+    this.isLoading = false,
   });
 
   final String label;
@@ -29,6 +30,7 @@ class HomeIconTile extends StatefulWidget {
   final int? offer;
   final double? labelSpacing;
   final bool showHalfRing;
+  final bool isLoading;
 
   @override
   State<HomeIconTile> createState() => _HomeIconTileState();
@@ -81,7 +83,7 @@ class _HomeIconTileState extends State<HomeIconTile>
     return RepaintBoundary(
       child: InkWell(
         borderRadius: BorderRadius.circular(12.r),
-        onTap: widget.onTap,
+        onTap: widget.isLoading ? null : widget.onTap,
         child: Column(
           mainAxisSize: MainAxisSize.max,
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -124,22 +126,38 @@ class _HomeIconTileState extends State<HomeIconTile>
                     ),
                   ),
                   child: Center(
-                    child: AppNetworkImage(
-                      url: widget.iconUrl,
-                      width: iconSize,
-                      height: iconSize,
-                      fit: BoxFit.contain,
-                      showShimmer: false,
-                      errorWidget: Image.asset(
-                        FileConstants.appLogo,
-                        height: iconSize,
-                        width: iconSize,
-                        fit: BoxFit.contain,
-                      ),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      child: widget.isLoading
+                          ? SizedBox(
+                              key: const ValueKey('loading'),
+                              height: 24.r,
+                              width: 24.r,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.4,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppColors.primary,
+                                ),
+                              ),
+                            )
+                          : AppNetworkImage(
+                              key: const ValueKey('icon'),
+                              url: widget.iconUrl,
+                              width: iconSize,
+                              height: iconSize,
+                              fit: BoxFit.contain,
+                              showShimmer: false,
+                              errorWidget: Image.asset(
+                                FileConstants.appLogo,
+                                height: iconSize,
+                                width: iconSize,
+                                fit: BoxFit.contain,
+                              ),
+                            ),
                     ),
                   ),
                 ),
-                if (widget.offer != null)
+                if (!widget.isLoading && widget.offer != null)
                   Positioned(
                     top: -10,
                     right: 13.5,

@@ -65,11 +65,9 @@ List<int> _filterContactIndices(Map<String, dynamic> payload) {
     final normalizedPhone = _normalizeMobile(phone);
     final matchesName = name.contains(query);
     final matchesPhone = queryDigits.isNotEmpty &&
-        (
-          phone.contains(queryDigits) ||
-          (normalizedQueryDigits.isNotEmpty &&
-              normalizedPhone.contains(normalizedQueryDigits))
-        );
+        (phone.contains(queryDigits) ||
+            (normalizedQueryDigits.isNotEmpty &&
+                normalizedPhone.contains(normalizedQueryDigits)));
     if (matchesName || matchesPhone) {
       matches.add(i);
     }
@@ -484,133 +482,147 @@ class MobilePrepaidView extends HookConsumerWidget {
       );
     }
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: MyAppBar(
-        title: isSelectionScreen
-            ? 'Mobile Prepaid'
-            : (hasPlanSelected ? 'Pay Now' : 'Select A Recharge Plan'),
-        onBack: () {
-          if (hasPlanSelected) {
-            controller.deselectPlan();
-            return;
-          }
-          if (showPlans) {
-            controller.reset();
-            manualMobileController.clear();
-            planSearchController.clear();
-            contactQuery.value = '';
-            return;
-          }
-          Navigator.of(context).maybePop();
-        },
-      ),
-      body: Column(
-        children: [
-          if (showOperatorCard) ...[
-            SizedBox(height: 12.h),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 14.w),
-              child: SimpleQuickActionCard(
-                title: '+91 ${state.mobile}',
-                subtitle:
-                    '${state.operatorInfo?.operatorName ?? 'Operator'} • ${state.operatorInfo?.circle ?? 'Circle'}',
-                leadingImageUrl: state.operatorInfo?.iconUrl,
-                actionLabel: 'Change',
-                onAction: handleChange,
+    void handleBack() {
+      if (hasPlanSelected) {
+        controller.deselectPlan();
+        return;
+      }
+      if (showPlans) {
+        controller.reset();
+        manualMobileController.clear();
+        planSearchController.clear();
+        contactQuery.value = '';
+        return;
+      }
+      if (context.canPop()) {
+        context.pop();
+        return;
+      }
+      context.go(RouteConstants.home);
+    }
+
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        handleBack();
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: MyAppBar(
+          title: isSelectionScreen
+              ? 'Mobile Prepaid'
+              : (hasPlanSelected ? 'Pay Now' : 'Select A Recharge Plan'),
+          onBack: handleBack,
+        ),
+        body: Column(
+          children: [
+            if (showOperatorCard) ...[
+              SizedBox(height: 12.h),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 14.w),
+                child: SimpleQuickActionCard(
+                  title: '+91 ${state.mobile}',
+                  subtitle:
+                      '${state.operatorInfo?.operatorName ?? 'Operator'} • ${state.operatorInfo?.circle ?? 'Circle'}',
+                  leadingImageUrl: state.operatorInfo?.iconUrl,
+                  actionLabel: 'Change',
+                  onAction: handleChange,
+                ),
               ),
-            ),
-            SizedBox(height: 12.h),
-          ] else
-            SizedBox(height: 12.h),
-          Expanded(
-            child: state.isFetching
-                ? const MobilePrepaidContentShimmer()
-                : hasPlanSelected
-                    ? _PayNowSection(
-                        state: state,
-                        controller: controller,
-                      )
-                    : showPlans
-                        ? _PlanSection(
-                            state: state,
-                            controller: controller,
-                            planSearchController: planSearchController,
-                            onPlanSearchChanged: (value) {
-                              controller.updatePlanSearch(value);
-                              planSearchDebounceRef.value?.cancel();
-                              final info = state.operatorInfo;
-                              if (info == null || state.mobile.isEmpty) return;
-                              planSearchDebounceRef.value = Timer(
-                                const Duration(milliseconds: 350),
-                                () async {
-                                  await controller.fetchPlansForSelection(
-                                    mobileInput: state.mobile,
-                                    operatorName: info.operatorName,
-                                    circleName: info.circle,
-                                    circleCode: info.circleCode,
-                                    iconUrl: info.iconUrl,
-                                    search: value,
-                                    filters: state.appliedFilters
-                                        .where(
-                                          (e) =>
-                                              e.trim().isNotEmpty &&
-                                              e.trim() != 'All',
-                                        )
-                                        .toList(),
-                                  );
-                                },
-                              );
-                            },
-                          )
-                        : _ContactsSection(
-                            hasContactsPermission: hasPermission.value,
-                            onRequestPermission: handleRequestPermission,
-                            recentPayments: recentPayments,
-                            banners: banners,
-                            myNumberForApi: myNumberForApi,
-                            contactsSectionKey: contactsSectionKey,
-                            isLoading: contactsState.isLoading,
-                            contacts: filteredContacts.value,
-                            allContacts: contactsState.contacts,
-                            visibleCount: visibleContactCount.value,
-                            contactSearchController: contactSearchController,
-                            manualNumberController: manualNumberController,
-                            numericFocusNode: numericFocusNode,
-                            alphaFocusNode: alphaFocusNode,
-                            searchMode: searchMode.value,
-                            onSearchModeChange: (mode) =>
-                                searchMode.value = mode,
-                            onQueryChange: (value) =>
-                                contactQuery.value = value,
-                            onReload: loadContacts,
-                            onLoadMore: () {
-                              if (visibleContactCount.value >=
-                                  filteredContacts.value.length) {
-                                return;
-                              }
-                              visibleContactCount.value =
-                                  (visibleContactCount.value + 100).clamp(
-                                0,
-                                filteredContacts.value.length,
-                              );
-                            },
-                            onSelect: (mobile) {
-                              controller.fetchOperatorAndPlans(
-                                _normalizeMobile(mobile),
-                              );
-                            },
-                            onManualProceed: handleManualProceed,
-                            onRepeatRecent: (payment) {
-                              handleRepeatRecharge(payment);
-                            },
-                            onMyNumberRecharge: handleMyNumberRecharge,
-                            onViewAllRecent: () => context.push(
-                              RouteConstants.mobileRecentRecharges,
+              SizedBox(height: 12.h),
+            ] else
+              SizedBox(height: 12.h),
+            Expanded(
+              child: state.isFetching
+                  ? const MobilePrepaidContentShimmer()
+                  : hasPlanSelected
+                      ? _PayNowSection(
+                          state: state,
+                          controller: controller,
+                        )
+                      : showPlans
+                          ? _PlanSection(
+                              state: state,
+                              controller: controller,
+                              planSearchController: planSearchController,
+                              onPlanSearchChanged: (value) {
+                                controller.updatePlanSearch(value);
+                                planSearchDebounceRef.value?.cancel();
+                                final info = state.operatorInfo;
+                                if (info == null || state.mobile.isEmpty)
+                                  return;
+                                planSearchDebounceRef.value = Timer(
+                                  const Duration(milliseconds: 350),
+                                  () async {
+                                    await controller.fetchPlansForSelection(
+                                      mobileInput: state.mobile,
+                                      operatorName: info.operatorName,
+                                      circleName: info.circle,
+                                      circleCode: info.circleCode,
+                                      iconUrl: info.iconUrl,
+                                      search: value,
+                                      filters: state.appliedFilters
+                                          .where(
+                                            (e) =>
+                                                e.trim().isNotEmpty &&
+                                                e.trim() != 'All',
+                                          )
+                                          .toList(),
+                                    );
+                                  },
+                                );
+                              },
+                            )
+                          : _ContactsSection(
+                              hasContactsPermission: hasPermission.value,
+                              onRequestPermission: handleRequestPermission,
+                              recentPayments: recentPayments,
+                              banners: banners,
+                              myNumberForApi: myNumberForApi,
+                              contactsSectionKey: contactsSectionKey,
+                              isLoading: contactsState.isLoading,
+                              contacts: filteredContacts.value,
+                              allContacts: contactsState.contacts,
+                              visibleCount: visibleContactCount.value,
+                              contactSearchController: contactSearchController,
+                              manualNumberController: manualNumberController,
+                              numericFocusNode: numericFocusNode,
+                              alphaFocusNode: alphaFocusNode,
+                              searchMode: searchMode.value,
+                              onSearchModeChange: (mode) =>
+                                  searchMode.value = mode,
+                              onQueryChange: (value) =>
+                                  contactQuery.value = value,
+                              onReload: loadContacts,
+                              onLoadMore: () {
+                                if (visibleContactCount.value >=
+                                    filteredContacts.value.length) {
+                                  return;
+                                }
+                                visibleContactCount.value =
+                                    (visibleContactCount.value + 100).clamp(
+                                  0,
+                                  filteredContacts.value.length,
+                                );
+                              },
+                              onSelect: (mobile) {
+                                controller.fetchOperatorAndPlans(
+                                  _normalizeMobile(mobile),
+                                );
+                              },
+                              onManualProceed: handleManualProceed,
+                              onRepeatRecent: (payment) {
+                                handleRepeatRecharge(payment);
+                              },
+                              onMyNumberRecharge: handleMyNumberRecharge,
+                              onViewAllRecent: () => context.push(
+                                RouteConstants.mobileRecentRecharges,
+                              ),
                             ),
-                          ),
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -704,11 +704,13 @@ class _PayBillsCard extends StatelessWidget {
     required this.services,
     required this.onTap,
     required this.onExploreTap,
+    this.isCreditCardLoading = false,
   });
 
   final List<QuickActionService> services;
   final Future<void> Function(String serviceName) onTap;
   final VoidCallback onExploreTap;
+  final bool isCreditCardLoading;
 
   QuickActionService? _findService(Set<String> used, List<String> names) {
     for (final name in names) {
@@ -743,6 +745,7 @@ class _PayBillsCard extends StatelessWidget {
       offer: service.offers,
       labelSpacing: 4.h,
       showHalfRing: _isBookGasService(service),
+      isLoading: isCreditCardLoading && _isCreditCardService(service),
       onTap: () async {
         await onTap(service.name);
       },
@@ -754,6 +757,10 @@ class _PayBillsCard extends StatelessWidget {
     // Ring highlight only for "Book Gas" style actions (not all gas types).
     return name.contains('book') &&
         (name.contains('gas') || name.contains('lpg'));
+  }
+
+  bool _isCreditCardService(QuickActionService service) {
+    return service.name.trim().toLowerCase() == 'credit card';
   }
 
   @override
@@ -1956,6 +1963,9 @@ class _HomeContent extends HookConsumerWidget {
         return;
       }
       if (serviceName == 'Credit Card') {
+        if (homeState.isFetchingCreditCards) {
+          return;
+        }
         await ref
             .read(homeControllerProvider.notifier)
             .fetchCreditCardActions();
@@ -2101,6 +2111,7 @@ class _HomeContent extends HookConsumerWidget {
       ),
       onSpinTap: () => context.push(RouteConstants.spinAndWin),
       onFaqTap: () => context.push(RouteConstants.faq),
+      isFetchingCreditCards: homeState.isFetchingCreditCards,
     );
   }
 }
@@ -2153,6 +2164,7 @@ class _HomeScaffoldBody extends StatelessWidget {
     required this.onBottomBannerTap,
     required this.onSpinTap,
     required this.onFaqTap,
+    required this.isFetchingCreditCards,
   });
 
   final Gradient topBannerGradient;
@@ -2201,6 +2213,7 @@ class _HomeScaffoldBody extends StatelessWidget {
   final ValueChanged<int> onBottomBannerTap;
   final VoidCallback onSpinTap;
   final VoidCallback onFaqTap;
+  final bool isFetchingCreditCards;
 
   @override
   Widget build(BuildContext context) {
@@ -2252,6 +2265,7 @@ class _HomeScaffoldBody extends StatelessWidget {
                       payBillsServices: payBillsServices,
                       educationServices: educationServices,
                       insuranceServices: insuranceServices,
+                      isFetchingCreditCards: isFetchingCreditCards,
                       onServiceTap: onServiceTap,
                       onMyBillsTap: onMyBillsTap,
                       onExploreUtilitiesTap: onExploreUtilitiesTap,
@@ -2434,6 +2448,7 @@ class _HomeMainSections extends StatelessWidget {
     required this.payBillsServices,
     required this.educationServices,
     required this.insuranceServices,
+    required this.isFetchingCreditCards,
     required this.onServiceTap,
     required this.onMyBillsTap,
     required this.onExploreUtilitiesTap,
@@ -2461,6 +2476,7 @@ class _HomeMainSections extends StatelessWidget {
   final List<QuickActionService> payBillsServices;
   final List<QuickActionService> educationServices;
   final List<QuickActionService> insuranceServices;
+  final bool isFetchingCreditCards;
   final Future<void> Function(String serviceName) onServiceTap;
   final VoidCallback onMyBillsTap;
   final VoidCallback onExploreUtilitiesTap;
@@ -2523,6 +2539,7 @@ class _HomeMainSections extends StatelessWidget {
                     services: payBillsServices,
                     onTap: onServiceTap,
                     onExploreTap: onExploreUtilitiesTap,
+                    isCreditCardLoading: isFetchingCreditCards,
                   ),
                   SizedBox(height: 12.h),
                   const _SectionHeader(title: 'Banking & Investments'),

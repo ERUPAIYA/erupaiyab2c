@@ -1,10 +1,13 @@
 // ignore_for_file: deprecated_member_use
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 
 import '../../../constants/app_colors.dart';
@@ -130,7 +133,10 @@ class SupportTicketDetailScreen extends HookConsumerWidget {
                         if (message.isAdmin)
                           _AdminReplyCard(message: message)
                         else
-                          _UserReplyCard(message: message),
+                          _UserReplyCard(
+                            message: message,
+                            username: ticket.username,
+                          ),
                         SizedBox(height: 12.h),
                       ],
                     if (isClosedTicket) ...[
@@ -287,26 +293,23 @@ class _SupportExperiencePrompt extends StatelessWidget {
         ),
         SizedBox(height: 8.h),
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             for (final face in _supportExperienceFaces) ...[
-              Expanded(
-                child: Center(
-                  child: InkWell(
-                    onTap: onTap,
-                    borderRadius: BorderRadius.circular(16.r),
-                    child: Padding(
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 2.w, vertical: 4.h),
-                      child: Image.asset(
-                        face.assetPath,
-                        height: 28.w,
-                        width: 28.w,
-                        fit: BoxFit.contain,
-                      ),
-                    ),
+              InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(16.r),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 4.h),
+                  child: Image.asset(
+                    face.assetPath,
+                    height: 28.w,
+                    width: 28.w,
+                    fit: BoxFit.contain,
                   ),
                 ),
               ),
+              SizedBox(width: 10.w),
             ],
           ],
         ),
@@ -352,7 +355,19 @@ class _ReopenTicketSheet extends HookConsumerWidget {
     final selectedReason = useState<String?>(null);
     final otherController = useTextEditingController();
     final otherText = useState('');
+    final screenshot = useState<File?>(null);
     final isOtherSelected = selectedReason.value == 'Other';
+    final sectionTitleStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: AppColors.textPrimary,
+        );
+    final fieldTextStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.w600,
+        );
+    final helperTextStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: AppColors.textPrimary.withOpacity(0.6),
+        );
     final isSubmitting = ref.watch(
       supportTicketDetailControllerProvider(ticketId).select(
         (state) => state.isClosing,
@@ -362,6 +377,28 @@ class _ReopenTicketSheet extends HookConsumerWidget {
     final canSubmit = selectedReason.value != null &&
         (!isOtherSelected || otherText.value.trim().isNotEmpty) &&
         !isSubmitting;
+
+    Future<void> pickScreenshot() async {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
+      final file = File(picked.path);
+      final bytes = await file.length();
+      if (bytes > 20 * 1024 * 1024) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('File size must be less than 20MB'),
+            backgroundColor: Colors.red.shade400,
+          ),
+        );
+        return;
+      }
+      screenshot.value = file;
+    }
 
     return Padding(
       padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 16.h),
@@ -397,16 +434,17 @@ class _ReopenTicketSheet extends HookConsumerWidget {
           SizedBox(height: 18.h),
           Text(
             'Reason For Reopening',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
+            style: sectionTitleStyle,
           ),
           SizedBox(height: 8.h),
           DropdownButtonFormField<String>(
             value: selectedReason.value,
+            isExpanded: true,
             decoration: InputDecoration(
               hintText: 'Select',
+              hintStyle: TextStyle(
+                color: AppColors.textPrimary.withOpacity(0.45),
+              ),
               filled: true,
               fillColor: Colors.white,
               contentPadding:
@@ -428,7 +466,12 @@ class _ReopenTicketSheet extends HookConsumerWidget {
                 .map(
                   (reason) => DropdownMenuItem<String>(
                     value: reason,
-                    child: Text(reason),
+                    child: Text(
+                      reason,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: fieldTextStyle,
+                    ),
                   ),
                 )
                 .toList(growable: false),
@@ -438,20 +481,19 @@ class _ReopenTicketSheet extends HookConsumerWidget {
             SizedBox(height: 14.h),
             Text(
               'Other',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w700,
-                  ),
+              style: sectionTitleStyle,
             ),
             SizedBox(height: 8.h),
             TextField(
               controller: otherController,
               maxLines: 4,
               onChanged: (value) => otherText.value = value,
+              style: fieldTextStyle,
               decoration: InputDecoration(
                 hintText: 'Describe Your Concern...',
-                hintStyle: TextStyle(
+                hintStyle: fieldTextStyle?.copyWith(
                   color: AppColors.textPrimary.withOpacity(0.42),
+                  fontWeight: FontWeight.w500,
                 ),
                 filled: true,
                 fillColor: Colors.white,
@@ -472,6 +514,50 @@ class _ReopenTicketSheet extends HookConsumerWidget {
               ),
             ),
           ],
+          SizedBox(height: 14.h),
+          Text(
+            'Attachment',
+            style: sectionTitleStyle,
+          ),
+          SizedBox(height: 8.h),
+          InkWell(
+            onTap: pickScreenshot,
+            borderRadius: BorderRadius.circular(14.r),
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14.r),
+                border: Border.all(color: AppColors.lightBorder),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.upload_file_outlined),
+                  SizedBox(width: 10.w),
+                  Expanded(
+                    child: Text(
+                      screenshot.value == null
+                          ? 'Upload Screenshot (Optional)'
+                          : (screenshot.value!.uri.pathSegments.isEmpty
+                              ? 'Screenshot selected'
+                              : screenshot.value!.uri.pathSegments.last),
+                      style: fieldTextStyle,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_upward,
+                    color: AppColors.textPrimary.withOpacity(0.6),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(height: 6.h),
+          Text(
+            'Please note: File size should be lesser than 20MB',
+            style: helperTextStyle,
+          ),
           SizedBox(height: 18.h),
           Row(
             children: [
@@ -494,7 +580,13 @@ class _ReopenTicketSheet extends HookConsumerWidget {
                 child: ElevatedButton(
                   onPressed: canSubmit
                       ? () async {
-                          final ok = await controller.reopenTicket();
+                          final reason = isOtherSelected
+                              ? otherText.value.trim()
+                              : (selectedReason.value ?? '').trim();
+                          final ok = await controller.reopenTicketWithReason(
+                            reason: reason,
+                            screenshot: screenshot.value,
+                          );
                           if (!ok || !context.mounted) return;
                           Navigator.of(context).pop();
                         }
@@ -787,12 +879,17 @@ class _QuestionText extends StatelessWidget {
 }
 
 class _UserReplyCard extends StatelessWidget {
-  const _UserReplyCard({required this.message});
+  const _UserReplyCard({
+    required this.message,
+    required this.username,
+  });
 
   final SupportTicketMessage message;
+  final String username;
 
   @override
   Widget build(BuildContext context) {
+    final displayName = username.trim().isEmpty ? 'User' : username.trim();
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(12.w),
@@ -806,14 +903,14 @@ class _UserReplyCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const _InitialAvatar(text: 'Y'),
+              _InitialAvatar(text: _initials(displayName)),
               SizedBox(width: 10.w),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'You',
+                      displayName,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: AppColors.textPrimary,
                             fontWeight: FontWeight.w900,
@@ -1077,8 +1174,11 @@ class _TicketStatusChip extends StatelessWidget {
 
   Color get _color {
     final normalized = status.trim().toLowerCase();
-    if (normalized == 'resolved' || normalized == 'closed') {
+    if (normalized == 'resolved') {
       return const Color(0xFF0E8B3E);
+    }
+    if (normalized == 'closed') {
+      return Colors.red;
     }
     if (normalized == 'in_progress' || normalized == 'in progress') {
       return const Color(0xFF9C6A00);

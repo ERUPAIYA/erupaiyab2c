@@ -121,11 +121,18 @@ class SupportTicketDetailController
     }
   }
 
-  Future<bool> reopenTicket() async {
+  Future<bool> reopenTicketWithReason({
+    required String reason,
+    File? screenshot,
+  }) async {
     if (state.isClosing) return false;
     state = state.copyWith(isClosing: true, errorMessage: null);
     try {
-      final ok = await _repository.reopenTicket(ticketId: _ticketId);
+      final ok = await _repository.reopenTicket(
+        ticketId: _ticketId,
+        reason: reason,
+        screenshot: screenshot,
+      );
       state = state.copyWith(isClosing: false);
       await fetch();
       _ref.read(supportTicketsControllerProvider.notifier).fetchTickets();
