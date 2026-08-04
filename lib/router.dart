@@ -6,27 +6,27 @@ import 'config/temporary_block_debug_config.dart';
 import 'constants/routes_constant.dart';
 import 'features/auth/controllers/auth_controller.dart';
 import 'features/auth/models/auth_state.dart';
+import 'features/auth/models/otp_verification_args.dart';
 import 'features/auth/views/login_view.dart';
 import 'features/auth/views/otp_success_view.dart';
 import 'features/auth/views/otp_verification_view.dart';
 import 'features/auth/views/pin_setup_view.dart';
 import 'features/auth/views/splash_view.dart';
 import 'features/auth/views/temporary_block_identity_completion_view.dart';
-import 'features/auth/models/otp_verification_args.dart';
 import 'features/digital_gold/models/digital_gold_preview.dart';
-import 'features/digital_gold/models/digital_metal.dart';
 import 'features/digital_gold/models/digital_gold_purchase_receipt.dart';
-import 'features/digital_gold/views/digital_gold_details_view.dart';
-import 'features/digital_gold/views/digital_gold_locker_view.dart';
-import 'features/digital_gold/views/digital_gold_summary_view.dart';
-import 'features/digital_gold/views/digital_gold_success_view.dart';
-import 'features/digital_gold/views/digital_gold_success_v2_view.dart';
-import 'features/digital_gold/views/digital_gold_sell_confirm_view.dart';
-import 'features/digital_gold/views/digital_gold_sell_success_view.dart';
-import 'features/digital_gold/views/digital_gold_view.dart';
+import 'features/digital_gold/models/digital_metal.dart';
 import 'features/digital_gold/sip/views/sip_portfolio_view.dart';
 import 'features/digital_gold/sip/views/sip_setup_view.dart';
 import 'features/digital_gold/sip/views/sip_success_view.dart';
+import 'features/digital_gold/views/digital_gold_details_view.dart';
+import 'features/digital_gold/views/digital_gold_locker_view.dart';
+import 'features/digital_gold/views/digital_gold_sell_confirm_view.dart';
+import 'features/digital_gold/views/digital_gold_sell_success_view.dart';
+import 'features/digital_gold/views/digital_gold_success_v2_view.dart';
+import 'features/digital_gold/views/digital_gold_success_view.dart';
+import 'features/digital_gold/views/digital_gold_summary_view.dart';
+import 'features/digital_gold/views/digital_gold_view.dart';
 import 'features/educationFees/views/education_fees_amount_view.dart';
 import 'features/educationFees/views/education_fees_payment_view.dart';
 import 'features/educationFees/views/education_fees_recipient_view.dart';
@@ -42,24 +42,25 @@ import 'features/onboarding/views/kyc_overview_view.dart';
 import 'features/onboarding/views/language_selection_view.dart';
 import 'features/onboarding/views/pan_verification_view.dart';
 import 'features/onboarding/views/verification_result_view.dart';
+import 'features/profile/constants/policy_page_slugs.dart';
 import 'features/profile/models/transaction_history_entry.dart';
-import 'features/profile/views/about_us_screen.dart';
 import 'features/profile/views/about_app_screen.dart';
+import 'features/profile/views/about_us_screen.dart';
 import 'features/profile/views/faq_screen.dart';
 import 'features/profile/views/help_center_chat_screen.dart';
 import 'features/profile/views/help_support_screen.dart';
 import 'features/profile/views/my_qr_screen.dart';
 import 'features/profile/views/offers_view.dart';
 import 'features/profile/views/policies_screen.dart';
-import 'features/profile/views/preferences_security_views.dart';
 import 'features/profile/views/policy_page_screen.dart';
+import 'features/profile/views/preferences_security_views.dart';
 import 'features/profile/views/settings_view.dart';
 import 'features/profile/views/support_ticket_detail_screen.dart';
 import 'features/profile/views/support_tickets_screen.dart';
 import 'features/profile/views/transaction_detail_screen.dart';
 import 'features/profile/views/transaction_history_screen.dart';
-import 'features/refer_and_earn/views/refer_and_earn_wallet_view.dart';
 import 'features/refer_and_earn/views/refer_and_earn_view.dart';
+import 'features/refer_and_earn/views/refer_and_earn_wallet_view.dart';
 import 'features/refer_and_earn/views/referral_deeplink_view.dart';
 import 'features/services/models/biller_detail_args.dart';
 import 'features/services/models/biller_model.dart';
@@ -74,13 +75,16 @@ import 'features/services/views/credit_card_transaction_detail_screen.dart';
 import 'features/services/views/credit_card_transactions_screen.dart';
 import 'features/spinandear/views/spin_and_win_view.dart';
 import 'services/logger_service.dart';
+import 'services/navigation_interaction_lock.dart';
 import 'widgets/k_dialog.dart';
-import 'features/profile/constants/policy_page_slugs.dart';
 
 final routerProvider = Provider<GoRouter>(
   (ref) {
+    final navigationInteractionLock =
+        ref.watch(navigationInteractionLockProvider);
     final router = GoRouter(
       navigatorKey: navigatorKey,
+      observers: [navigationInteractionLock],
       initialLocation: RouteConstants.splash,
       redirect: (context, state) {
         logger.info('Redirecting to ${state.matchedLocation}');

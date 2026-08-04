@@ -16,6 +16,7 @@ import 'services/app_lock_service.dart';
 import 'services/in_app_update_service.dart';
 import 'services/location_service.dart';
 import 'services/logger_service.dart';
+import 'services/navigation_interaction_lock.dart';
 import 'services/push_notification_service.dart';
 import 'widgets/app_snackbar.dart';
 
@@ -66,6 +67,9 @@ class MyApp extends HookConsumerWidget {
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeModeControllerProvider);
     final appLockService = ref.read(appLockServiceProvider);
+    final navigationInteractionLock =
+        ref.watch(navigationInteractionLockProvider);
+    useListenable(navigationInteractionLock);
     useEffect(() {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         FlutterNativeSplash.remove();
@@ -98,7 +102,18 @@ class MyApp extends HookConsumerWidget {
           return Listener(
             behavior: HitTestBehavior.translucent,
             onPointerDown: (_) => appLockService.onUserActivity(),
-            child: child ?? const SizedBox.shrink(),
+            child: Stack(
+              children: [
+                child ?? const SizedBox.shrink(),
+                if (navigationInteractionLock.isLocked)
+                  const Positioned.fill(
+                    child: AbsorbPointer(
+                      absorbing: true,
+                      child: ColoredBox(color: Colors.transparent),
+                    ),
+                  ),
+              ],
+            ),
           );
         },
         scaffoldMessengerKey: AppSnackbar.messengerKey,

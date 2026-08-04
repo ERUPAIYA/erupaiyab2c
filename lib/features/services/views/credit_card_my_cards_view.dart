@@ -55,7 +55,10 @@ class CreditCardMyCardsView extends HookConsumerWidget {
     }, [isLoaded]);
 
     void handleBack() {
-      navigatorKey.currentState?.popUntil((route) => route.isFirst);
+      if (context.canPop()) {
+        context.pop();
+        return;
+      }
       if (context.mounted) {
         context.go(RouteConstants.home);
       }
