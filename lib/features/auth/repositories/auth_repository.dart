@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../../constants/api_constants.dart';
@@ -22,6 +23,17 @@ class AuthRepository {
   final FlutterSecureStorage _secureStorage;
 
   FlutterSecureStorage get secureStorage => _secureStorage;
+
+  void _debugPrint(String message) {
+    debugPrint('[AuthRepository] $message');
+  }
+
+  String _maskValue(String? value, {int visibleEnd = 4}) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return '<empty>';
+    if (text.length <= visibleEnd) return text;
+    return '${'*' * (text.length - visibleEnd)}${text.substring(text.length - visibleEnd)}';
+  }
 
   bool _readBoolFlag(Map<String, dynamic>? payload, List<String> keys) {
     if (payload == null) return false;
@@ -60,6 +72,17 @@ class AuthRepository {
       }
 
       final deviceContext = await const LoginDeviceContextService().collect();
+      final requestPayload = <String, dynamic>{
+        'mobile': mobile,
+        if (appHash != null && appHash.trim().isNotEmpty)
+          'appHash': _maskValue(appHash, visibleEnd: 3),
+        if (hasDeviceToken)
+          'device_token': _maskValue(deviceToken, visibleEnd: 6),
+        ...deviceContext,
+      };
+      _debugPrint(
+        'checkLogin request -> endpoint=${ApiConstants.checkLoginEndpoint}, payload=$requestPayload',
+      );
       final response = await _dio.post(
         ApiConstants.checkLoginEndpoint,
         options: Options(
@@ -76,6 +99,9 @@ class AuthRepository {
           if (hasDeviceToken) 'device_token': deviceToken,
           ...deviceContext,
         },
+      );
+      _debugPrint(
+        'checkLogin response -> statusCode=${response.statusCode}, data=${response.data}',
       );
 
       final payload = response.data as Map<String, dynamic>?;
@@ -99,6 +125,9 @@ class AuthRepository {
 
       return flow;
     } on DioException catch (e) {
+      _debugPrint(
+        'checkLogin dio error -> type=${e.type}, statusCode=${e.response?.statusCode}, response=${e.response?.data}, message=${e.message}',
+      );
       if (e.type == DioExceptionType.badResponse) {
         _throwApiMessage(e, fallback: 'Unable to continue');
       }
@@ -108,6 +137,7 @@ class AuthRepository {
       );
       rethrow;
     } catch (e) {
+      _debugPrint('checkLogin unexpected error -> $e');
       logger.error(
         'Check login failed: ${e.toString()}',
         error: e,

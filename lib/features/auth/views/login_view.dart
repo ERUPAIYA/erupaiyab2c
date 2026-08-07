@@ -187,24 +187,36 @@ class LoginView extends HookConsumerWidget {
 
     Future<void> handleMobileContinue() async {
       final phone = phoneController.text.trim();
+      debugPrint(
+        '[LoginView] Continue tapped -> mobile=$phone, consent=${allowConsent.value}',
+      );
       if (phone.isEmpty || phone.length != 10) {
+        debugPrint('[LoginView] Continue blocked -> invalid mobile');
         AppSnackbar.show('Enter a valid 10-digit mobile number');
         return;
       }
       if (!allowConsent.value) {
+        debugPrint('[LoginView] Continue blocked -> consent not allowed');
         AppSnackbar.show('Please allow access to continue');
         return;
       }
       final flow = await ref
           .read(authControllerProvider.notifier)
           .checkLogin(mobile: phone);
+      debugPrint('[LoginView] checkLogin completed -> flow=$flow');
       if (flow == null) {
+        final latestState = ref.read(authControllerProvider);
+        debugPrint(
+          '[LoginView] checkLogin returned null -> error=${latestState.errorMessage}',
+        );
         AppSnackbar.show(_genericErrorMessage);
         return;
       }
       if (flow == AuthFlow.login) {
+        debugPrint('[LoginView] Navigating to PIN step');
         step.value = _LoginStep.pin;
       } else {
+        debugPrint('[LoginView] Navigating to OTP route -> mobile=$phone');
         resetToMobile();
         if (!context.mounted) return;
         context.push(RouteConstants.otp, extra: phone);

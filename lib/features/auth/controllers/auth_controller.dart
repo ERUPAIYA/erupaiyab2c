@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:sms_autofill/sms_autofill.dart';
 
@@ -35,6 +36,10 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   final AuthRepository _repository;
+
+  void _debugPrint(String message) {
+    debugPrint('[AuthController] $message');
+  }
 
   String _messageFromException(Object error, String fallback) {
     if (error is DioException) {
@@ -110,6 +115,7 @@ class AuthController extends StateNotifier<AuthState> {
   Future<AuthFlow?> checkLogin({
     required String mobile,
   }) async {
+    _debugPrint('checkLogin called -> mobile=$mobile');
     state = state.copyWith(isSubmitting: true, errorMessage: null);
     try {
       String? appHash;
@@ -118,6 +124,9 @@ class AuthController extends StateNotifier<AuthState> {
             .getAppSignature
             .timeout(const Duration(seconds: 2), onTimeout: () => '');
         if (signature.trim().isNotEmpty) appHash = signature.trim();
+        _debugPrint(
+          'checkLogin appHash resolved -> ${appHash == null || appHash.isEmpty ? "<empty>" : "***${appHash.substring(appHash.length >= 3 ? appHash.length - 3 : 0)}"}',
+        );
       } catch (e, stackTrace) {
         logger.error('Failed to generate app hash for check-login',
             error: e, stackTrace: stackTrace);
@@ -126,6 +135,7 @@ class AuthController extends StateNotifier<AuthState> {
         mobile: mobile,
         appHash: appHash,
       );
+      _debugPrint('checkLogin success -> flow=$flow');
       state = state.copyWith(
         isSubmitting: false,
         pendingMobile: mobile,
@@ -133,6 +143,7 @@ class AuthController extends StateNotifier<AuthState> {
       );
       return flow;
     } catch (e) {
+      _debugPrint('checkLogin failed -> error=$e');
       state = state.copyWith(
         isSubmitting: false,
         errorMessage: _messageFromException(

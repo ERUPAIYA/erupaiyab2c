@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 final navigationInteractionLockProvider =
@@ -16,13 +17,28 @@ class NavigationInteractionLock extends NavigatorObserver with ChangeNotifier {
 
   Timer? _unlockTimer;
   bool _isLocked = false;
+  bool _isDisposed = false;
 
   bool get isLocked => _isLocked;
 
   void _setLocked(bool value) {
     if (_isLocked == value) return;
     _isLocked = value;
-    notifyListeners();
+    _notifyListenersSafely();
+  }
+
+  void _notifyListenersSafely() {
+    if (_isDisposed || !hasListeners) return;
+    final scheduler = SchedulerBinding.instance;
+    if (scheduler.schedulerPhase == SchedulerPhase.idle ||
+        scheduler.schedulerPhase == SchedulerPhase.postFrameCallbacks) {
+      notifyListeners();
+      return;
+    }
+    scheduler.addPostFrameCallback((_) {
+      if (_isDisposed || !hasListeners) return;
+      notifyListeners();
+    });
   }
 
   Duration _forwardDurationFor(Route<dynamic>? route) {
@@ -83,6 +99,7 @@ class NavigationInteractionLock extends NavigatorObserver with ChangeNotifier {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _unlockTimer?.cancel();
     super.dispose();
   }
